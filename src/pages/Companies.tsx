@@ -1,30 +1,50 @@
-import { Building2, Search, Plus, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useState } from 'react';
+import { 
+  Search, Plus, Building2, MoreVertical, 
+  ExternalLink, FileText, Activity 
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { 
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import {
+  Table, TableHeader, TableBody, TableHead, TableRow, TableCell
+} from '@/components/ui/table';
 
-const companies = [
-  { id: 1, name: "Tech Corp", sector: "Tecnologia", status: "Ativo", demands: 3, revenue: "R$ 45.000", contact: "João Silva" },
-  { id: 2, name: "Design Co", sector: "Design", status: "Ativo", demands: 2, revenue: "R$ 18.500", contact: "Maria Santos" },
-  { id: 3, name: "Startup Inc", sector: "SaaS", status: "Ativo", demands: 5, revenue: "R$ 62.000", contact: "Pedro Lima" },
-  { id: 4, name: "Global SA", sector: "Consultoria", status: "Inativo", demands: 0, revenue: "R$ 0", contact: "Ana Costa" },
-  { id: 5, name: "Mega Ltd", sector: "E-commerce", status: "Ativo", demands: 1, revenue: "R$ 12.000", contact: "Carlos Souza" },
-  { id: 6, name: "Alpha Co", sector: "Fintech", status: "Ativo", demands: 4, revenue: "R$ 38.000", contact: "Lucia Ferreira" },
+const mockCompanies = [
+  { id: '1', name: 'TechCorp Solutions', document: '12.345.678/0001-90', status: 'active', demands: 3 },
+  { id: '2', name: 'Padaria do João', document: '98.765.432/0001-10', status: 'lead', demands: 1 },
+  { id: '3', name: 'Advocacia Silva', document: '11.222.333/0001-44', status: 'active', demands: 5 },
+  { id: '4', name: 'Construtora Apex', document: '55.666.777/0001-88', status: 'churn', demands: 0 },
 ];
 
-export default function Companies() {
-  const [search, setSearch] = useState("");
-  const filtered = companies.filter(
-    (c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.sector.toLowerCase().includes(search.toLowerCase())
+export const Companies = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [companies] = useState(mockCompanies);
+
+  const filteredCompanies = companies.filter(company => 
+    company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    company.document.includes(searchTerm)
   );
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active': return <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Ativo</span>;
+      case 'lead': return <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400">Lead (Em negociação)</span>;
+      case 'churn': return <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-500/20 text-red-400">Cancelado</span>;
+      default: return null;
+    }
+  };
 
   return (
     <div className="space-y-6">
+      {/* Header da Página */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
-          <p className="text-muted-foreground text-sm mt-1">Todas as empresas e suas demandas</p>
+          <p className="text-muted-foreground text-sm mt-1">Gerencie todos os clientes, leads e demandas da Vertex.</p>
         </div>
         <Button>
           <Plus className="h-4 w-4 mr-2" />
@@ -32,47 +52,85 @@ export default function Companies() {
         </Button>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar empresas..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+      {/* Barra de Ferramentas */}
+      <div className="flex items-center justify-between">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome ou CNPJ..."
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <span className="text-sm text-muted-foreground">
+          {filteredCompanies.length} empresas encontradas
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((company) => (
-          <div key={company.id} className="stat-card cursor-pointer group">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Building2 className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">{company.name}</p>
-                  <p className="text-xs text-muted-foreground">{company.sector}</p>
-                </div>
-              </div>
-              <Badge variant={company.status === "Ativo" ? "default" : "secondary"} className="text-xs">
-                {company.status}
-              </Badge>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">Demandas</p>
-                <p className="font-medium text-foreground">{company.demands}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Receita</p>
-                <p className="font-medium text-foreground">{company.revenue}</p>
-              </div>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">{company.contact}</span>
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-          </div>
-        ))}
+      {/* Tabela de Empresas */}
+      <div className="rounded-lg border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Empresa</TableHead>
+              <TableHead>CNPJ</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Demandas Ativas</TableHead>
+              <TableHead className="w-[50px]">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredCompanies.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Nenhuma empresa encontrada com "{searchTerm}".
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredCompanies.map((company) => (
+                <TableRow key={company.id} className="cursor-pointer">
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
+                        {company.name.charAt(0)}
+                      </div>
+                      <span className="font-medium text-foreground">{company.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{company.document}</TableCell>
+                  <TableCell>{getStatusBadge(company.status)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Activity className={`h-4 w-4 ${company.demands > 0 ? 'text-primary' : 'text-muted-foreground/40'}`} />
+                      <span>{company.demands}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>
+                          <ExternalLink className="h-4 w-4 mr-2" /> Abrir Perfil
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <FileText className="h-4 w-4 mr-2" /> Ver Contratos
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
-}
+};
+
+export default Companies;
