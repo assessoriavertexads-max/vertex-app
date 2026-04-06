@@ -3,6 +3,7 @@ import {
   Search, Plus, Building2, MoreVertical, 
   ExternalLink, FileText, Activity 
 } from 'lucide-react';
+import { NewCompanyModal } from '@/components/companies/NewCompanyModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
