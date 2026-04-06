@@ -135,6 +135,7 @@ export const Companies = () => {
           </TableBody>
         </Table>
       </div>
+      <NewCompanyModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveCompany} />
     </div>
   );
 };
