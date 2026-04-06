@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Search, Plus, Building2, MoreVertical, 
-  ExternalLink, FileText, Activity 
+  ExternalLink, FileText, Activity, Loader2 
 } from 'lucide-react';
 import { NewCompanyModal } from '@/components/companies/NewCompanyModal';
 import { Button } from '@/components/ui/button';
@@ -13,26 +13,35 @@ import {
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell
 } from '@/components/ui/table';
+import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 
-const mockCompanies = [
-  { id: '1', name: 'TechCorp Solutions', document: '12.345.678/0001-90', status: 'active', demands: 3 },
-  { id: '2', name: 'Padaria do João', document: '98.765.432/0001-10', status: 'lead', demands: 1 },
-  { id: '3', name: 'Advocacia Silva', document: '11.222.333/0001-44', status: 'active', demands: 5 },
-  { id: '4', name: 'Construtora Apex', document: '55.666.777/0001-88', status: 'churn', demands: 0 },
-];
+type Company = Tables<'companies'>;
 
-export const Companies = () => {
+export default function Companies() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [companies, setCompanies] = useState(mockCompanies);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleSaveCompany = (newCompany: any) => {
-    setCompanies(prev => [newCompany, ...prev]);
+  const fetchCompanies = async () => {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (!error && data) setCompanies(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchCompanies(); }, []);
+
+  const handleSaveCompany = () => {
+    fetchCompanies();
   };
 
   const filteredCompanies = companies.filter(company => 
     company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    company.document.includes(searchTerm)
+    (company.document || '').includes(searchTerm)
   );
 
   const getStatusBadge = (status: string) => {
@@ -46,7 +55,6 @@ export const Companies = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header da Página */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
@@ -58,7 +66,6 @@ export const Companies = () => {
         </Button>
       </div>
 
-      {/* Barra de Ferramentas */}
       <div className="flex items-center justify-between">
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -74,7 +81,6 @@ export const Companies = () => {
         </span>
       </div>
 
-      {/* Tabela de Empresas */}
       <div className="rounded-lg border border-border bg-card">
         <Table>
           <TableHeader>
@@ -82,15 +88,20 @@ export const Companies = () => {
               <TableHead>Empresa</TableHead>
               <TableHead>CNPJ</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Demandas Ativas</TableHead>
               <TableHead className="w-[50px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredCompanies.length === 0 ? (
+            {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  Nenhuma empresa encontrada com "{searchTerm}".
+                <TableCell colSpan={4} className="text-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            ) : filteredCompanies.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  Nenhuma empresa encontrada.
                 </TableCell>
               </TableRow>
             ) : (
@@ -104,14 +115,8 @@ export const Companies = () => {
                       <span className="font-medium text-foreground">{company.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{company.document}</TableCell>
+                  <TableCell className="text-muted-foreground">{company.document || '—'}</TableCell>
                   <TableCell>{getStatusBadge(company.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Activity className={`h-4 w-4 ${company.demands > 0 ? 'text-primary' : 'text-muted-foreground/40'}`} />
-                      <span>{company.demands}</span>
-                    </div>
-                  </TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -138,6 +143,4 @@ export const Companies = () => {
       <NewCompanyModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveCompany} />
     </div>
   );
-};
-
-export default Companies;
+}
