@@ -24,11 +24,12 @@ const App = () => (
         <AppLayout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/tasks" element={<Processes />} />
             <Route path="/crm" element={<CRM />} />
             <Route path="/finance" element={<Finance />} />
             <Route path="/companies" element={<Companies />} />
-            <Route path="/processes" element={<Processes />} />
             <Route path="/ai-insights" element={<AIInsights />} />
+            <Route path="/docs" element={<Processes />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
