@@ -1,112 +1,144 @@
-import { ArrowUpRight, ArrowDownRight, DollarSign, TrendingUp, CreditCard } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { useState } from 'react';
+import {
+  DollarSign, ArrowUpRight, ArrowDownRight,
+  CreditCard, Search, Link as LinkIcon, Plus, CheckCircle2, Clock, AlertCircle
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Table, TableHeader, TableBody, TableHead, TableRow, TableCell
+} from '@/components/ui/table';
 
-const summary = [
-  { label: "Saldo Atual", value: "R$ 125.430", icon: DollarSign, color: "text-success" },
-  { label: "Receitas (mês)", value: "R$ 48.750", icon: TrendingUp, color: "text-primary" },
-  { label: "Despesas (mês)", value: "R$ 23.000", icon: CreditCard, color: "text-destructive" },
-];
-
-const categories = [
-  { name: "Serviços", value: 28000, color: "hsl(217, 91%, 50%)" },
-  { name: "Produtos", value: 12000, color: "hsl(142, 71%, 45%)" },
-  { name: "Consultorias", value: 8750, color: "hsl(38, 92%, 50%)" },
-];
-
-const transactions = [
-  { id: 1, desc: "Pagamento - Tech Corp", type: "entrada", value: "R$ 15.000", date: "05/06/2026", status: "Confirmado" },
-  { id: 2, desc: "Aluguel Escritório", type: "saida", value: "R$ 4.500", date: "04/06/2026", status: "Pago" },
-  { id: 3, desc: "Pagamento - Design Co", type: "entrada", value: "R$ 8.500", date: "03/06/2026", status: "Pendente" },
-  { id: 4, desc: "Folha de Pagamento", type: "saida", value: "R$ 12.000", date: "01/06/2026", status: "Pago" },
-  { id: 5, desc: "Pagamento - Startup Inc", type: "entrada", value: "R$ 22.000", date: "28/05/2026", status: "Confirmado" },
-  { id: 6, desc: "Software e Ferramentas", type: "saida", value: "R$ 2.800", date: "27/05/2026", status: "Pago" },
+const mockTransactions = [
+  { id: '1', company: 'TechCorp Solutions', type: 'income', amount: 5000, status: 'paid', dueDate: '2024-05-10', category: 'Assessoria Mensal' },
+  { id: '2', company: 'Construtora Apex', type: 'income', amount: 12000, status: 'pending', dueDate: '2024-05-25', category: 'Setup de Projeto' },
+  { id: '3', company: 'Padaria do João', type: 'income', amount: 1500, status: 'overdue', dueDate: '2024-05-01', category: 'Tráfego Pago' },
+  { id: '4', company: 'Vertex (Interno)', type: 'expense', amount: 850, status: 'paid', dueDate: '2024-05-05', category: 'Ferramentas (AWS/Supabase)' },
 ];
 
 export default function Finance() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
+
+  const totalIncome = mockTransactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((acc, t) => acc + t.amount, 0);
+  const totalPending = mockTransactions.filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue')).reduce((acc, t) => acc + t.amount, 0);
+  const totalExpense = mockTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+
+  const filteredTransactions = mockTransactions.filter(t => {
+    const matchesSearch = t.company.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'all' || t.type === filterType;
+    return matchesSearch && matchesType;
+  });
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'paid': return <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400"><CheckCircle2 className="h-3 w-3" /> Pago</span>;
+      case 'pending': return <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400"><Clock className="h-3 w-3" /> Aguardando</span>;
+      case 'overdue': return <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-500/20 text-red-400"><AlertCircle className="h-3 w-3" /> Vencido</span>;
+      default: return null;
+    }
+  };
+
+  const filterBtnClass = (type: string, activeColor: string) =>
+    `px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${filterType === type ? `bg-card shadow text-${activeColor}` : 'text-muted-foreground hover:text-foreground'}`;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Financeiro</h1>
-        <p className="text-muted-foreground text-sm mt-1">Controle de receitas e despesas</p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Financeiro</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gestão de caixa e integrações de pagamento (Asaas).</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline">
+            <Plus className="h-4 w-4 mr-2" /> Nova Saída
+          </Button>
+          <Button>
+            <CreditCard className="h-4 w-4 mr-2" /> Cobrar Cliente (Asaas)
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {summary.map((s) => (
-          <div key={s.label} className="stat-card">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-muted-foreground text-sm">{s.label}</span>
-              <s.icon className={`h-5 w-5 ${s.color}`} />
-            </div>
-            <p className="text-2xl font-bold text-foreground">{s.value}</p>
+      {/* Cards de Resumo */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground">Receita Recebida</span>
+            <ArrowUpRight className="h-4 w-4 text-green-400" />
           </div>
-        ))}
+          <p className="text-2xl font-bold text-foreground">R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-xs text-green-400 mt-1">+12% este mês</p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground">A Receber (Asaas)</span>
+            <DollarSign className="h-4 w-4 text-yellow-400" />
+          </div>
+          <p className="text-2xl font-bold text-foreground">R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-xs text-muted-foreground mt-1">Faturas pendentes e vencidas</p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground">Saídas / Custos</span>
+            <ArrowDownRight className="h-4 w-4 text-red-400" />
+          </div>
+          <p className="text-2xl font-bold text-foreground">R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-xs text-muted-foreground mt-1">Custos operacionais Vertex</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 stat-card">
-          <h2 className="font-semibold text-foreground mb-4">Últimas Transações</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-3 text-muted-foreground font-medium">Descrição</th>
-                  <th className="text-left py-3 text-muted-foreground font-medium">Data</th>
-                  <th className="text-right py-3 text-muted-foreground font-medium">Valor</th>
-                  <th className="text-right py-3 text-muted-foreground font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((t) => (
-                  <tr key={t.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                    <td className="py-3 flex items-center gap-2">
-                      {t.type === "entrada" ? (
-                        <ArrowUpRight className="h-4 w-4 text-success" />
-                      ) : (
-                        <ArrowDownRight className="h-4 w-4 text-destructive" />
-                      )}
-                      <span className="text-foreground">{t.desc}</span>
-                    </td>
-                    <td className="py-3 text-muted-foreground">{t.date}</td>
-                    <td className={`py-3 text-right font-medium ${t.type === "entrada" ? "text-success" : "text-destructive"}`}>
-                      {t.type === "entrada" ? "+" : "-"}{t.value}
-                    </td>
-                    <td className="py-3 text-right">
-                      <Badge variant={t.status === "Pendente" ? "outline" : "secondary"} className="text-xs">
-                        {t.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Tabela de Transações */}
+      <div className="rounded-xl border border-border bg-card">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex gap-1 bg-muted rounded-lg p-1">
+            <button onClick={() => setFilterType('all')} className={filterBtnClass('all', 'foreground')}>Todas</button>
+            <button onClick={() => setFilterType('income')} className={filterBtnClass('income', 'green-400')}>Entradas</button>
+            <button onClick={() => setFilterType('expense')} className={filterBtnClass('expense', 'red-400')}>Saídas</button>
+          </div>
+          <div className="relative max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Buscar..." className="pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </div>
 
-        <div className="stat-card">
-          <h2 className="font-semibold text-foreground mb-4">Receita por Categoria</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={categories} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={50}>
-                {categories.map((c, i) => (
-                  <Cell key={i} fill={c.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-2 mt-4">
-            {categories.map((c) => (
-              <div key={c.name} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: c.color }} />
-                  <span className="text-muted-foreground">{c.name}</span>
-                </div>
-                <span className="text-foreground font-medium">R$ {c.value.toLocaleString()}</span>
-              </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Descrição / Cliente</TableHead>
+              <TableHead>Vencimento</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Valor</TableHead>
+              <TableHead>Ação Asaas</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredTransactions.map((t) => (
+              <TableRow key={t.id}>
+                <TableCell>
+                  <p className="font-medium text-foreground">{t.company}</p>
+                  <p className="text-xs text-muted-foreground">{t.category}</p>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {new Date(t.dueDate).toLocaleDateString('pt-BR')}
+                </TableCell>
+                <TableCell>{getStatusBadge(t.status)}</TableCell>
+                <TableCell className={`font-semibold ${t.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                  {t.type === 'income' ? '+' : '-'} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </TableCell>
+                <TableCell>
+                  {t.type === 'income' && t.status !== 'paid' && (
+                    <Button variant="outline" size="sm">
+                      <LinkIcon className="h-3 w-3 mr-1" /> Link Pagamento
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
             ))}
-          </div>
-        </div>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
