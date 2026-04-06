@@ -3,6 +3,7 @@ import {
   Search, Plus, Building2, MoreVertical, 
   ExternalLink, FileText, Activity 
 } from 'lucide-react';
+import { NewCompanyModal } from '@/components/companies/NewCompanyModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -22,7 +23,12 @@ const mockCompanies = [
 
 export const Companies = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [companies] = useState(mockCompanies);
+  const [companies, setCompanies] = useState(mockCompanies);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleSaveCompany = (newCompany: any) => {
+    setCompanies(prev => [newCompany, ...prev]);
+  };
 
   const filteredCompanies = companies.filter(company => 
     company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -46,7 +52,7 @@ export const Companies = () => {
           <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
           <p className="text-muted-foreground text-sm mt-1">Gerencie todos os clientes, leads e demandas da Vertex.</p>
         </div>
-        <Button>
+        <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Empresa
         </Button>
@@ -129,6 +135,7 @@ export const Companies = () => {
           </TableBody>
         </Table>
       </div>
+      <NewCompanyModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveCompany} />
     </div>
   );
 };
