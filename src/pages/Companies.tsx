@@ -23,7 +23,12 @@ const mockCompanies = [
 
 export const Companies = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [companies] = useState(mockCompanies);
+  const [companies, setCompanies] = useState(mockCompanies);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleSaveCompany = (newCompany: any) => {
+    setCompanies(prev => [newCompany, ...prev]);
+  };
 
   const filteredCompanies = companies.filter(company => 
     company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
