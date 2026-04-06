@@ -52,7 +52,7 @@ export const Companies = () => {
           <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
           <p className="text-muted-foreground text-sm mt-1">Gerencie todos os clientes, leads e demandas da Vertex.</p>
         </div>
-        <Button>
+        <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Empresa
         </Button>
