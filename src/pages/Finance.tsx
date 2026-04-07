@@ -9,6 +9,7 @@ import {
   Clock,
   AlertCircle,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,9 +18,18 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { NewTransactionModal } from '@/components/finance/NewTransactionModal';
 
+const CYCLE_LABELS: Record<string, string> = {
+  MONTHLY: 'Mensal',
+  WEEKLY: 'Semanal',
+  BIWEEKLY: 'Quinzenal',
+  QUARTERLY: 'Trimestral',
+  SEMIANNUALLY: 'Semestral',
+  YEARLY: 'Anual',
+};
+
 export const Finance = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all'); // all, income, expense
+  const [filterType, setFilterType] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'income' | 'expense'>('income');
   const queryClient = useQueryClient();
@@ -44,6 +54,7 @@ export const Finance = () => {
       due_date: string;
       category: string;
       status: string;
+      subscription_cycle: string | null;
     }) => {
       const { error } = await supabase.from('financial_transactions').insert(data);
       if (error) throw error;
@@ -58,29 +69,28 @@ export const Finance = () => {
     },
   });
 
-  // Mutação para chamar a API do Asaas via Supabase Edge Function
+  // Gera cobrança única OU assinatura recorrente no Asaas
   const generateAsaasCharge = useMutation({
     mutationFn: async (transaction: any) => {
       const { data, error } = await supabase.functions.invoke('asaas-checkout', {
-        body: { 
-          transaction_id: transaction.id, 
-          amount: transaction.amount,
-          description: transaction.category
-        }
+        body: { transaction_id: transaction.id },
       });
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
-      toast.success('Cobrança gerada com sucesso no Asaas!');
-      // Atualiza a tabela para o link aparecer
+    onSuccess: (data, transaction) => {
+      const isSubscription = !!transaction.subscription_cycle;
+      toast.success(
+        isSubscription
+          ? 'Assinatura criada com sucesso no Asaas!'
+          : 'Cobrança gerada com sucesso no Asaas!'
+      );
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
-      // Abre o link do boleto em uma nova aba
       if (data.url) window.open(data.url, '_blank');
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast.error(`Erro ao gerar cobrança: ${err.message}`);
-    }
+    },
   });
 
   const totalIncome = transactions
@@ -144,14 +154,14 @@ export const Finance = () => {
           <p className="text-slate-500 mt-1">Gestão de caixa da Vertex.</p>
         </div>
         <div className="flex gap-3">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => { setModalType('expense'); setIsModalOpen(true); }}
             className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
           >
             <ArrowDownRight className="w-4 h-4" /> Nova Saída
           </Button>
-          <Button 
+          <Button
             onClick={() => { setModalType('income'); setIsModalOpen(true); }}
             className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
           >
@@ -230,7 +240,12 @@ export const Finance = () => {
           </div>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input placeholder="Buscar empresa..." className="pl-9 h-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input
+              placeholder="Buscar empresa..."
+              className="pl-9 h-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
 
@@ -256,7 +271,15 @@ export const Finance = () => {
                 filteredTransactions.map((t: any) => (
                   <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="font-medium text-slate-900">{t.companies?.name || 'Sem Empresa'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">{t.companies?.name || 'Sem Empresa'}</p>
+                        {t.subscription_cycle && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-violet-100 text-violet-700 rounded-full">
+                            <RefreshCw className="w-3 h-3" />
+                            {CYCLE_LABELS[t.subscription_cycle] ?? t.subscription_cycle}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-slate-500 text-xs mt-0.5">{t.category}</p>
                     </td>
                     <td className="px-6 py-4 text-slate-600">
@@ -268,20 +291,37 @@ export const Finance = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       {t.type === 'income' && t.status !== 'paid' && (
-                        t.asaas_payment_url ? (
-                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => window.open(t.asaas_payment_url, '_blank')}>
-                            <LinkIcon className="w-3.5 h-3.5" /> Ver Boleto
-                          </Button>
+                        t.asaas_payment_url || t.asaas_subscription_id ? (
+                          t.asaas_payment_url ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              onClick={() => window.open(t.asaas_payment_url, '_blank')}
+                            >
+                              <LinkIcon className="w-3.5 h-3.5" />
+                              {t.subscription_cycle ? 'Ver Assinatura' : 'Ver Boleto'}
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-violet-600 font-medium flex items-center gap-1 justify-end">
+                              <RefreshCw className="w-3 h-3" /> Assinatura ativa
+                            </span>
+                          )
                         ) : (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="h-8 gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                             onClick={() => generateAsaasCharge.mutate(t)}
                             disabled={generateAsaasCharge.isPending}
                           >
-                            {generateAsaasCharge.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LinkIcon className="w-3.5 h-3.5" />}
-                            Gerar Asaas
+                            {generateAsaasCharge.isPending
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : t.subscription_cycle
+                                ? <RefreshCw className="w-3.5 h-3.5" />
+                                : <LinkIcon className="w-3.5 h-3.5" />
+                            }
+                            {t.subscription_cycle ? 'Criar Assinatura' : 'Gerar Cobrança'}
                           </Button>
                         )
                       )}
@@ -293,8 +333,8 @@ export const Finance = () => {
           </table>
         </div>
       </div>
-      
-      <NewTransactionModal 
+
+      <NewTransactionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         defaultType={modalType}

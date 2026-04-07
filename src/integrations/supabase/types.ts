@@ -84,6 +84,8 @@ export type Database = {
           amount: number
           asaas_payment_id: string | null
           asaas_payment_url: string | null
+          asaas_subscription_id: string | null
+          subscription_cycle: string | null
           category: string | null
           company_id: string
           created_at: string
@@ -96,6 +98,8 @@ export type Database = {
           amount: number
           asaas_payment_id?: string | null
           asaas_payment_url?: string | null
+          asaas_subscription_id?: string | null
+          subscription_cycle?: string | null
           category?: string | null
           company_id: string
           created_at?: string
@@ -108,6 +112,8 @@ export type Database = {
           amount?: number
           asaas_payment_id?: string | null
           asaas_payment_url?: string | null
+          asaas_subscription_id?: string | null
+          subscription_cycle?: string | null
           category?: string | null
           company_id?: string
           created_at?: string
