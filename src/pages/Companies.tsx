@@ -28,7 +28,7 @@ export default function Companies() {
     setLoading(true);
     const { data, error } = await supabase
       .from('companies')
-      .select('*')
+      .select('id, name, document, status, asaas_customer_id, created_at')
       .order('created_at', { ascending: false });
     if (error) {
       console.error('Erro ao buscar empresas:', error.message);

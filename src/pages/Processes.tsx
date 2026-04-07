@@ -10,7 +10,12 @@ const statusConfig = {
   concluido: { label: "Concluído", icon: CheckCircle2, color: "text-success" },
 };
 
-const priorityColors = { alta: "destructive" as const, media: "default" as const, baixa: "secondary" as const, normal: "secondary" as const };
+const priorityColors: Record<string, "destructive" | "default" | "secondary"> = {
+  alta: "destructive",
+  media: "default",
+  baixa: "secondary",
+  normal: "secondary",
+};
 
 export default function Processes() {
   const { data: tasks = [], isLoading, isError } = useQuery({
@@ -18,14 +23,7 @@ export default function Processes() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select(`
-          *,
-          lists (
-            name,
-            spaces (name)
-          ),
-          companies (name)
-        `)
+        .select('*, companies(name)')
         .order('created_at');
       if (error) throw error;
       return data;
@@ -81,17 +79,18 @@ export default function Processes() {
                     <div className="flex items-start gap-2">
                       <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
                       <div>
-                        <p className="font-medium text-sm text-foreground">{task.name}</p>
+                        <p className="font-medium text-sm text-foreground">{task.title}</p>
                         <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {task.lists?.spaces?.name} / {task.lists?.name}
-                          {task.companies?.name && ` - ${task.companies.name}`}
-                        </p>
+                        {task.companies?.name && (
+                          <p className="text-xs text-muted-foreground mt-1">{task.companies.name}</p>
+                        )}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <Badge variant={priorityColors[task.priority]} className="text-xs capitalize">{task.priority}</Badge>
+                    <Badge variant={priorityColors[task.priority] ?? 'secondary'} className="text-xs capitalize">
+                      {task.priority ?? 'normal'}
+                    </Badge>
                     <span className="text-xs text-muted-foreground">
                       {task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : ''}
                     </span>

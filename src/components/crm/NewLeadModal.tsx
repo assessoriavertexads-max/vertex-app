@@ -37,8 +37,8 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
     onSave({
       title,
       company_id: companyId,
-      value: parseFloat(value) || 0,
-      status: 'prospect',
+      estimated_value: parseFloat(value) || 0,
+      funnel_stage: 'prospect',
     });
 
     setTitle('');

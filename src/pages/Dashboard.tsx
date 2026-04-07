@@ -58,8 +58,8 @@ export default function Dashboard() {
   });
 
   const activeCompanies = companies.filter((c: any) => c.status === 'active').length;
-  const pipelineTotal = leads.reduce((acc: number, l: any) => acc + Number(l.value), 0);
-  const activeLeads = leads.filter((l: any) => l.status !== 'closed').length;
+  const pipelineTotal = leads.reduce((acc: number, l: any) => acc + Number(l.estimated_value ?? 0), 0);
+  const activeLeads = leads.filter((l: any) => l.funnel_stage !== 'closed').length;
   const pendingTasks = tasks.filter((t: any) => t.status !== 'concluido').length;
   const today = new Date().toISOString().split('T')[0];
   const overdueTasks = tasks.filter((t: any) => t.status !== 'concluido' && t.due_date && t.due_date < today).length;
@@ -68,10 +68,10 @@ export default function Dashboard() {
     .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
 
   const funnelData = [
-    { name: 'Prospecção', quantidade: leads.filter((l: any) => l.status === 'prospect').length },
-    { name: 'Negociação', quantidade: leads.filter((l: any) => l.status === 'negotiation').length },
-    { name: 'Jurídico', quantidade: leads.filter((l: any) => l.status === 'legal').length },
-    { name: 'Fechado', quantidade: leads.filter((l: any) => l.status === 'closed').length },
+    { name: 'Prospecção', quantidade: leads.filter((l: any) => l.funnel_stage === 'prospect').length },
+    { name: 'Negociação', quantidade: leads.filter((l: any) => l.funnel_stage === 'negotiation').length },
+    { name: 'Jurídico', quantidade: leads.filter((l: any) => l.funnel_stage === 'legal').length },
+    { name: 'Fechado', quantidade: leads.filter((l: any) => l.funnel_stage === 'closed').length },
   ];
 
   return (

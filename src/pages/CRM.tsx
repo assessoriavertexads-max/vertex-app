@@ -21,8 +21,6 @@ const LeadCard = ({ lead }: { lead: any }) => {
   });
 
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
-
-  // Extrai o nome da empresa do JOIN relacional do Supabase
   const companyName = lead.companies?.name || 'Empresa não vinculada';
 
   return (
@@ -48,7 +46,7 @@ const LeadCard = ({ lead }: { lead: any }) => {
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
         <div className="flex items-center gap-1 font-medium text-emerald-600 text-sm">
           <DollarSign className="w-3.5 h-3.5" />
-          {Number(lead.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          {Number(lead.estimated_value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </div>
         <div className="flex items-center gap-1 text-xs text-slate-400">
           <Clock className="w-3.5 h-3.5" /> Hoje
@@ -59,9 +57,7 @@ const LeadCard = ({ lead }: { lead: any }) => {
 };
 
 const KanbanColumn = ({ column, leads }: { column: any; leads: any[] }) => {
-  const { setNodeRef, isOver } = useDroppable({
-    id: column.id,
-  });
+  const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
     <div className="flex flex-col w-80 shrink-0">
@@ -76,7 +72,7 @@ const KanbanColumn = ({ column, leads }: { column: any; leads: any[] }) => {
           <Plus className="w-4 h-4" />
         </Button>
       </div>
-      
+
       <div
         ref={setNodeRef}
         className={`flex-1 rounded-xl border-2 border-dashed p-3 flex flex-col gap-3 min-h-[500px] transition-colors ${
@@ -103,14 +99,13 @@ export const CRM = () => {
   const { data: leads = [], isLoading } = useQuery({
     queryKey: ['leads'],
     queryFn: async () => {
-      // AQUI ESTÁ A MÁGICA: O select('*, companies(name)') faz o JOIN com a tabela de empresas
       const { data, error } = await supabase
         .from('leads')
         .select('*, companies(name)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
-    }
+    },
   });
 
   const createLead = useMutation({
@@ -124,29 +119,23 @@ export const CRM = () => {
     },
     onError: () => {
       toast.error('Erro ao criar lead.');
-    }
+    },
   });
 
-  const handleCreateLead = (leadData: any) => {
-    createLead.mutate(leadData);
-  };
-
-  const updateLeadStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string, status: string }) => {
-      const { error } = await supabase.from('leads').update({ status }).eq('id', id);
+  const updateLeadStage = useMutation({
+    mutationFn: async ({ id, funnel_stage }: { id: string; funnel_stage: string }) => {
+      const { error } = await supabase.from('leads').update({ funnel_stage }).eq('id', id);
       if (error) throw error;
     },
-    onMutate: async (newLeadInfo) => {
+    onMutate: async ({ id, funnel_stage }) => {
       await queryClient.cancelQueries({ queryKey: ['leads'] });
       const previousLeads = queryClient.getQueryData(['leads']);
-      
-      queryClient.setQueryData(['leads'], (old: any) => 
-        old.map((lead: any) => lead.id === newLeadInfo.id ? { ...lead, status: newLeadInfo.status } : lead)
+      queryClient.setQueryData(['leads'], (old: any) =>
+        old.map((lead: any) => lead.id === id ? { ...lead, funnel_stage } : lead)
       );
-
       return { previousLeads };
     },
-    onError: (err, newLeadInfo, context) => {
+    onError: (_err, _vars, context) => {
       if (context?.previousLeads) {
         queryClient.setQueryData(['leads'], context.previousLeads);
       }
@@ -154,7 +143,7 @@ export const CRM = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-    }
+    },
   });
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -162,15 +151,15 @@ export const CRM = () => {
     if (!over) return;
 
     const leadId = String(active.id);
-    const newStatus = String(over.id);
+    const newStage = String(over.id);
     const lead = leads.find((l: any) => l.id === leadId);
 
-    if (lead && lead.status !== newStatus) {
-      updateLeadStatus.mutate({ id: leadId, status: newStatus });
+    if (lead && lead.funnel_stage !== newStage) {
+      updateLeadStage.mutate({ id: leadId, funnel_stage: newStage });
     }
   };
 
-  const totalValue = leads.reduce((acc: number, lead: any) => acc + Number(lead.value), 0);
+  const totalValue = leads.reduce((acc: number, lead: any) => acc + Number(lead.estimated_value ?? 0), 0);
 
   if (isLoading) {
     return (
@@ -200,16 +189,16 @@ export const CRM = () => {
         </div>
       </div>
 
-      <NewLeadModal isOpen={isNewLeadOpen} onClose={() => setIsNewLeadOpen(false)} onSave={handleCreateLead} />
+      <NewLeadModal isOpen={isNewLeadOpen} onClose={() => setIsNewLeadOpen(false)} onSave={(d) => createLead.mutate(d)} />
 
       <div className="flex-1 overflow-x-auto pb-4">
         <DndContext collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
           <div className="flex gap-6 h-full items-start">
             {COLUMNS.map((column) => (
-              <KanbanColumn 
-                key={column.id} 
-                column={column} 
-                leads={leads.filter((lead: any) => lead.status === column.id)} 
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                leads={leads.filter((lead: any) => lead.funnel_stage === column.id)}
               />
             ))}
           </div>
