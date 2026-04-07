@@ -1,11 +1,13 @@
 import {
-  DollarSign, Users, Target, Activity,
-  ArrowUpRight, ArrowDownRight, TrendingUp, Briefcase
+  DollarSign, Target, Activity,
+  ArrowUpRight, TrendingUp, Briefcase
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend
 } from 'recharts';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
 const revenueData = [
   { name: 'Jan', receita: 15000, despesa: 8000 },
@@ -16,14 +18,62 @@ const revenueData = [
   { name: 'Jun', receita: 35000, despesa: 11000 },
 ];
 
-const funnelData = [
-  { name: 'Prospecção', quantidade: 12 },
-  { name: 'Negociação', quantidade: 8 },
-  { name: 'Jurídico', quantidade: 3 },
-  { name: 'Fechado', quantidade: 5 },
-];
-
 export default function Dashboard() {
+  const { data: companies = [] } = useQuery({
+    queryKey: ['dashboard-companies'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('companies').select('id, status');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: leads = [] } = useQuery({
+    queryKey: ['dashboard-leads'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('leads').select('id, value, status');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: tasks = [] } = useQuery({
+    queryKey: ['dashboard-tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('tasks').select('id, status, due_date');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: transactions = [] } = useQuery({
+    queryKey: ['dashboard-transactions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('financial_transactions')
+        .select('id, type, amount, status');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const activeCompanies = companies.filter((c: any) => c.status === 'active').length;
+  const pipelineTotal = leads.reduce((acc: number, l: any) => acc + Number(l.value), 0);
+  const activeLeads = leads.filter((l: any) => l.status !== 'closed').length;
+  const pendingTasks = tasks.filter((t: any) => t.status !== 'concluido').length;
+  const today = new Date().toISOString().split('T')[0];
+  const overdueTasks = tasks.filter((t: any) => t.status !== 'concluido' && t.due_date && t.due_date < today).length;
+  const monthlyRevenue = transactions
+    .filter((t: any) => t.type === 'income' && t.status === 'paid')
+    .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+
+  const funnelData = [
+    { name: 'Prospecção', quantidade: leads.filter((l: any) => l.status === 'prospect').length },
+    { name: 'Negociação', quantidade: leads.filter((l: any) => l.status === 'negotiation').length },
+    { name: 'Jurídico', quantidade: leads.filter((l: any) => l.status === 'legal').length },
+    { name: 'Fechado', quantidade: leads.filter((l: any) => l.status === 'closed').length },
+  ];
+
   return (
     <div className="flex flex-col h-full gap-6 max-w-7xl mx-auto pb-8">
       {/* Header */}
@@ -36,16 +86,15 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-medium text-muted-foreground">Receita Mensal</h3>
+            <h3 className="font-medium text-muted-foreground">Receita Recebida</h3>
             <div className="p-2 bg-primary/10 text-primary rounded-lg"><DollarSign className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-3xl font-bold text-foreground">R$ 35k</h2>
-            <span className="flex items-center text-sm font-medium text-green-500">
-              <ArrowUpRight className="w-4 h-4" /> 25%
-            </span>
+            <h2 className="text-3xl font-bold text-foreground">
+              R$ {monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </h2>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Comparado ao mês passado</p>
+          <p className="text-xs text-muted-foreground mt-1">Total de entradas pagas</p>
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
@@ -54,9 +103,9 @@ export default function Dashboard() {
             <div className="p-2 bg-green-500/10 text-green-500 rounded-lg"><Briefcase className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-3xl font-bold text-foreground">42</h2>
+            <h2 className="text-3xl font-bold text-foreground">{activeCompanies}</h2>
             <span className="flex items-center text-sm font-medium text-green-500">
-              <ArrowUpRight className="w-4 h-4" /> 3 novos
+              <ArrowUpRight className="w-4 h-4" /> {companies.length} total
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">Demandas em andamento</p>
@@ -68,9 +117,11 @@ export default function Dashboard() {
             <div className="p-2 bg-yellow-500/10 text-yellow-500 rounded-lg"><Target className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-3xl font-bold text-foreground">R$ 128k</h2>
+            <h2 className="text-3xl font-bold text-foreground">
+              R$ {pipelineTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </h2>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">23 leads em negociação</p>
+          <p className="text-xs text-muted-foreground mt-1">{activeLeads} leads em aberto</p>
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
@@ -79,10 +130,10 @@ export default function Dashboard() {
             <div className="p-2 bg-purple-500/10 text-purple-500 rounded-lg"><Activity className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-3xl font-bold text-foreground">18</h2>
-            <span className="flex items-center text-sm font-medium text-red-500">
-              <ArrowDownRight className="w-4 h-4" /> 5 atrasadas
-            </span>
+            <h2 className="text-3xl font-bold text-foreground">{pendingTasks}</h2>
+            {overdueTasks > 0 && (
+              <span className="text-sm font-medium text-red-500">{overdueTasks} atrasadas</span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Requerem atenção da equipe</p>
         </div>

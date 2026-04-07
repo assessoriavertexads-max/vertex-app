@@ -2,7 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // A sua chave da API do Asaas (Sandbox para testes ou Produção)
-const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY') || 'SUA_CHAVE_AQUI';
+const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY');
+if (!ASAAS_API_KEY) {
+  throw new Error('Variável de ambiente ASAAS_API_KEY não configurada no Supabase.');
+}
 const ASAAS_URL = 'https://sandbox.asaas.com/api/v3/payments'; // Use sandbox.asaas para testar sem gastar dinheiro
 
 const corsHeaders = {
@@ -17,7 +20,7 @@ serve(async (req) => {
   }
 
   try {
-    const { transaction_id, amount, description, customer_email } = await req.json();
+    const { transaction_id, amount, description } = await req.json();
 
     // 1. Cria a cobrança no Asaas
     const asaasResponse = await fetch(ASAAS_URL, {
@@ -60,7 +63,8 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : 'Erro desconhecido';
+    return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     });

@@ -1,27 +1,8 @@
-import { useState } from "react";
 import { CheckCircle2, Circle, Clock, Plus, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: "todo" | "in_progress" | "done";
-  priority: "alta" | "media" | "baixa";
-  dueDate: string;
-}
-
-const initialTasks: Task[] = [
-  { id: "1", title: "Contrato Tech Corp", description: "Finalizar revisão do contrato", status: "in_progress", priority: "alta", dueDate: "10/06/2026" },
-  { id: "2", title: "Proposta Design Co", description: "Elaborar proposta comercial", status: "todo", priority: "media", dueDate: "12/06/2026" },
-  { id: "3", title: "Relatório Mensal", description: "Preparar relatório financeiro", status: "todo", priority: "alta", dueDate: "15/06/2026" },
-  { id: "4", title: "Onboarding Startup Inc", description: "Documentação de onboarding", status: "in_progress", priority: "media", dueDate: "08/06/2026" },
-  { id: "5", title: "Reunião Alpha Co", description: "Preparar pauta da reunião", status: "done", priority: "baixa", dueDate: "05/06/2026" },
-  { id: "6", title: "Atualizar Políticas", description: "Revisar políticas internas", status: "done", priority: "media", dueDate: "03/06/2026" },
-];
 
 const statusConfig = {
   a_receber: { label: "A Receber", icon: Circle, color: "text-muted-foreground" },
@@ -32,7 +13,7 @@ const statusConfig = {
 const priorityColors = { alta: "destructive" as const, media: "default" as const, baixa: "secondary" as const, normal: "secondary" as const };
 
 export default function Processes() {
-  const { data: tasks = [], isLoading } = useQuery({
+  const { data: tasks = [], isLoading, isError } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -53,6 +34,14 @@ export default function Processes() {
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64">Carregando...</div>;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64 text-red-500">
+        Erro ao carregar tarefas. Tente novamente.
+      </div>
+    );
   }
 
   const grouped = {
@@ -104,7 +93,7 @@ export default function Processes() {
                   <div className="flex items-center justify-between mt-3">
                     <Badge variant={priorityColors[task.priority]} className="text-xs capitalize">{task.priority}</Badge>
                     <span className="text-xs text-muted-foreground">
-                      {task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : ''}
+                      {task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : ''}
                     </span>
                   </div>
                 </div>

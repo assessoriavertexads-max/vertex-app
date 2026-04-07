@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  DollarSign,
   ArrowUpRight,
   ArrowDownRight,
   CreditCard,
@@ -34,6 +33,28 @@ export const Finance = () => {
         .order('due_date', { ascending: false });
       if (error) throw error;
       return data;
+    },
+  });
+
+  const createTransaction = useMutation({
+    mutationFn: async (data: {
+      company_id: string;
+      type: 'income' | 'expense';
+      amount: number;
+      due_date: string;
+      category: string;
+      status: string;
+    }) => {
+      const { error } = await supabase.from('financial_transactions').insert(data);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
+      setIsModalOpen(false);
+      toast.success('Transação registrada com sucesso!');
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao registrar transação: ${err.message}`);
     },
   });
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  Search, Plus, Building2, MoreVertical, 
-  ExternalLink, FileText, Activity, Loader2 
+import {
+  Search, Plus, MoreVertical,
+  ExternalLink, FileText, Loader2
 } from 'lucide-react';
 import { NewCompanyModal } from '@/components/companies/NewCompanyModal';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,16 @@ export default function Companies() {
   const [loading, setLoading] = useState(true);
 
   const fetchCompanies = async () => {
+    setLoading(true);
     const { data, error } = await supabase
       .from('companies')
       .select('*')
       .order('created_at', { ascending: false });
-    if (!error && data) setCompanies(data);
+    if (error) {
+      console.error('Erro ao buscar empresas:', error.message);
+    } else if (data) {
+      setCompanies(data);
+    }
     setLoading(false);
   };
 
