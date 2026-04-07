@@ -4,6 +4,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import Login from "./pages/Login";
+import SignUp from "./pages/SignUp";
 import Dashboard from "./pages/Dashboard";
 import CRM from "./pages/CRM";
 import Finance from "./pages/Finance";
@@ -21,19 +25,35 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppLayout>
+        <AuthProvider>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/tasks" element={<Processes />} />
-            <Route path="/crm" element={<CRM />} />
-            <Route path="/finance" element={<Finance />} />
-            <Route path="/companies" element={<Companies />} />
-            <Route path="/ai-insights" element={<AIInsights />} />
-            <Route path="/docs" element={<Processes />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<NotFound />} />
+            {/* Rotas públicas */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<SignUp />} />
+
+            {/* Rotas protegidas */}
+            <Route
+              path="*"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/tasks" element={<Processes />} />
+                      <Route path="/crm" element={<CRM />} />
+                      <Route path="/finance" element={<Finance />} />
+                      <Route path="/companies" element={<Companies />} />
+                      <Route path="/ai-insights" element={<AIInsights />} />
+                      <Route path="/docs" element={<Processes />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
           </Routes>
-        </AppLayout>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
