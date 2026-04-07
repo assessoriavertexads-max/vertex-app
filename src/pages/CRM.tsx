@@ -124,6 +124,81 @@ export const CRM = () => {
 
   const updateLeadStage = useMutation({
     mutationFn: async ({ id, funnel_stage }: { id: string; funnel_stage: string }) => {
+      if (funnel_stage === 'legal') {
+        const { data: lead, error: leadError } = await supabase
+          .from('leads')
+          .select('id, title, company_id, legal_status, estimated_value')
+          .eq('id', id)
+          .single();
+        if (leadError) throw leadError;
+
+        const isContractSigned = typeof lead.legal_status === 'string' && /assinad|signed/i.test(lead.legal_status);
+
+        if (isContractSigned) {
+          let companyId = lead.company_id;
+
+          if (!companyId) {
+            const { data: existingCompany } = await supabase
+              .from('companies')
+              .select('id')
+              .eq('name', lead.title)
+              .limit(1)
+              .maybeSingle();
+
+            companyId = existingCompany?.id || null;
+          }
+
+          if (!companyId) {
+            const { data: insertedCompany, error: insertError } = await supabase
+              .from('companies')
+              .insert({
+                name: lead.title,
+                status: 'active',
+                custom_data: { created_from_lead: lead.id },
+              })
+              .select('id')
+              .single();
+
+            if (insertError) throw insertError;
+            companyId = insertedCompany.id;
+            toast.success('Empresa criada automaticamente em Empresas.');
+          }
+
+          await supabase.from('leads').update({ funnel_stage, company_id: companyId }).eq('id', id);
+
+          if (companyId) {
+            const transactionExists = await supabase
+              .from('financial_transactions')
+              .select('id')
+              .eq('company_id', companyId)
+              .eq('type', 'income')
+              .eq('amount', Number(lead.estimated_value) || 0)
+              .eq('category', lead.title)
+              .eq('status', 'pending')
+              .limit(1)
+              .maybeSingle();
+
+            if (!transactionExists) {
+              const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+              const { error: transactionError } = await supabase.from('financial_transactions').insert({
+                company_id: companyId,
+                type: 'income',
+                amount: Number(lead.estimated_value) || 0,
+                due_date: dueDate,
+                category: lead.title,
+                status: 'pending',
+                subscription_cycle: null,
+              });
+
+              if (transactionError) throw transactionError;
+              toast.success('Cobrança criada automaticamente no Financeiro.');
+            }
+          }
+
+          return;
+        }
+      }
+
       const { error } = await supabase.from('leads').update({ funnel_stage }).eq('id', id);
       if (error) throw error;
     },

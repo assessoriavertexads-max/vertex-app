@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, MoreVertical,
   ExternalLink, FileText, Loader2
@@ -19,6 +20,7 @@ import type { Tables } from '@/integrations/supabase/types';
 type Company = Tables<'companies'>;
 
 export default function Companies() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -130,6 +132,9 @@ export default function Companies() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => navigate(`/companies/${company.id}`)}>
+                          <ExternalLink className="h-4 w-4 mr-2" /> Abrir Workspace
+                        </DropdownMenuItem>
                         <DropdownMenuItem>
                           <ExternalLink className="h-4 w-4 mr-2" /> Abrir Perfil
                         </DropdownMenuItem>

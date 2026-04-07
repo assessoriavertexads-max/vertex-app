@@ -16,6 +16,8 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
   const [title, setTitle] = useState('');
   const [companyId, setCompanyId] = useState('');
   const [value, setValue] = useState('');
+  const [legalStatus, setLegalStatus] = useState('');
+  const [contractSigned, setContractSigned] = useState(false);
 
   const { data: companies = [], isLoading } = useQuery({
     queryKey: ['companies-dropdown'],
@@ -29,21 +31,20 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyId) {
-      alert('Por favor, selecione uma empresa.');
-      return;
-    }
 
     onSave({
       title,
-      company_id: companyId,
+      company_id: companyId || null,
       estimated_value: parseFloat(value) || 0,
       funnel_stage: 'prospect',
+      legal_status: contractSigned ? 'Assinado' : legalStatus || null,
     });
 
     setTitle('');
     setCompanyId('');
     setValue('');
+    setLegalStatus('');
+    setContractSigned(false);
     onClose();
   };
 
@@ -76,17 +77,37 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
-              required
             >
-              <option value="" disabled>
-                {isLoading ? 'Carregando empresas...' : 'Selecione uma empresa'}
-              </option>
+              <option value="">{isLoading ? 'Carregando empresas...' : 'Selecione uma empresa (opcional)'}</option>
               {companies.map((company: any) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="grid gap-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={contractSigned}
+                onChange={(e) => setContractSigned(e.target.checked)}
+                className="h-4 w-4 rounded border-input text-blue-600 focus:ring-blue-500"
+              />
+              Contrato assinado
+            </label>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="legal-status">Status Jurídico / Contrato</Label>
+            <input
+              id="legal-status"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={legalStatus}
+              onChange={(e) => setLegalStatus(e.target.value)}
+              placeholder="Ex: Assinado, Em análise, Não assinado"
+            />
           </div>
 
           <div className="grid gap-2">

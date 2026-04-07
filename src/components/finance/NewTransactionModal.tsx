@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { RefreshCw } from 'lucide-react';
@@ -11,11 +12,11 @@ interface NewTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: {
-    company_id: string;
+    company_id?: string | null;
     type: 'income' | 'expense';
     amount: number;
     due_date: string;
-    category: string;
+    category?: string | null;
     status: string;
     subscription_cycle: string | null;
   }) => void;
@@ -36,13 +37,18 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
   const [companyId, setCompanyId] = useState('');
   const [amount, setAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [cycle, setCycle] = useState('MONTHLY');
 
   useEffect(() => {
     setType(defaultType);
+    setDescription('');
+    setCompanyId('');
+    setAmount('');
+    setDueDate('');
     setIsRecurring(false);
+    setCycle('MONTHLY');
   }, [defaultType, isOpen]);
 
   const { data: companies = [], isLoading } = useQuery({
@@ -57,17 +63,18 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyId) {
-      alert('Selecione um cliente/empresa.');
+
+    if (type === 'income' && !companyId) {
+      alert('Selecione um cliente/empresa para entradas.');
       return;
     }
 
     onSave({
-      company_id: companyId,
+      company_id: companyId || null,
       type,
       amount: parseFloat(amount) || 0,
       due_date: dueDate,
-      category,
+      category: description || null,
       status: type === 'expense' ? 'paid' : 'pending',
       subscription_cycle: isRecurring && type === 'income' ? cycle : null,
     });
@@ -75,7 +82,7 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
     setCompanyId('');
     setAmount('');
     setDueDate('');
-    setCategory('');
+    setDescription('');
     setIsRecurring(false);
     setCycle('MONTHLY');
     onClose();
@@ -101,11 +108,9 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
-              required
+              required={type === 'income'}
             >
-              <option value="" disabled>
-                {isLoading ? 'Carregando...' : 'Selecione a empresa'}
-              </option>
+              <option value="">{isLoading ? 'Carregando...' : 'Selecione a empresa (opcional para saída)'}</option>
               {companies.map((company: any) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -115,12 +120,15 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="category">Categoria / Descrição</Label>
-            <Input
+            <Label htmlFor="category">
+              {type === 'income' ? 'Categoria / Descrição' : 'Descrição da Saída'}
+            </Label>
+            <Textarea
               id="category"
-              placeholder={type === 'income' ? 'Ex: Mensalidade Tráfego' : 'Ex: Assinatura Adobe'}
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              placeholder={type === 'income' ? 'Ex: Mensalidade Tráfego' : 'Ex: Compra de software, pagamento de aluguel'}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="min-h-[100px]"
               required
             />
           </div>

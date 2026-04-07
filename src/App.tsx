@@ -12,7 +12,9 @@ import Dashboard from "./pages/Dashboard";
 import CRM from "./pages/CRM";
 import Finance from "./pages/Finance";
 import Companies from "./pages/Companies";
+import CompanyWorkspace from "./pages/CompanyWorkspace";
 import Processes from "./pages/Processes";
+import Docs from "./pages/Docs";
 import AIInsights from "./pages/AIInsights";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -43,8 +45,9 @@ const App = () => (
                       <Route path="/crm" element={<CRM />} />
                       <Route path="/finance" element={<Finance />} />
                       <Route path="/companies" element={<Companies />} />
+                      <Route path="/companies/:companyId" element={<CompanyWorkspace />} />
                       <Route path="/ai-insights" element={<AIInsights />} />
-                      <Route path="/docs" element={<Processes />} />
+                      <Route path="/docs" element={<Docs />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
