@@ -69,7 +69,7 @@ export default function CompanyWorkspace() {
         .eq('id', companyId)
         .single();
       if (error) throw error;
-      return data;
+      return data as unknown as Company;
     },
     enabled: !!companyId,
   });
