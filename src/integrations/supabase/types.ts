@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -14,227 +16,62 @@ export type Database = {
     Tables: {
       companies: {
         Row: {
-          id: string
-          name: string
+          created_at: string
           document: string | null
-          status: string | null
-          asaas_customer_id: string | null
-          custom_data: Json | null
-          created_at: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
         }
         Insert: {
+          created_at?: string
+          document?: string | null
           id?: string
           name: string
-          document?: string | null
-          status?: string | null
-          asaas_customer_id?: string | null
-          custom_data?: Json | null
-          created_at?: string
+          status?: string
+          updated_at?: string
         }
         Update: {
+          created_at?: string
+          document?: string | null
           id?: string
           name?: string
-          document?: string | null
-          status?: string | null
-          asaas_customer_id?: string | null
-          custom_data?: Json | null
-          created_at?: string
+          status?: string
+          updated_at?: string
         }
         Relationships: []
-      }
-      company_assets: {
-        Row: {
-          id: string
-          name: string
-          type: string | null
-          value: number | null
-          status: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          type?: string | null
-          value?: number | null
-          status?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          type?: string | null
-          value?: number | null
-          status?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      company_metrics: {
-        Row: {
-          id: string
-          company_id: string | null
-          metric_date: string
-          ad_spend: number | null
-          revenue_generated: number | null
-          leads_generated: number | null
-          ai_recommendation: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          company_id?: string | null
-          metric_date: string
-          ad_spend?: number | null
-          revenue_generated?: number | null
-          leads_generated?: number | null
-          ai_recommendation?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          company_id?: string | null
-          metric_date?: string
-          ad_spend?: number | null
-          revenue_generated?: number | null
-          leads_generated?: number | null
-          ai_recommendation?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "company_metrics_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      financial_transactions: {
-        Row: {
-          id: string
-          company_id: string | null
-          type: string
-          amount: number
-          status: string | null
-          due_date: string
-          asaas_payment_id: string | null
-          asaas_payment_url: string | null
-          asaas_subscription_id: string | null
-          subscription_cycle: string | null
-          category: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          company_id?: string | null
-          type: string
-          amount: number
-          status?: string | null
-          due_date: string
-          asaas_payment_id?: string | null
-          asaas_payment_url?: string | null
-          asaas_subscription_id?: string | null
-          subscription_cycle?: string | null
-          category?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          company_id?: string | null
-          type?: string
-          amount?: number
-          status?: string | null
-          due_date?: string
-          asaas_payment_id?: string | null
-          asaas_payment_url?: string | null
-          asaas_subscription_id?: string | null
-          subscription_cycle?: string | null
-          category?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "financial_transactions_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       leads: {
         Row: {
-          id: string
           company_id: string | null
-          title: string
-          funnel_stage: string | null
-          estimated_value: number | null
-          legal_status: string | null
           created_at: string
+          id: string
+          status: string
+          title: string
+          updated_at: string
+          value: number | null
         }
         Insert: {
-          id?: string
           company_id?: string | null
-          title: string
-          funnel_stage?: string | null
-          estimated_value?: number | null
-          legal_status?: string | null
           created_at?: string
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string
+          value?: number | null
         }
         Update: {
-          id?: string
           company_id?: string | null
-          title?: string
-          funnel_stage?: string | null
-          estimated_value?: number | null
-          legal_status?: string | null
           created_at?: string
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          value?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "leads_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tasks: {
-        Row: {
-          id: string
-          company_id: string | null
-          title: string
-          description: string | null
-          status: string | null
-          assigned_to: string | null
-          due_date: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          company_id?: string | null
-          title: string
-          description?: string | null
-          status?: string | null
-          assigned_to?: string | null
-          due_date?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          company_id?: string | null
-          title?: string
-          description?: string | null
-          status?: string | null
-          assigned_to?: string | null
-          due_date?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tasks_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"

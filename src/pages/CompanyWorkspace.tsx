@@ -10,12 +10,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { Json, Tables } from '@/integrations/supabase/types';
+interface Company {
+  id: string;
+  name: string;
+  document: string | null;
+  status: string;
+  asaas_customer_id: string | null;
+  custom_data: any;
+  created_at: string;
+}
 
-type Company = Tables<'companies'>;
+interface Lead {
+  id: string;
+  title: string;
+  funnel_stage: string | null;
+  estimated_value: number | null;
+  legal_status: string | null;
+  created_at: string;
+  company_id: string | null;
+}
 
-type Lead = Tables<'leads'>['Row'];
-type Task = Tables<'tasks'>['Row'];
+interface Task {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string | null;
+  due_date: string | null;
+  created_at: string;
+  company_id: string | null;
+}
 
 const statusLabels = {
   active: 'Cliente Ativo',
@@ -46,7 +69,7 @@ export default function CompanyWorkspace() {
         .eq('id', companyId)
         .single();
       if (error) throw error;
-      return data;
+      return data as unknown as Company;
     },
     enabled: !!companyId,
   });
@@ -65,7 +88,7 @@ export default function CompanyWorkspace() {
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as Lead[];
     },
     enabled: !!companyId,
   });
@@ -84,7 +107,7 @@ export default function CompanyWorkspace() {
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as Task[];
     },
     enabled: !!companyId,
   });
