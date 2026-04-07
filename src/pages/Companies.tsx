@@ -15,9 +15,14 @@ import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
-
-type Company = Tables<'companies'>;
+interface Company {
+  id: string;
+  name: string;
+  document: string | null;
+  status: string;
+  asaas_customer_id: string | null;
+  created_at: string;
+}
 
 export default function Companies() {
   const navigate = useNavigate();
