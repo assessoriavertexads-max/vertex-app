@@ -88,7 +88,7 @@ export default function CompanyWorkspace() {
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as Lead[];
     },
     enabled: !!companyId,
   });
