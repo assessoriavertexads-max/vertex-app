@@ -40,7 +40,7 @@ export default function Companies() {
     if (error) {
       console.error('Erro ao buscar empresas:', error.message);
     } else if (data) {
-      setCompanies(data);
+      setCompanies(data as unknown as Company[]);
     }
     setLoading(false);
   };
