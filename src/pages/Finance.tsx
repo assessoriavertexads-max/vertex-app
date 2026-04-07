@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,8 @@ export const Finance = () => {
   const [filterType, setFilterType] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'income' | 'expense'>('income');
+  const [showImportDropdown, setShowImportDropdown] = useState(false);
+  const [selectedCompanyForImport, setSelectedCompanyForImport] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: transactions = [], isLoading } = useQuery({
@@ -41,6 +44,18 @@ export const Finance = () => {
         .from('financial_transactions')
         .select('*, companies(name)')
         .order('due_date', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name, asaas_customer_id')
+        .not('asaas_customer_id', 'is', null);
       if (error) throw error;
       return data;
     },
@@ -66,6 +81,40 @@ export const Finance = () => {
     },
     onError: (err: Error) => {
       toast.error(`Erro ao registrar transação: ${err.message}`);
+    },
+  });
+
+  // Importa assinaturas existentes do Asaas
+  const importAsaasSubscriptions = useMutation({
+    mutationFn: async (company_id: string) => {
+      const { data, error } = await supabase.functions.invoke('asaas-import-subscriptions', {
+        body: { company_id },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
+      setShowImportDropdown(false);
+      setSelectedCompanyForImport(null);
+
+      const imported = data.imported || 0;
+      const total = data.total_found || 0;
+
+      if (imported > 0) {
+        toast.success(`${imported} assinatura${imported > 1 ? 's' : ''} importada${imported > 1 ? 's' : ''} com sucesso!`);
+      } else if (total === 0) {
+        toast.info('Nenhuma assinatura encontrada para esta empresa.');
+      } else {
+        toast.info(`${total} assinatura${total > 1 ? 's' : ''} já estavam importadas.`);
+      }
+
+      if (data.errors && data.errors.length > 0) {
+        toast.error(`Alguns erros ocorreram: ${data.errors[0]}`);
+      }
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao importar assinaturas: ${err.message}`);
     },
   });
 
@@ -153,7 +202,43 @@ export const Finance = () => {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Financeiro</h1>
           <p className="text-slate-500 mt-1">Gestão de caixa da Vertex.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 relative">
+          <div className="relative">
+            <Button
+              variant="outline"
+              onClick={() => setShowImportDropdown(!showImportDropdown)}
+              className="gap-2 border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              <Download className="w-4 h-4" /> Importar Assinaturas
+            </Button>
+
+            {showImportDropdown && companies.length > 0 && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border rounded-lg shadow-lg z-10">
+                <div className="p-2 border-b">
+                  <p className="text-xs font-medium text-slate-600 px-2 py-1">Selecione uma empresa:</p>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {companies.map((company: any) => (
+                    <button
+                      key={company.id}
+                      onClick={() => {
+                        setSelectedCompanyForImport(company.id);
+                        importAsaasSubscriptions.mutate(company.id);
+                      }}
+                      disabled={importAsaasSubscriptions.isPending}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                    >
+                      <span>{company.name}</span>
+                      {importAsaasSubscriptions.isPending && selectedCompanyForImport === company.id && (
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <Button
             variant="outline"
             onClick={() => { setModalType('expense'); setIsModalOpen(true); }}
