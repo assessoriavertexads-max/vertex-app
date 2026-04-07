@@ -31,7 +31,7 @@ export default function Dashboard() {
   const { data: leads = [] } = useQuery({
     queryKey: ['dashboard-leads'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('leads').select('id, value, status');
+      const { data, error } = await supabase.from('leads').select('id, estimated_value, funnel_stage');
       if (error) throw error;
       return data;
     },
