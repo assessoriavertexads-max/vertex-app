@@ -2,6 +2,8 @@ import { useState } from "react";
 import { CheckCircle2, Circle, Clock, Plus, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
 interface Task {
   id: string;
@@ -22,20 +24,41 @@ const initialTasks: Task[] = [
 ];
 
 const statusConfig = {
-  todo: { label: "A Fazer", icon: Circle, color: "text-muted-foreground" },
-  in_progress: { label: "Em Andamento", icon: Clock, color: "text-warning" },
-  done: { label: "Concluído", icon: CheckCircle2, color: "text-success" },
+  a_receber: { label: "A Receber", icon: Circle, color: "text-muted-foreground" },
+  em_progresso: { label: "Em Progresso", icon: Clock, color: "text-warning" },
+  concluido: { label: "Concluído", icon: CheckCircle2, color: "text-success" },
 };
 
-const priorityColors = { alta: "destructive" as const, media: "default" as const, baixa: "secondary" as const };
+const priorityColors = { alta: "destructive" as const, media: "default" as const, baixa: "secondary" as const, normal: "secondary" as const };
 
 export default function Processes() {
-  const [tasks] = useState(initialTasks);
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          lists (
+            name,
+            spaces (name)
+          ),
+          companies (name)
+        `)
+        .order('created_at');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-64">Carregando...</div>;
+  }
 
   const grouped = {
-    todo: tasks.filter((t) => t.status === "todo"),
-    in_progress: tasks.filter((t) => t.status === "in_progress"),
-    done: tasks.filter((t) => t.status === "done"),
+    a_receber: tasks.filter((t: any) => t.status === "a_receber"),
+    em_progresso: tasks.filter((t: any) => t.status === "em_progresso"),
+    concluido: tasks.filter((t: any) => t.status === "concluido"),
   };
 
   return (
@@ -63,20 +86,26 @@ export default function Processes() {
                 <Badge variant="secondary" className="ml-auto text-xs">{grouped[status].length}</Badge>
               </div>
 
-              {grouped[status].map((task) => (
+              {grouped[status].map((task: any) => (
                 <div key={task.id} className="stat-card !p-4 cursor-pointer">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-2">
                       <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
                       <div>
-                        <p className="font-medium text-sm text-foreground">{task.title}</p>
+                        <p className="font-medium text-sm text-foreground">{task.name}</p>
                         <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {task.lists?.spaces?.name} / {task.lists?.name}
+                          {task.companies?.name && ` - ${task.companies.name}`}
+                        </p>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
                     <Badge variant={priorityColors[task.priority]} className="text-xs capitalize">{task.priority}</Badge>
-                    <span className="text-xs text-muted-foreground">{task.dueDate}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : ''}
+                    </span>
                   </div>
                 </div>
               ))}

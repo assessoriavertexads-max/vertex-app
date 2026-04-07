@@ -1,141 +1,222 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { DndContext, DragEndEvent, closestCorners, useDraggable, useDroppable } from '@dnd-kit/core';
 import { Plus, Building2, DollarSign, Clock, MoreHorizontal, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { NewLeadModal } from '@/components/crm/NewLeadModal';
 
 const COLUMNS = [
-  { id: 'prospect', title: 'Prospecção', color: 'border-muted bg-muted/30' },
-  { id: 'negotiation', title: 'Negociação', color: 'border-primary/30 bg-primary/5' },
-  { id: 'legal', title: 'Análise Jurídica', color: 'border-accent/30 bg-accent/5' },
-  { id: 'closed', title: 'Fechado (Ganho)', color: 'border-green-500/30 bg-green-500/5' },
+  { id: 'prospect', title: 'Prospecção', color: 'border-slate-200 bg-slate-100/50' },
+  { id: 'negotiation', title: 'Negociação', color: 'border-blue-200 bg-blue-50/50' },
+  { id: 'legal', title: 'Análise Jurídica', color: 'border-amber-200 bg-amber-50/50' },
+  { id: 'closed', title: 'Fechado (Ganho)', color: 'border-emerald-200 bg-emerald-50/50' },
 ];
 
-interface Lead {
-  id: string;
-  title: string;
-  company_name: string;
-  value: number;
-  status: string;
-}
-
-const LeadCard = ({ lead }: { lead: Lead }) => {
+const LeadCard = ({ lead }: { lead: any }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.id,
     data: lead,
   });
+
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
 
+  // Extrai o nome da empresa do JOIN relacional do Supabase
+  const companyName = lead.companies?.name || 'Empresa não vinculada';
+
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}
-      className={`p-3 rounded-lg border border-border bg-card shadow-sm cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md ${isDragging ? 'opacity-50 shadow-lg' : ''}`}>
-      <div className="flex items-start justify-between">
-        <p className="font-medium text-sm text-foreground">{lead.title}</p>
-        <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1 -mt-1">
-          <MoreHorizontal className="h-3.5 w-3.5" />
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={`bg-white p-4 rounded-xl border shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-300 transition-colors ${
+        isDragging ? 'opacity-50 ring-2 ring-blue-500 shadow-xl z-50 relative' : ''
+      }`}
+    >
+      <div className="flex justify-between items-start mb-2">
+        <h4 className="font-semibold text-slate-800 text-sm">{lead.title}</h4>
+        <button className="text-slate-400 hover:text-slate-600">
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
+        <Building2 className="w-3.5 h-3.5" />
+        {companyName}
+      </div>
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+        <div className="flex items-center gap-1 font-medium text-emerald-600 text-sm">
+          <DollarSign className="w-3.5 h-3.5" />
+          {Number(lead.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        </div>
+        <div className="flex items-center gap-1 text-xs text-slate-400">
+          <Clock className="w-3.5 h-3.5" /> Hoje
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const KanbanColumn = ({ column, leads }: { column: any; leads: any[] }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+  });
+
+  return (
+    <div className="flex flex-col w-80 shrink-0">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <h3 className="font-semibold text-slate-700 flex items-center gap-2">
+          {column.title}
+          <span className="bg-slate-200 text-slate-600 text-xs py-0.5 px-2 rounded-full">
+            {leads.length}
+          </span>
+        </h3>
+        <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-800">
+          <Plus className="w-4 h-4" />
         </Button>
       </div>
-      <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
-        <Building2 className="h-3 w-3" />
-        <span>{lead.company_name}</span>
-      </div>
-      <div className="flex items-center justify-between mt-3">
-        <div className="flex items-center gap-1 text-xs font-semibold text-foreground">
-          <DollarSign className="h-3 w-3" />
-          R$ {(lead.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-        </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Clock className="h-3 w-3" /> Hoje
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const KanbanColumn = ({ column, leads }: { column: typeof COLUMNS[number]; leads: Lead[] }) => {
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
-  const totalValue = leads.reduce((sum, l) => sum + (l.value || 0), 0);
-
-  return (
-    <div ref={setNodeRef}
-      className={`flex flex-col min-h-[500px] rounded-xl border-2 border-dashed p-3 transition-colors ${column.color} ${isOver ? 'ring-2 ring-primary/40' : ''}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-foreground">{column.title}</h3>
-          <span className="text-xs bg-background border border-border rounded-full px-2 py-0.5 text-muted-foreground">{leads.length}</span>
-        </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7"><Plus className="h-4 w-4" /></Button>
-      </div>
-      <p className="text-xs text-muted-foreground mb-3">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-      <div className="flex flex-col gap-2 flex-1">
-        {leads.map((lead) => <LeadCard key={lead.id} lead={lead} />)}
+      
+      <div
+        ref={setNodeRef}
+        className={`flex-1 rounded-xl border-2 border-dashed p-3 flex flex-col gap-3 min-h-[500px] transition-colors ${
+          isOver ? 'border-blue-400 bg-blue-50/50' : column.color
+        }`}
+      >
+        {leads.map((lead) => (
+          <LeadCard key={lead.id} lead={lead} />
+        ))}
+        {leads.length === 0 && !isOver && (
+          <div className="text-center p-4 text-sm text-slate-400 font-medium">
+            Arraste um lead para cá
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default function CRM() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+export const CRM = () => {
+  const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const fetchLeads = async () => {
+  const { data: leads = [], isLoading } = useQuery({
+    queryKey: ['leads'],
+    queryFn: async () => {
+      // AQUI ESTÁ A MÁGICA: O select('*, companies(name)') faz o JOIN com a tabela de empresas
       const { data, error } = await supabase
         .from('leads')
-        .select('id, title, value, status, company_id, companies(name)')
+        .select('*, companies(name)')
         .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    }
+  });
 
-      if (!error && data) {
-        setLeads(data.map((l: any) => ({
-          id: l.id,
-          title: l.title,
-          value: l.value || 0,
-          status: l.status,
-          company_name: l.companies?.name || 'Sem empresa',
-        })));
+  const createLead = useMutation({
+    mutationFn: async (newLead: any) => {
+      const { error } = await supabase.from('leads').insert(newLead);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead criado com sucesso!');
+    },
+    onError: () => {
+      toast.error('Erro ao criar lead.');
+    }
+  });
+
+  const handleCreateLead = (leadData: any) => {
+    createLead.mutate(leadData);
+  };
+
+  const updateLeadStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string, status: string }) => {
+      const { error } = await supabase.from('leads').update({ status }).eq('id', id);
+      if (error) throw error;
+    },
+    onMutate: async (newLeadInfo) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const previousLeads = queryClient.getQueryData(['leads']);
+      
+      queryClient.setQueryData(['leads'], (old: any) => 
+        old.map((lead: any) => lead.id === newLeadInfo.id ? { ...lead, status: newLeadInfo.status } : lead)
+      );
+
+      return { previousLeads };
+    },
+    onError: (err, newLeadInfo, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
       }
-      setLoading(false);
-    };
-    fetchLeads();
-  }, []);
+      toast.error('Erro ao mover o card.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    }
+  });
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
 
-    const leadId = active.id as string;
-    const newStatus = over.id as string;
+    const leadId = String(active.id);
+    const newStatus = String(over.id);
+    const lead = leads.find((l: any) => l.id === leadId);
 
-    setLeads((prev) => prev.map((lead) => lead.id === leadId ? { ...lead, status: newStatus } : lead));
-
-    await supabase.from('leads').update({ status: newStatus }).eq('id', leadId);
+    if (lead && lead.status !== newStatus) {
+      updateLeadStatus.mutate({ id: leadId, status: newStatus });
+    }
   };
 
-  if (loading) {
+  const totalValue = leads.reduce((acc: number, lead: any) => acc + Number(lead.value), 0);
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full gap-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">CRM — Comercial & Jurídico</h1>
-          <p className="text-muted-foreground text-sm mt-1">Arraste os cards para mover leads entre os estágios.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">CRM Comercial</h1>
+          <p className="text-slate-500 mt-1">Gerencie suas prospecções e contratos jurídicos.</p>
         </div>
-        <Button><Plus className="h-4 w-4 mr-2" /> Novo Lead</Button>
+        <div className="flex items-center gap-4">
+          <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg border border-emerald-200">
+            <span className="text-sm block">Pipeline Total</span>
+            <span className="font-bold text-lg">
+              R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2" onClick={() => setIsNewLeadOpen(true)}>
+            <Plus className="w-4 h-4" /> Novo Lead
+          </Button>
+        </div>
       </div>
 
-      <DndContext collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {COLUMNS.map((column) => (
-            <KanbanColumn key={column.id} column={column} leads={leads.filter((l) => l.status === column.id)} />
-          ))}
-        </div>
-      </DndContext>
+      <NewLeadModal isOpen={isNewLeadOpen} onClose={() => setIsNewLeadOpen(false)} onSave={handleCreateLead} />
+
+      <div className="flex-1 overflow-x-auto pb-4">
+        <DndContext collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+          <div className="flex gap-6 h-full items-start">
+            {COLUMNS.map((column) => (
+              <KanbanColumn 
+                key={column.id} 
+                column={column} 
+                leads={leads.filter((lead: any) => lead.status === column.id)} 
+              />
+            ))}
+          </div>
+        </DndContext>
+      </div>
     </div>
   );
-}
+};
+
+export default CRM;
