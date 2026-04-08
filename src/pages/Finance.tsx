@@ -233,7 +233,7 @@ export const Finance = () => {
             {showImportDropdown && (
               <div className="absolute right-0 mt-2 w-72 bg-white border rounded-lg shadow-lg z-10">
                 <div className="p-2 border-b">
-                  <p className="text-xs fontTables<'companies'>dium text-slate-600 px-2 py-1">Selecione a empresa com Asaas vinculado</p>
+                  <p className="text-xs font-medium text-slate-600 px-2 py-1">Selecione a empresa com Asaas vinculado</p>
                 </div>
                 <div className="max-h-48 overflow-y-auto">
                   {companies.length === 0 ? (

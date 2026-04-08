@@ -7,20 +7,22 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import Login from "./pages/Login";
-import SignUp from "./pages/SignUp";
-import Dashboard from "./pages/Dashboard";
-import CRM from "./pages/CRM";
-import Finance from "./pages/Finance";
-import Companies from "./pages/Companies";
-import CompanyWorkspace from "./pages/CompanyWorkspace";
-import CompanyProfile from "./pages/CompanyProfile";
-import CompanyContracts from "./pages/CompanyContracts";
-import Processes from "./pages/Processes";
-import Docs from "./pages/Docs";
-import AIInsights from "./pages/AIInsights";
-import Settings from "./pages/Settings";
-import NotFound from "./pages/NotFound";
+import { lazy, Suspense } from "react";
+
+const Login = lazy(() => import("./pages/Login"));
+const SignUp = lazy(() => import("./pages/SignUp"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const CRM = lazy(() => import("./pages/CRM"));
+const Finance = lazy(() => import("./pages/Finance"));
+const Companies = lazy(() => import("./pages/Companies"));
+const CompanyWorkspace = lazy(() => import("./pages/CompanyWorkspace"));
+const CompanyProfile = lazy(() => import("./pages/CompanyProfile"));
+const CompanyContracts = lazy(() => import("./pages/CompanyContracts"));
+const Processes = lazy(() => import("./pages/Processes"));
+const Docs = lazy(() => import("./pages/Docs"));
+const AIInsights = lazy(() => import("./pages/AIInsights"));
+const Settings = lazy(() => import("./pages/Settings"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
@@ -32,6 +34,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+          <Suspense fallback={null}>
           <Routes>
             {/* Rotas públicas */}
             <Route path="/login" element={<Login />} />
@@ -62,6 +65,7 @@ const App = () => (
               }
             />
           </Routes>
+          </Suspense>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

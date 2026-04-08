@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, ClipboardList, Circle, Clock, CheckCircle2, Plus, Search } from "lucide-react";
+import { BookOpen, Circle, Clock, CheckCircle2, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -428,7 +428,14 @@ export default function Docs() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks', selectedListId] }),
   });
 
-  const selectedSpace = spaces.find((space) => space.id === selectedSpaceId);
+  const deleteTask = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks', selectedListId] }),
+  });
+
   const selectedList = lists.find((list) => list.id === selectedListId);
   const listsInSpace = lists.filter((list) => list.space_id === selectedSpaceId);
 
@@ -607,15 +614,27 @@ export default function Docs() {
                                 <p className="text-xs text-muted-foreground mt-1">{task.companies.name}</p>
                               )}
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                updateTask.mutate({ id: task.id, updates: { status: status === 'a_receber' ? 'em_progresso' : status === 'em_progresso' ? 'concluido' : 'concluido' } })
-                              }
-                            >
-                              Próximo
-                            </Button>
+                            <div className="flex gap-1">
+                              {status !== 'concluido' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    updateTask.mutate({ id: task.id, updates: { status: status === 'a_receber' ? 'em_progresso' : 'concluido' } })
+                                  }
+                                >
+                                  Próximo
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => deleteTask.mutate(task.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                           <div className="flex items-center justify-between gap-3 mt-3">
                             <Badge variant={priorityColors[task.priority] ?? 'secondary'} className="text-xs capitalize">

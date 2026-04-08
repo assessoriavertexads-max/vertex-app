@@ -17,6 +17,7 @@ import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { CompanyStatus, COMPANY_STATUS_LABELS, COMPANY_STATUS_COLORS } from '@/lib/company-constants';
 
 interface Company {
@@ -44,7 +45,7 @@ export default function Companies() {
       .select('id, name, document, status, asaas_customer_id, created_at')
       .order('created_at', { ascending: false });
     if (error) {
-      console.error('Erro ao buscar empresas:', error.message);
+      toast.error(`Erro ao buscar empresas: ${error.message}`);
     } else if (data) {
       setCompanies(data as unknown as Company[]);
     }

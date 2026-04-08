@@ -139,7 +139,7 @@ export const CRM = () => {
           .single();
         if (leadError) throw leadError;
 
-        const isContractSigned = typeof lead.legal_status === 'string' && /assinad|signed/i.test(lead.legal_status);
+        const isContractSigned = typeof lead.legal_status === 'string' && /assinado|signed/i.test(lead.legal_status);
 
         if (isContractSigned) {
           let companyId = lead.company_id;

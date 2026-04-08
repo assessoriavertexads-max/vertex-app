@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Circle, Clock, FileText, Plus } from "lucide-react";
+import { CheckCircle2, Circle, Clock, FileText, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -353,6 +353,14 @@ export default function Processes() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks', selectedListId] }),
   });
 
+  const deleteTask = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks', selectedListId] }),
+  });
+
   const grouped = useMemo(() => ({
     a_receber: tasks.filter((task) => task.status === 'a_receber'),
     em_progresso: tasks.filter((task) => task.status === 'em_progresso'),
@@ -464,24 +472,34 @@ export default function Processes() {
                         </div>
                       </div>
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            Atualizar
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {Object.entries(statusConfig).map(([nextStatus, nextConfig]) => (
-                            <DropdownMenuItem
-                              key={nextStatus}
-                              disabled={task.status === nextStatus}
-                              onSelect={() => updateTask.mutate({ id: task.id, updates: { status: nextStatus } })}
-                            >
-                              {nextConfig.label}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex gap-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              Atualizar
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            {Object.entries(statusConfig).map(([nextStatus, nextConfig]) => (
+                              <DropdownMenuItem
+                                key={nextStatus}
+                                disabled={task.status === nextStatus}
+                                onSelect={() => updateTask.mutate({ id: task.id, updates: { status: nextStatus } })}
+                              >
+                                {nextConfig.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => deleteTask.mutate(task.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between mt-3 gap-3">
