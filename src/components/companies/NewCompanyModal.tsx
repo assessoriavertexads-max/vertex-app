@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CompanyStatus, COMPANY_STATUS_LABELS } from '@/integrations/supabase/types';
+import { isValidCNPJorCPF, formatCNPJorCPF } from '@/utils/validation';
 
 interface NewCompanyModalProps {
   isOpen: boolean;
@@ -17,14 +18,32 @@ interface NewCompanyModalProps {
 export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProps) => {
   const [formData, setFormData] = useState({ name: '', document: '', status: 'ativo' as CompanyStatus });
   const [saving, setSaving] = useState(false);
+  const [documentError, setDocumentError] = useState('');
+
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDocumentError('');
+    setFormData({ ...formData, document: value });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.name.trim()) {
+      toast.error('Nome da empresa é obrigatório');
+      return;
+    }
+
+    if (formData.document && !isValidCNPJorCPF(formData.document)) {
+      setDocumentError('CNPJ ou CPF inválido. Verifique o documento informado.');
+      return;
+    }
+
     setSaving(true);
 
     const { error } = await supabase.from('companies').insert({
-      name: formData.name,
-      document: formData.document || null,
+      name: formData.name.trim(),
+      document: formData.document ? formatCNPJorCPF(formData.document) : null,
       status: formData.status,
     });
 
@@ -57,7 +76,14 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
 
           <div className="space-y-2">
             <Label htmlFor="document">CNPJ ou CPF</Label>
-            <Input id="document" placeholder="00.000.000/0001-00" value={formData.document} onChange={(e) => setFormData({ ...formData, document: e.target.value })} />
+            <Input 
+              id="document" 
+              placeholder="00.000.000/0001-00 ou 000.000.000-00" 
+              value={formData.document} 
+              onChange={handleDocumentChange}
+              className={documentError ? 'border-red-500' : ''}
+            />
+            {documentError && <p className="text-sm text-red-500">{documentError}</p>}
           </div>
 
           <div className="space-y-2">

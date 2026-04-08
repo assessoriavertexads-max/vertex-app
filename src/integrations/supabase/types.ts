@@ -282,6 +282,44 @@ export interface Database {
           auth_user_id?: string
         }
       }
+      contracts: {
+        Row: {
+          id: string
+          company_id: string | null
+          title: string
+          description: string | null
+          file_url: string | null
+          status: string | null
+          start_date: string | null
+          end_date: string | null
+          created_at: string
+          auth_user_id: string
+        }
+        Insert: {
+          id?: string
+          company_id?: string | null
+          title: string
+          description?: string | null
+          file_url?: string | null
+          status?: string | null
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string
+          auth_user_id?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string | null
+          title?: string
+          description?: string | null
+          file_url?: string | null
+          status?: string | null
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string
+          auth_user_id?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
