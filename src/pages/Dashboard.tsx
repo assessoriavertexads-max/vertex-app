@@ -7,16 +7,8 @@ import {
   BarChart, Bar, Legend
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-
-const revenueData = [
-  { name: 'Jan', receita: 15000, despesa: 8000 },
-  { name: 'Fev', receita: 18000, despesa: 8500 },
-  { name: 'Mar', receita: 16500, despesa: 9000 },
-  { name: 'Abr', receita: 22000, despesa: 8200 },
-  { name: 'Mai', receita: 28000, despesa: 10000 },
-  { name: 'Jun', receita: 35000, despesa: 11000 },
-];
 
 export default function Dashboard() {
   const { data: companies = [] } = useQuery({
@@ -24,7 +16,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase.from('companies').select('id, status');
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
@@ -33,7 +25,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase.from('leads').select('id, estimated_value, funnel_stage');
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
@@ -42,7 +34,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase.from('tasks').select('id, status, due_date');
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
@@ -53,26 +45,71 @@ export default function Dashboard() {
         .from('financial_transactions')
         .select('id, type, amount, status');
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
-  const activeCompanies = companies.filter((c: any) => c.status === 'active').length;
-  const pipelineTotal = leads.reduce((acc: number, l: any) => acc + Number(l.estimated_value ?? 0), 0);
-  const activeLeads = leads.filter((l: any) => l.funnel_stage !== 'closed').length;
-  const pendingTasks = tasks.filter((t: any) => t.status !== 'concluido').length;
-  const today = new Date().toISOString().split('T')[0];
-  const overdueTasks = tasks.filter((t: any) => t.status !== 'concluido' && t.due_date && t.due_date < today).length;
-  const monthlyRevenue = transactions
-    .filter((t: any) => t.type === 'income' && t.status === 'paid')
-    .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+  // Memoized calculations
+  const metrics = useMemo(() => {
+    const activeCompanies = companies.filter((c: { status: string }) => c.status === 'ativo').length;
+    const pipelineTotal = leads.reduce((acc: number, l: { estimated_value: number | null }) => acc + Number(l.estimated_value ?? 0), 0);
+    const activeLeads = leads.filter((l: { funnel_stage: string }) => l.funnel_stage !== 'closed').length;
+    const pendingTasks = tasks.filter((t: { status: string }) => t.status !== 'concluido').length;
+    const today = new Date().toISOString().split('T')[0];
+    const overdueTasks = tasks.filter((t: { status: string; due_date: string | null }) => t.status !== 'concluido' && t.due_date && t.due_date < today).length;
+    const monthlyRevenue = transactions
+      .filter((t: { type: string; status: string }) => t.type === 'income' && t.status === 'paid')
+      .reduce((acc: number, t: { amount: number }) => acc + Number(t.amount), 0);
 
-  const funnelData = [
-    { name: 'Prospecção', quantidade: leads.filter((l: any) => l.funnel_stage === 'prospect').length },
-    { name: 'Negociação', quantidade: leads.filter((l: any) => l.funnel_stage === 'negotiation').length },
-    { name: 'Jurídico', quantidade: leads.filter((l: any) => l.funnel_stage === 'legal').length },
-    { name: 'Fechado', quantidade: leads.filter((l: any) => l.funnel_stage === 'closed').length },
-  ];
+    return {
+      activeCompanies,
+      pipelineTotal,
+      activeLeads,
+      pendingTasks,
+      overdueTasks,
+      monthlyRevenue,
+    };
+  }, [companies, leads, tasks, transactions]);
+
+  // Memoized funnel data
+  const funnelData = useMemo(() => [
+    { name: 'Prospecção', quantidade: leads.filter((l: { funnel_stage: string }) => l.funnel_stage === 'prospect').length },
+    { name: 'Negociação', quantidade: leads.filter((l: { funnel_stage: string }) => l.funnel_stage === 'negotiation').length },
+    { name: 'Jurídico', quantidade: leads.filter((l: { funnel_stage: string }) => l.funnel_stage === 'legal').length },
+    { name: 'Fechado', quantidade: leads.filter((l: { funnel_stage: string }) => l.funnel_stage === 'closed').length },
+  ], [leads]);
+
+  // Calculate revenue data from transactions
+  const revenueData = useMemo(() => {
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const today = new Date();
+    const data = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthKey = date.toISOString().substring(0, 7); // YYYY-MM
+
+      const monthTransactions = transactions.filter((t: { status: string; created_at?: string }) => {
+        const tDate = t.created_at?.substring(0, 7);
+        return tDate === monthKey;
+      });
+
+      const receita = monthTransactions
+        .filter((t: { type: string; status: string }) => t.type === 'income' && t.status === 'paid')
+        .reduce((acc: number, t: { amount: number }) => acc + Number(t.amount), 0);
+
+      const despesa = monthTransactions
+        .filter((t: { type: string; status: string }) => t.type === 'expense' && t.status === 'paid')
+        .reduce((acc: number, t: { amount: number }) => acc + Number(t.amount), 0);
+
+      data.push({
+        name: months[date.getMonth()],
+        receita,
+        despesa,
+      });
+    }
+    return data;
+  }, [transactions]);
 
   return (
     <div className="flex flex-col h-full gap-6 max-w-7xl mx-auto pb-8">

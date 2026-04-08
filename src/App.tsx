@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Dashboard from "./pages/Dashboard";
@@ -13,6 +14,8 @@ import CRM from "./pages/CRM";
 import Finance from "./pages/Finance";
 import Companies from "./pages/Companies";
 import CompanyWorkspace from "./pages/CompanyWorkspace";
+import CompanyProfile from "./pages/CompanyProfile";
+import CompanyContracts from "./pages/CompanyContracts";
 import Processes from "./pages/Processes";
 import Docs from "./pages/Docs";
 import AIInsights from "./pages/AIInsights";
@@ -22,12 +25,13 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
           <Routes>
             {/* Rotas públicas */}
             <Route path="/login" element={<Login />} />
@@ -46,6 +50,8 @@ const App = () => (
                       <Route path="/finance" element={<Finance />} />
                       <Route path="/companies" element={<Companies />} />
                       <Route path="/companies/:companyId" element={<CompanyWorkspace />} />
+                      <Route path="/companies/:companyId/profile" element={<CompanyProfile />} />
+                      <Route path="/companies/:companyId/contracts" element={<CompanyContracts />} />
                       <Route path="/ai-insights" element={<AIInsights />} />
                       <Route path="/docs" element={<Docs />} />
                       <Route path="/settings" element={<Settings />} />
@@ -60,6 +66,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

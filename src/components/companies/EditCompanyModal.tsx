@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,16 +9,35 @@ import { toast } from 'sonner';
 import { CompanyStatus, COMPANY_STATUS_LABELS } from '@/integrations/supabase/types';
 import { isValidCNPJorCPF, formatCNPJorCPF } from '@/utils/validation';
 
-interface NewCompanyModalProps {
+interface Company {
+  id: string;
+  name: string;
+  document: string | null;
+  status: string;
+}
+
+interface EditCompanyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
+  company: Company | null;
 }
 
-export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProps) => {
+export const EditCompanyModal = ({ isOpen, onClose, onSave, company }: EditCompanyModalProps) => {
   const [formData, setFormData] = useState({ name: '', document: '', status: 'ativo' as CompanyStatus });
   const [saving, setSaving] = useState(false);
   const [documentError, setDocumentError] = useState('');
+
+  useEffect(() => {
+    if (company) {
+      setFormData({
+        name: company.name,
+        document: company.document || '',
+        status: company.status as CompanyStatus
+      });
+      setDocumentError('');
+    }
+  }, [company, isOpen]);
 
   const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -28,7 +47,8 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (!company) return;
+
     if (!formData.name.trim()) {
       toast.error('Nome da empresa é obrigatório');
       return;
@@ -41,21 +61,24 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
 
     setSaving(true);
 
-    const { error } = await supabase.from('companies').insert({
-      name: formData.name.trim(),
-      document: formData.document ? formatCNPJorCPF(formData.document) : null,
-      status: formData.status,
-    });
+    const { error } = await supabase
+      .from('companies')
+      .update({
+        name: formData.name.trim(),
+        document: formData.document ? formatCNPJorCPF(formData.document) : null,
+        status: formData.status,
+      })
+      .eq('id', company.id);
 
     setSaving(false);
 
     if (error) {
-      toast.error('Erro ao salvar empresa');
+      console.error('Erro ao atualizar:', error);
+      toast.error('Erro ao atualizar empresa');
       return;
     }
 
-    toast.success('Empresa cadastrada com sucesso!');
-    setFormData({ name: '', document: '', status: 'ativo' });
+    toast.success('Empresa atualizada com sucesso!');
     onSave();
     onClose();
   };
@@ -64,22 +87,28 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Cadastrar Nova Empresa</DialogTitle>
-          <DialogDescription>Adicione um novo cliente ao seu workspace da Vertex.</DialogDescription>
+          <DialogTitle>Editar Empresa</DialogTitle>
+          <DialogDescription>Atualize as informações da empresa.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
-            <Label htmlFor="name">Razão Social / Nome Fantasia</Label>
-            <Input id="name" placeholder="Ex: TechCorp Solutions" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+            <Label htmlFor="edit-name">Razão Social / Nome Fantasia</Label>
+            <Input
+              id="edit-name"
+              placeholder="Ex: TechCorp Solutions"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+            />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="document">CNPJ ou CPF</Label>
-            <Input 
-              id="document" 
-              placeholder="00.000.000/0001-00 ou 000.000.000-00" 
-              value={formData.document} 
+            <Label htmlFor="edit-document">CNPJ ou CPF</Label>
+            <Input
+              id="edit-document"
+              placeholder="00.000.000/0001-00 ou 000.000.000-00"
+              value={formData.document}
               onChange={handleDocumentChange}
               className={documentError ? 'border-red-500' : ''}
             />
@@ -87,21 +116,20 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
           </div>
 
           <div className="space-y-2">
-            <Label>Status Inicial</Label>
+            <Label htmlFor="edit-status">Status</Label>
             <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as CompanyStatus })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="edit-status"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="ativo">Ativo</SelectItem>
-                <SelectItem value="stand-by">Stand-by</SelectItem>
-                <SelectItem value="inativo">Inativo</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
+                {Object.entries(COMPANY_STATUS_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Empresa'}</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Alterações'}</Button>
           </div>
         </form>
       </DialogContent>
