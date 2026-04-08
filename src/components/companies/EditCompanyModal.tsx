@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { CompanyStatus, COMPANY_STATUS_LABELS } from '@/integrations/supabase/types';
+import { CompanyStatus, COMPANY_STATUS_LABELS } from '@/lib/company-constants';
 import { isValidCNPJorCPF, formatCNPJorCPF } from '@/utils/validation';
 
 interface Company {
@@ -120,8 +120,8 @@ export const EditCompanyModal = ({ isOpen, onClose, onSave, company }: EditCompa
             <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as CompanyStatus })}>
               <SelectTrigger id="edit-status"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Object.entries(COMPANY_STATUS_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
+{Object.entries(COMPANY_STATUS_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label as string}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
