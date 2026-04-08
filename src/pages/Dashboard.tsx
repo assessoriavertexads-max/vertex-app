@@ -71,6 +71,8 @@ export default function Dashboard() {
     };
   }, [companies, leads, tasks, transactions]);
 
+  const { activeCompanies, pipelineTotal, activeLeads, pendingTasks, overdueTasks, monthlyRevenue } = metrics;
+
   // Memoized funnel data
   const funnelData = useMemo(() => [
     { name: 'Prospecção', quantidade: leads.filter((l: { funnel_stage: string }) => l.funnel_stage === 'prospect').length },

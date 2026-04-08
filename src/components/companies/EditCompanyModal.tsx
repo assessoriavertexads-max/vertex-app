@@ -120,8 +120,8 @@ export const EditCompanyModal = ({ isOpen, onClose, onSave, company }: EditCompa
             <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as CompanyStatus })}>
               <SelectTrigger id="edit-status"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Object.entries(COMPANY_STATUS_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
+{Object.entries(COMPANY_STATUS_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label as string}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

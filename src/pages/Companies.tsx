@@ -17,7 +17,7 @@ import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { CompanyStatus, COMPANY_STATUS_LABELS, COMPANY_STATUS_COLORS } from '@/integrations/supabase/types';
+import { CompanyStatus, COMPANY_STATUS_LABELS, COMPANY_STATUS_COLORS } from '@/lib/company-constants';
 
 interface Company {
   id: string;
