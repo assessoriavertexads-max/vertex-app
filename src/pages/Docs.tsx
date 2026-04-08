@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import { TaskCreateInput, TaskUpdate } from '@/lib/backend-types';
 
 const statusConfig = {
   a_receber: { label: "A Receber", icon: Circle, color: "text-muted-foreground" },
@@ -405,7 +405,7 @@ export default function Docs() {
   });
 
   const createTask = useMutation({
-    mutationFn: async (newTask: Omit<TablesInsert<'tasks'>, 'list_id' | 'status'>) => {
+    mutationFn: async (newTask: TaskCreateInput) => {
       if (!selectedListId) throw new Error('Selecione uma lista antes de criar a tarefa.');
       const { data, error } = await supabase.from('tasks').insert([
         {
@@ -421,7 +421,7 @@ export default function Docs() {
   });
 
   const updateTask = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: TablesUpdate<'tasks'> }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: TaskUpdate }) => {
       const { error } = await supabase.from('tasks').update(updates).eq('id', id);
       if (error) throw error;
     },

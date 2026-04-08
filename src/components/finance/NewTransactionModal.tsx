@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Tables } from '@/integrations/supabase/types';
+import { CompanyOption } from '@/lib/backend-types';
 import { RefreshCw } from 'lucide-react';
 
 interface NewTransactionModalProps {
@@ -52,7 +52,7 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
     setCycle('MONTHLY');
   }, [defaultType, isOpen]);
 
-  const { data: companies = [], isLoading } = useQuery({
+  const { data: companies = [], isLoading } = useQuery<CompanyOption[]>({
     queryKey: ['companies-dropdown'],
     queryFn: async () => {
       const { data, error } = await supabase.from('companies').select('id, name').order('name');
@@ -112,7 +112,7 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
               required={type === 'income'}
             >
               <option value="">{isLoading ? 'Carregando...' : 'Selecione a empresa (opcional para saída)'}</option>
-              {companies.map((company: Tables<'companies'>) => (
+              {companies.map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
                 </option>

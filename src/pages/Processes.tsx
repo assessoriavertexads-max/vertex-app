@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import { TaskCreateInput, TaskInsert, TaskUpdate } from '@/lib/backend-types';
 
 const statusConfig = {
   a_receber: { label: "A Receber", icon: Circle, color: "text-muted-foreground" },
@@ -307,10 +307,10 @@ export default function Processes() {
   };
 
   const createTask = useMutation({
-    mutationFn: async (newTask: Omit<TablesInsert<'tasks'>, 'list_id' | 'status'>) => {
+    mutationFn: async (newTask: TaskCreateInput) => {
       if (!selectedListId) throw new Error('Nenhuma lista selecionada');
 
-      const tasksToInsert: TablesInsert<'tasks'>[] = [];
+      const tasksToInsert: TaskInsert[] = [];
 
       if (newTask.recurrence?.frequency && newTask.recurrence.frequency !== 'none' && newTask.due_date) {
         const dates = getRecurringDueDates(newTask.due_date, newTask.recurrence.frequency, newTask.recurrence.occurrences);
@@ -346,7 +346,7 @@ export default function Processes() {
   });
 
   const updateTask = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: TablesUpdate<'tasks'> }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: TaskUpdate }) => {
       const { error } = await supabase.from('tasks').update(updates).eq('id', id);
       if (error) throw error;
     },
