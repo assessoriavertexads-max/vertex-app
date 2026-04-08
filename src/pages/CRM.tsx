@@ -6,6 +6,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { NewLeadModal } from '@/components/crm/NewLeadModal';
+import { Tables, TablesInsert } from '@/integrations/supabase/types';
+
+type LeadWithCompany = Tables<'leads'> & {
+  companies?: {
+    name: string;
+  } | null;
+};
 
 const COLUMNS = [
   { id: 'prospect', title: 'Prospecção', color: 'border-slate-200 bg-slate-100/50' },
@@ -14,7 +21,7 @@ const COLUMNS = [
   { id: 'closed', title: 'Fechado (Ganho)', color: 'border-emerald-200 bg-emerald-50/50' },
 ];
 
-const LeadCard = ({ lead }: { lead: any }) => {
+const LeadCard = ({ lead }: { lead: LeadWithCompany }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.id,
     data: lead,
@@ -56,7 +63,7 @@ const LeadCard = ({ lead }: { lead: any }) => {
   );
 };
 
-const KanbanColumn = ({ column, leads }: { column: any; leads: any[] }) => {
+const KanbanColumn = ({ column, leads }: { column: typeof COLUMNS[0]; leads: LeadWithCompany[] }) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
@@ -109,7 +116,7 @@ export const CRM = () => {
   });
 
   const createLead = useMutation({
-    mutationFn: async (newLead: any) => {
+    mutationFn: async (newLead: TablesInsert<'leads'>) => {
       const { error } = await supabase.from('leads').insert(newLead);
       if (error) throw error;
     },
@@ -205,8 +212,8 @@ export const CRM = () => {
     onMutate: async ({ id, funnel_stage }) => {
       await queryClient.cancelQueries({ queryKey: ['leads'] });
       const previousLeads = queryClient.getQueryData(['leads']);
-      queryClient.setQueryData(['leads'], (old: any) =>
-        old.map((lead: any) => lead.id === id ? { ...lead, funnel_stage } : lead)
+      queryClient.setQueryData(['leads'], (old: LeadWithCompany[]) =>
+        old.map((lead: LeadWithCompany) => lead.id === id ? { ...lead, funnel_stage } : lead)
       );
       return { previousLeads };
     },
@@ -227,14 +234,14 @@ export const CRM = () => {
 
     const leadId = String(active.id);
     const newStage = String(over.id);
-    const lead = leads.find((l: any) => l.id === leadId);
+    const lead = leads.find((l: LeadWithCompany) => l.id === leadId);
 
     if (lead && lead.funnel_stage !== newStage) {
       updateLeadStage.mutate({ id: leadId, funnel_stage: newStage });
     }
   };
 
-  const totalValue = leads.reduce((acc: number, lead: any) => acc + Number(lead.estimated_value ?? 0), 0);
+  const totalValue = leads.reduce((acc: number, lead: LeadWithCompany) => acc + Number(lead.estimated_value ?? 0), 0);
 
   if (isLoading) {
     return (
@@ -273,7 +280,7 @@ export const CRM = () => {
               <KanbanColumn
                 key={column.id}
                 column={column}
-                leads={leads.filter((lead: any) => lead.funnel_stage === column.id)}
+                leads={leads.filter((lead: LeadWithCompany) => lead.funnel_stage === column.id)}
               />
             ))}
           </div>

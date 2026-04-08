@@ -6,10 +6,12 @@ import { Label } from '@/components/ui/label';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
+import { TablesInsert, Tables } from '@/integrations/supabase/types';
+
 interface NewLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (leadData: any) => void;
+  onSave: (leadData: TablesInsert<'leads'>) => void;
 }
 
 export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => {
@@ -79,7 +81,7 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
               onChange={(e) => setCompanyId(e.target.value)}
             >
               <option value="">{isLoading ? 'Carregando empresas...' : 'Selecione uma empresa (opcional)'}</option>
-              {companies.map((company: any) => (
+              {companies.map((company: Tables<'companies'>) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
                 </option>

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { Tables } from '@/integrations/supabase/types';
 import { RefreshCw } from 'lucide-react';
 
 interface NewTransactionModalProps {
@@ -111,7 +112,7 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
               required={type === 'income'}
             >
               <option value="">{isLoading ? 'Carregando...' : 'Selecione a empresa (opcional para saída)'}</option>
-              {companies.map((company: any) => (
+              {companies.map((company: Tables<'companies'>) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
                 </option>

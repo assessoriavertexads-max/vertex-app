@@ -18,6 +18,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { NewTransactionModal } from '@/components/finance/NewTransactionModal';
+import { Tables } from '@/integrations/supabase/types';
+
+type TransactionWithCompany = Tables<'financial_transactions'> & {
+  companies?: {
+    name: string;
+  } | null;
+};
 
 const CYCLE_LABELS: Record<string, string> = {
   MONTHLY: 'Mensal',
@@ -128,7 +135,7 @@ export const Finance = () => {
 
   // Gera cobrança única OU assinatura recorrente no Asaas
   const generateAsaasCharge = useMutation({
-    mutationFn: async (transaction: any) => {
+    mutationFn: async (transaction: Tables<'financial_transactions'>) => {
       const { data, error } = await supabase.functions.invoke('asaas-checkout', {
         body: { transaction_id: transaction.id },
       });
@@ -145,24 +152,24 @@ export const Finance = () => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
       if (data.url) window.open(data.url, '_blank');
     },
-    onError: (err: Error) => {
-      toast.error(`Erro ao gerar cobrança: ${err.message}`);
+    onError: (error) => {
+      toast.error(`Erro ao gerar cobrança: ${error.message}`);
     },
   });
 
   const totalIncome = transactions
-    .filter((t: any) => t.type === 'income' && t.status === 'paid')
-    .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+    .filter((t: TransactionWithCompany) => t.type === 'income' && t.status === 'paid')
+    .reduce((acc: number, t: TransactionWithCompany) => acc + Number(t.amount), 0);
 
   const totalPending = transactions
-    .filter((t: any) => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue'))
-    .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+    .filter((t: TransactionWithCompany) => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue'))
+    .reduce((acc: number, t: TransactionWithCompany) => acc + Number(t.amount), 0);
 
   const totalExpense = transactions
-    .filter((t: any) => t.type === 'expense')
-    .reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+    .filter((t: TransactionWithCompany) => t.type === 'expense')
+    .reduce((acc: number, t: TransactionWithCompany) => acc + Number(t.amount), 0);
 
-  const filteredTransactions = transactions.filter((t: any) => {
+  const filteredTransactions = transactions.filter((t: TransactionWithCompany) => {
     const companyName = t.companies?.name || '';
     const categoryText = t.category || '';
     const matchesSearch = [companyName, categoryText].some((value) =>
@@ -226,13 +233,13 @@ export const Finance = () => {
             {showImportDropdown && (
               <div className="absolute right-0 mt-2 w-72 bg-white border rounded-lg shadow-lg z-10">
                 <div className="p-2 border-b">
-                  <p className="text-xs font-medium text-slate-600 px-2 py-1">Selecione a empresa com Asaas vinculado</p>
+                  <p className="text-xs fontTables<'companies'>dium text-slate-600 px-2 py-1">Selecione a empresa com Asaas vinculado</p>
                 </div>
                 <div className="max-h-48 overflow-y-auto">
                   {companies.length === 0 ? (
                     <div className="p-4 text-sm text-slate-500">Nenhuma empresa com Asaas vinculada encontrada. Cadastre o ID Asaas na empresa ou registre uma transação manualmente.</div>
                   ) : (
-                    companies.map((company: any) => (
+                    companies.map((company: Tables<'companies'>) => (
                       <button
                         key={company.id}
                         onClick={() => {
@@ -368,7 +375,7 @@ export const Finance = () => {
                   </td>
                 </tr>
               ) : (
-                filteredTransactions.map((t: any) => (
+                filteredTransactions.map((t: TransactionWithCompany) => (
                   <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">

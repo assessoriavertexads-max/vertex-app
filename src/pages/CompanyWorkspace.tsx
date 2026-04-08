@@ -9,14 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-interface Company {
+import { toast } from 'sonner';import { Json } from '@/integrations/supabase/types';interface Company {
   id: string;
   name: string;
   document: string | null;
   status: string;
   asaas_customer_id: string | null;
-  custom_data: any;
+  custom_data: Json;
   created_at: string;
 }
 
@@ -118,16 +117,16 @@ export default function CompanyWorkspace() {
 
   useEffect(() => {
     if (company) {
-      const data = (company.custom_data ?? {}) as Record<string, any>;
-      setErpParameter(data.erp_parameter ?? '');
-      setErpNotes(data.erp_notes ?? '');
+      const data = (company.custom_data ?? {}) as Record<string, unknown>;
+      setErpParameter((data.erp_parameter as string) ?? '');
+      setErpNotes((data.erp_notes as string) ?? '');
     }
   }, [company]);
 
   const updateCompany = useMutation({
     mutationFn: async (payload: { erp_parameter: string; erp_notes: string }) => {
       if (!companyId) throw new Error('ID de empresa não encontrado');
-      const currentData = (company?.custom_data ?? {}) as Record<string, any>;
+      const currentData = (company?.custom_data ?? {}) as Record<string, unknown>;
       const { error } = await supabase
         .from('companies')
         .update({ custom_data: { ...currentData, ...payload } })

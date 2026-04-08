@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 
 export const useTasks = (listId: string | null) => {
   const queryClient = useQueryClient();
@@ -21,7 +22,7 @@ export const useTasks = (listId: string | null) => {
 
   // Criar tarefa
   const createTask = useMutation({
-    mutationFn: async (newTask: any) => {
+    mutationFn: async (newTask: Omit<TablesInsert<'tasks'>, 'list_id'>) => {
       const { data, error } = await supabase.from('tasks').insert([{ ...newTask, list_id: listId }]).select();
       if (error) throw error;
       return data[0];
@@ -31,7 +32,7 @@ export const useTasks = (listId: string | null) => {
 
   // Atualizar tarefa (status, nome, etc)
   const updateTask = useMutation({
-    mutationFn: async ({ id, ...updates }: any) => {
+    mutationFn: async ({ id, ...updates }: { id: string } & TablesUpdate<'tasks'>) => {
       const { error } = await supabase.from('tasks').update(updates).eq('id', id);
       if (error) throw error;
     },

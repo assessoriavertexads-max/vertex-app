@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY');
 if (!ASAAS_API_KEY) {
@@ -86,7 +86,7 @@ function mapAsaasCycle(asaasCycle: string): string {
 }
 
 // Sincroniza assinaturas existentes com financial_transactions
-async function syncExistingSubscriptions(supabaseClient: any, companyId: string, asaasCustomerId: string) {
+async function syncExistingSubscriptions(supabaseClient: SupabaseClient, companyId: string, asaasCustomerId: string) {
   try {
     const subscriptions = await fetchAllCustomerSubscriptions(asaasCustomerId);
 
