@@ -18,13 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { NewTransactionModal } from '@/components/finance/NewTransactionModal';
-import { Tables } from '@/integrations/supabase/types';
-
-type TransactionWithCompany = Tables<'financial_transactions'> & {
-  companies?: {
-    name: string;
-  } | null;
-};
+import { CompanyOption, TransactionInsert, TransactionWithCompany } from '@/lib/backend-types';
 
 const CYCLE_LABELS: Record<string, string> = {
   MONTHLY: 'Mensal',
@@ -44,7 +38,7 @@ export const Finance = () => {
   const [selectedCompanyForImport, setSelectedCompanyForImport] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: transactions = [], isLoading } = useQuery({
+  const { data: transactions = [], isLoading } = useQuery<TransactionWithCompany[]>({
     queryKey: ['financial_transactions'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -52,11 +46,11 @@ export const Finance = () => {
         .select('*, companies(name)')
         .order('due_date', { ascending: false });
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
-  const { data: companies = [] } = useQuery({
+  const { data: companies = [] } = useQuery<CompanyOption[]>({
     queryKey: ['companies'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -64,20 +58,12 @@ export const Finance = () => {
         .select('id, name, asaas_customer_id')
         .not('asaas_customer_id', 'is', null);
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
   const createTransaction = useMutation({
-    mutationFn: async (data: {
-      company_id?: string | null;
-      type: 'income' | 'expense';
-      amount: number;
-      due_date: string;
-      category?: string | null;
-      status: string;
-      subscription_cycle: string | null;
-    }) => {
+    mutationFn: async (data: TransactionInsert) => {
       const { error } = await supabase.from('financial_transactions').insert({
         company_id: data.company_id || null,
         type: data.type,
@@ -135,7 +121,7 @@ export const Finance = () => {
 
   // Gera cobrança única OU assinatura recorrente no Asaas
   const generateAsaasCharge = useMutation({
-    mutationFn: async (transaction: Tables<'financial_transactions'>) => {
+    mutationFn: async (transaction: TransactionWithCompany) => {
       const { data, error } = await supabase.functions.invoke('asaas-checkout', {
         body: { transaction_id: transaction.id },
       });
@@ -239,7 +225,7 @@ export const Finance = () => {
                   {companies.length === 0 ? (
                     <div className="p-4 text-sm text-slate-500">Nenhuma empresa com Asaas vinculada encontrada. Cadastre o ID Asaas na empresa ou registre uma transação manualmente.</div>
                   ) : (
-                    companies.map((company: Tables<'companies'>) => (
+                    companies.map((company) => (
                       <button
                         key={company.id}
                         onClick={() => {

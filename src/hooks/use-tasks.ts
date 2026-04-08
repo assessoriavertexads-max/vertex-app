@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import { TaskInsert, TaskItem, TaskUpdate } from '@/lib/backend-types';
 
 export const useTasks = (listId: string | null) => {
   const queryClient = useQueryClient();
 
   // Buscar tarefas da lista seleccionada
-  const { data: tasks = [], isLoading: loading } = useQuery({
+  const { data: tasks = [], isLoading: loading } = useQuery<TaskItem[]>({
     queryKey: ['tasks', listId],
     queryFn: async () => {
       if (!listId) return [];
@@ -22,7 +22,7 @@ export const useTasks = (listId: string | null) => {
 
   // Criar tarefa
   const createTask = useMutation({
-    mutationFn: async (newTask: Omit<TablesInsert<'tasks'>, 'list_id'>) => {
+    mutationFn: async (newTask: Omit<TaskInsert, 'list_id'>) => {
       const { data, error } = await supabase.from('tasks').insert([{ ...newTask, list_id: listId }]).select();
       if (error) throw error;
       return data[0];
@@ -32,7 +32,7 @@ export const useTasks = (listId: string | null) => {
 
   // Atualizar tarefa (status, nome, etc)
   const updateTask = useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string } & TablesUpdate<'tasks'>) => {
+    mutationFn: async ({ id, ...updates }: { id: string } & TaskUpdate) => {
       const { error } = await supabase.from('tasks').update(updates).eq('id', id);
       if (error) throw error;
     },

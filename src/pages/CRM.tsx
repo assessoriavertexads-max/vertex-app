@@ -6,13 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { NewLeadModal } from '@/components/crm/NewLeadModal';
-import { Tables, TablesInsert } from '@/integrations/supabase/types';
-
-type LeadWithCompany = Tables<'leads'> & {
-  companies?: {
-    name: string;
-  } | null;
-};
+import { LeadInsert, LeadWithCompany } from '@/lib/backend-types';
 
 const COLUMNS = [
   { id: 'prospect', title: 'Prospecção', color: 'border-slate-200 bg-slate-100/50' },
@@ -103,7 +97,7 @@ export const CRM = () => {
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: leads = [], isLoading } = useQuery({
+  const { data: leads = [], isLoading } = useQuery<LeadWithCompany[]>({
     queryKey: ['leads'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -111,12 +105,12 @@ export const CRM = () => {
         .select('*, companies(name)')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
   const createLead = useMutation({
-    mutationFn: async (newLead: TablesInsert<'leads'>) => {
+    mutationFn: async (newLead: LeadInsert) => {
       const { error } = await supabase.from('leads').insert(newLead);
       if (error) throw error;
     },
@@ -211,9 +205,9 @@ export const CRM = () => {
     },
     onMutate: async ({ id, funnel_stage }) => {
       await queryClient.cancelQueries({ queryKey: ['leads'] });
-      const previousLeads = queryClient.getQueryData(['leads']);
-      queryClient.setQueryData(['leads'], (old: LeadWithCompany[]) =>
-        old.map((lead: LeadWithCompany) => lead.id === id ? { ...lead, funnel_stage } : lead)
+      const previousLeads = queryClient.getQueryData<LeadWithCompany[]>(['leads']);
+      queryClient.setQueryData(['leads'], (old: LeadWithCompany[] | undefined) =>
+        old?.map((lead) => lead.id === id ? { ...lead, funnel_stage } : lead) ?? []
       );
       return { previousLeads };
     },

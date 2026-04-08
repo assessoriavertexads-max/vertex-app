@@ -5,13 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-
-import { TablesInsert, Tables } from '@/integrations/supabase/types';
+import { CompanyOption, LeadInsert } from '@/lib/backend-types';
 
 interface NewLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (leadData: TablesInsert<'leads'>) => void;
+  onSave: (leadData: LeadInsert) => void;
 }
 
 export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => {
@@ -21,7 +20,7 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
   const [legalStatus, setLegalStatus] = useState('');
   const [contractSigned, setContractSigned] = useState(false);
 
-  const { data: companies = [], isLoading } = useQuery({
+  const { data: companies = [], isLoading } = useQuery<CompanyOption[]>({
     queryKey: ['companies-dropdown'],
     queryFn: async () => {
       const { data, error } = await supabase.from('companies').select('id, name').order('name');
@@ -81,7 +80,7 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
               onChange={(e) => setCompanyId(e.target.value)}
             >
               <option value="">{isLoading ? 'Carregando empresas...' : 'Selecione uma empresa (opcional)'}</option>
-              {companies.map((company: Tables<'companies'>) => (
+              {companies.map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
                 </option>
