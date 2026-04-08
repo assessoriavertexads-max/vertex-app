@@ -2,19 +2,23 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, MoreVertical,
-  ExternalLink, FileText, Loader2
+  ExternalLink, FileText, Loader2, Edit2, Trash2
 } from 'lucide-react';
 import { NewCompanyModal } from '@/components/companies/NewCompanyModal';
+import { EditCompanyModal } from '@/components/companies/EditCompanyModal';
+import { DeleteCompanyModal } from '@/components/companies/DeleteCompanyModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
-  DropdownMenuTrigger 
+  DropdownMenuTrigger, DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
+import { CompanyStatus, COMPANY_STATUS_LABELS, COMPANY_STATUS_COLORS } from '@/integrations/supabase/types';
+
 interface Company {
   id: string;
   name: string;
@@ -29,6 +33,8 @@ export default function Companies() {
   const [searchTerm, setSearchTerm] = useState('');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [deletingCompany, setDeletingCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchCompanies = async () => {
@@ -48,6 +54,8 @@ export default function Companies() {
   useEffect(() => { fetchCompanies(); }, []);
 
   const handleSaveCompany = () => {
+    setEditingCompany(null);
+    setDeletingCompany(null);
     fetchCompanies();
   };
 
@@ -57,12 +65,10 @@ export default function Companies() {
   );
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active': return <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Ativo</span>;
-      case 'lead': return <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400">Lead (Em negociação)</span>;
-      case 'churn': return <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-500/20 text-red-400">Cancelado</span>;
-      default: return null;
-    }
+    const statusKey = status as CompanyStatus;
+    const label = COMPANY_STATUS_LABELS[statusKey] || status;
+    const colorClass = COMPANY_STATUS_COLORS[statusKey] || 'bg-gray-500/20 text-gray-400';
+    return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colorClass}`}>{label}</span>;
   };
 
   return (
@@ -70,7 +76,7 @@ export default function Companies() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gerencie todos os clientes, leads e demandas da Vertex.</p>
+          <p className="text-muted-foreground text-sm mt-1">Gerencie todos os clientes da Vertex.</p>
         </div>
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -140,11 +146,18 @@ export default function Companies() {
                         <DropdownMenuItem onSelect={() => navigate(`/companies/${company.id}`)}>
                           <ExternalLink className="h-4 w-4 mr-2" /> Abrir Workspace
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => navigate(`/companies/${company.id}/profile`)}>
                           <ExternalLink className="h-4 w-4 mr-2" /> Abrir Perfil
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => navigate(`/companies/${company.id}/contracts`)}>
                           <FileText className="h-4 w-4 mr-2" /> Ver Contratos
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => setEditingCompany(company)}>
+                          <Edit2 className="h-4 w-4 mr-2" /> Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setDeletingCompany(company)} className="text-destructive">
+                          <Trash2 className="h-4 w-4 mr-2" /> Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -156,6 +169,8 @@ export default function Companies() {
         </Table>
       </div>
       <NewCompanyModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveCompany} />
+      <EditCompanyModal isOpen={!!editingCompany} onClose={() => setEditingCompany(null)} onSave={handleSaveCompany} company={editingCompany} />
+      <DeleteCompanyModal isOpen={!!deletingCompany} onClose={() => setDeletingCompany(null)} onSave={handleSaveCompany} company={deletingCompany} />
     </div>
   );
 }

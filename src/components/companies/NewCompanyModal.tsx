@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { CompanyStatus, COMPANY_STATUS_LABELS } from '@/integrations/supabase/types';
 
 interface NewCompanyModalProps {
   isOpen: boolean;
@@ -14,7 +15,7 @@ interface NewCompanyModalProps {
 }
 
 export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProps) => {
-  const [formData, setFormData] = useState({ name: '', document: '', status: 'lead' });
+  const [formData, setFormData] = useState({ name: '', document: '', status: 'ativo' as CompanyStatus });
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +36,7 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
     }
 
     toast.success('Empresa cadastrada com sucesso!');
-    setFormData({ name: '', document: '', status: 'lead' });
+    setFormData({ name: '', document: '', status: 'ativo' });
     onSave();
     onClose();
   };
@@ -45,7 +46,7 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Cadastrar Nova Empresa</DialogTitle>
-          <DialogDescription>Adicione um novo cliente ou lead ao seu workspace da Vertex.</DialogDescription>
+          <DialogDescription>Adicione um novo cliente ao seu workspace da Vertex.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
@@ -61,11 +62,13 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
 
           <div className="space-y-2">
             <Label>Status Inicial</Label>
-            <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+            <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as CompanyStatus })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="lead">Lead (Em negociação)</SelectItem>
-                <SelectItem value="active">Cliente Ativo</SelectItem>
+                <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="stand-by">Stand-by</SelectItem>
+                <SelectItem value="inativo">Inativo</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
               </SelectContent>
             </Select>
           </div>

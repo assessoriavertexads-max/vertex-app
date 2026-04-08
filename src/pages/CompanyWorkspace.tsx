@@ -41,6 +41,10 @@ interface Task {
 }
 
 const statusLabels = {
+  ativo: 'Cliente Ativo',
+  'stand-by': 'Stand-by',
+  inativo: 'Inativo',
+  cancelado: 'Cancelado',
   active: 'Cliente Ativo',
   lead: 'Lead',
   churn: 'Cancelado',
@@ -50,7 +54,7 @@ export default function CompanyWorkspace() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'erp'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'improvements' | 'erp'>('overview');
   const [searchCampaigns, setSearchCampaigns] = useState('');
   const [erpParameter, setErpParameter] = useState('');
   const [erpNotes, setErpNotes] = useState('');
@@ -201,10 +205,11 @@ export default function CompanyWorkspace() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'campaigns' | 'erp')}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'campaigns' | 'improvements' | 'erp')}>
         <TabsList>
           <TabsTrigger value="overview">Resumo</TabsTrigger>
           <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
+          <TabsTrigger value="improvements">Melhorias</TabsTrigger>
           <TabsTrigger value="erp">ERP</TabsTrigger>
         </TabsList>
 
@@ -302,6 +307,84 @@ export default function CompanyWorkspace() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="improvements">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground mb-2">Melhorias Recomendadas por IA</h2>
+              <p className="text-sm text-muted-foreground">Análise inteligente baseada no desempenho e histórico do cliente</p>
+            </div>
+
+            <div className="grid gap-4">
+              {campaigns.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+                  <Sparkles className="h-8 w-8 text-muted-foreground mx-auto mb-3 opacity-50" />
+                  <p className="text-sm text-muted-foreground">Sem campanhas para análise. Cadastre campanhas para receber recomendações de IA.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-border bg-blue-500/5 p-5">
+                    <div className="flex items-start gap-3">
+                      <Sparkles className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-foreground">Otimização de Campanha</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {campaigns.length > 2 
+                            ? `Com ${campaigns.length} campanhas ativas, considere consolidar esforços nas 3 melhores oportunidades para maximizar ROI.`
+                            : `Você tem ${campaigns.length} campanha(s). Recomenda-se aumentar o portfolio para melhor diversificação de risco.`
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-green-500/5 p-5">
+                    <div className="flex items-start gap-3">
+                      <Sparkles className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-foreground">Acompanhamento de Receita</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Valor estimado total: R$ {totalRevenue.toFixed(2)}. 
+                          {totalRevenue > 50000 
+                            ? ' Este é um cliente de alto valor. Recomenda-se atendimento VIP com revisões trimestrais.'
+                            : ' Há potencial para aumento. Identifique oportunidades cross-sell.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-purple-500/5 p-5">
+                    <div className="flex items-start gap-3">
+                      <Sparkles className="h-5 w-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-foreground">Saúde do Pipeline</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {campaigns.filter(c => c.funnel_stage === 'closed').length > 0
+                            ? 'Existem oportunidades fechadas! Considere fazer follow-up para novos projetos.'
+                            : 'Todas as campanhas estão em andamento. Mantenha o ritmo e agende reviews semanais.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {tasks.length === 0 && (
+                    <div className="rounded-2xl border border-border bg-orange-500/5 p-5">
+                      <div className="flex items-start gap-3">
+                        <Sparkles className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-foreground">Falta de Tarefas Planejadas</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Não há tarefas vinculadas a este cliente. Crie um plano de ação com marcos e deliverables claros.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="erp">

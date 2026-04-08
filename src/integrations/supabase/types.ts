@@ -6,6 +6,23 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// Company Status Enum
+export type CompanyStatus = 'ativo' | 'stand-by' | 'inativo' | 'cancelado'
+
+export const COMPANY_STATUS_LABELS: Record<CompanyStatus, string> = {
+  'ativo': 'Ativo',
+  'stand-by': 'Stand-by',
+  'inativo': 'Inativo',
+  'cancelado': 'Cancelado'
+}
+
+export const COMPANY_STATUS_COLORS: Record<CompanyStatus, string> = {
+  'ativo': 'bg-green-500/20 text-green-400',
+  'stand-by': 'bg-blue-500/20 text-blue-400',
+  'inativo': 'bg-gray-500/20 text-gray-400',
+  'cancelado': 'bg-red-500/20 text-red-400'
+}
+
 export interface Database {
   public: {
     Tables: {
