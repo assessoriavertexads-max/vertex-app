@@ -6,264 +6,78 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       companies: {
         Row: {
+          created_at: string
+          document: string | null
           id: string
           name: string
-          document: string | null
-          status: string | null
-          asaas_customer_id: string | null
-          custom_data: Json | null
-          created_at: string
-          auth_user_id: string
+          status: string
+          updated_at: string
         }
         Insert: {
+          created_at?: string
+          document?: string | null
           id?: string
           name: string
-          document?: string | null
-          status?: string | null
-          asaas_customer_id?: string | null
-          custom_data?: Json | null
-          created_at?: string
-          auth_user_id?: string
+          status?: string
+          updated_at?: string
         }
         Update: {
+          created_at?: string
+          document?: string | null
           id?: string
           name?: string
-          document?: string | null
-          status?: string | null
-          asaas_customer_id?: string | null
-          custom_data?: Json | null
-          created_at?: string
-          auth_user_id?: string
+          status?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       leads: {
         Row: {
-          id: string
-          title: string
           company_id: string | null
-          estimated_value: number | null
-          funnel_stage: string | null
-          legal_status: string | null
           created_at: string
+          id: string
+          status: string
+          title: string
           updated_at: string
-          auth_user_id: string
-        }
-        Insert: {
-          id?: string
-          title: string
-          company_id?: string | null
-          estimated_value?: number | null
-          funnel_stage?: string | null
-          legal_status?: string | null
-          created_at?: string
-          updated_at?: string
-          auth_user_id?: string
-        }
-        Update: {
-          id?: string
-          title?: string
-          company_id?: string | null
-          estimated_value?: number | null
-          funnel_stage?: string | null
-          legal_status?: string | null
-          created_at?: string
-          updated_at?: string
-          auth_user_id?: string
-        }
-      }
-      financial_transactions: {
-        Row: {
-          id: string
-          company_id: string | null
-          type: string
-          amount: number
-          due_date: string
-          category: string | null
-          status: string
-          subscription_cycle: string | null
-          created_at: string
-          auth_user_id: string
-        }
-        Insert: {
-          id?: string
-          company_id?: string | null
-          type: string
-          amount: number
-          due_date: string
-          category?: string | null
-          status: string
-          subscription_cycle?: string | null
-          created_at?: string
-          auth_user_id?: string
-        }
-        Update: {
-          id?: string
-          company_id?: string | null
-          type?: string
-          amount?: number
-          due_date?: string
-          category?: string | null
-          status?: string
-          subscription_cycle?: string | null
-          created_at?: string
-          auth_user_id?: string
-        }
-      }
-      tasks: {
-        Row: {
-          id: string
-          list_id: string | null
-          company_id: string | null
-          name: string
-          description: string | null
-          status: string | null
-          priority: string | null
-          due_date: string | null
-          created_at: string
-          auth_user_id: string
-        }
-        Insert: {
-          id?: string
-          list_id?: string | null
-          company_id?: string | null
-          name: string
-          description?: string | null
-          status?: string | null
-          priority?: string | null
-          due_date?: string | null
-          created_at?: string
-          auth_user_id?: string
-        }
-        Update: {
-          id?: string
-          list_id?: string | null
-          company_id?: string | null
-          name?: string
-          description?: string | null
-          status?: string | null
-          priority?: string | null
-          due_date?: string | null
-          created_at?: string
-          auth_user_id?: string
-        }
-      }
-      lists: {
-        Row: {
-          id: string
-          space_id: string | null
-          name: string
-          created_at: string
-          auth_user_id: string
-        }
-        Insert: {
-          id?: string
-          space_id?: string | null
-          name: string
-          created_at?: string
-          auth_user_id?: string
-        }
-        Update: {
-          id?: string
-          space_id?: string | null
-          name?: string
-          created_at?: string
-          auth_user_id?: string
-        }
-      }
-      spaces: {
-        Row: {
-          id: string
-          name: string
-          icon: string | null
-          created_at: string
-          auth_user_id: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          icon?: string | null
-          created_at?: string
-          auth_user_id?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          icon?: string | null
-          created_at?: string
-          auth_user_id?: string
-        }
-      }
-      company_assets: {
-        Row: {
-          id: string
-          company_id: string | null
-          name: string
-          type: string | null
           value: number | null
-          status: string | null
-          created_at: string
-          auth_user_id: string
         }
         Insert: {
-          id?: string
           company_id?: string | null
-          name: string
-          type?: string | null
-          value?: number | null
-          status?: string | null
           created_at?: string
-          auth_user_id?: string
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string
+          value?: number | null
         }
         Update: {
-          id?: string
           company_id?: string | null
-          name?: string
-          type?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string
           value?: number | null
-          status?: string | null
-          created_at?: string
-          auth_user_id?: string
         }
-      }
-      company_metrics: {
-        Row: {
-          id: string
-          company_id: string | null
-          metric_date: string
-          ad_spend: number | null
-          revenue_generated: number | null
-          leads_generated: number | null
-          ai_recommendation: string | null
-          created_at: string
-          auth_user_id: string
-        }
-        Insert: {
-          id?: string
-          company_id?: string | null
-          metric_date: string
-          ad_spend?: number | null
-          revenue_generated?: number | null
-          leads_generated?: number | null
-          ai_recommendation?: string | null
-          created_at?: string
-          auth_user_id?: string
-        }
-        Update: {
-          id?: string
-          company_id?: string | null
-          metric_date?: string
-          ad_spend?: number | null
-          revenue_generated?: number | null
-          leads_generated?: number | null
-          ai_recommendation?: string | null
-          created_at?: string
-          auth_user_id?: string
-        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -281,84 +95,125 @@ export interface Database {
   }
 }
 
-type PublicSchema = Database[Extract<keyof Database, keyof Database>]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema['Tables'] & PublicSchema['Views'])
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions['schema']]['Tables'] &
-        Database[PublicTableNameOrOptions['schema']]['Views'])
-    : never = never
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions['schema']]['Tables'] &
-      Database[PublicTableNameOrOptions['schema']]['Views'])[TableName] extends {
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema['Tables'] &
-      PublicSchema['Views'])
-  ? (PublicSchema['Tables'] &
-      PublicSchema['Views'])[PublicTableNameOrOptions] extends {
-      Row: infer R
-    }
-    ? R
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
     : never
-  : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema['Tables']
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions['schema']]['Tables']
-    : never = never
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions['schema']]['Tables'][TableName] extends {
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema['Tables']
-  ? PublicSchema['Tables'][PublicTableNameOrOptions] extends {
-      Insert: infer I
-    }
-    ? I
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
     : never
-  : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema['Tables']
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions['schema']]['Tables']
-    : never = never
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions['schema']]['Tables'][TableName] extends {
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema['Tables']
-  ? PublicSchema['Tables'][PublicTableNameOrOptions] extends {
-      Update: infer U
-    }
-    ? U
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
     : never
-  : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema['Enums']
-    | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions['schema']]['Enums']
-    : never = never
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions['schema']]['Enums'][EnumName]
-  : PublicTableNameOrOptions extends keyof PublicSchema['Enums']
-  ? PublicSchema['Enums'][PublicTableNameOrOptions]
-  : never
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
