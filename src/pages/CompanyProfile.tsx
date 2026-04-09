@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Mail, Phone, MapPin, Calendar } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, MapPin, Calendar, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { COMPANY_STATUS_LABELS, COMPANY_STATUS_COLORS } from '@/lib/company-constants';
@@ -32,6 +33,9 @@ export default function CompanyProfile() {
   const [company, setCompany] = useState<Company | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingAsaasId, setEditingAsaasId] = useState(false);
+  const [asaasIdInput, setAsaasIdInput] = useState('');
+  const [savingAsaasId, setSavingAsaasId] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -92,6 +96,24 @@ export default function CompanyProfile() {
     );
   }
 
+  const saveAsaasId = async () => {
+    if (!companyId) return;
+    setSavingAsaasId(true);
+    const value = asaasIdInput.trim() || null;
+    const { error } = await supabase
+      .from('companies')
+      .update({ asaas_customer_id: value })
+      .eq('id', companyId);
+    setSavingAsaasId(false);
+    if (error) {
+      toast.error('Erro ao salvar ID Asaas');
+    } else {
+      setCompany(prev => prev ? { ...prev, asaas_customer_id: value } : prev);
+      setEditingAsaasId(false);
+      toast.success('ID Asaas atualizado com sucesso!');
+    }
+  };
+
   const statusLabel = COMPANY_STATUS_LABELS[company.status as keyof typeof COMPANY_STATUS_LABELS] || company.status;
   const statusColor = COMPANY_STATUS_COLORS[company.status as keyof typeof COMPANY_STATUS_COLORS] || 'bg-gray-500/20 text-gray-400';
 
@@ -129,12 +151,40 @@ export default function CompanyProfile() {
               <p className="text-sm text-muted-foreground">ID da Empresa</p>
               <p className="text-sm font-mono text-muted-foreground break-all">{company.id}</p>
             </div>
-            {company.asaas_customer_id && (
-              <div>
-                <p className="text-sm text-muted-foreground">Cliente Asaas</p>
-                <p className="text-sm font-mono text-muted-foreground">{company.asaas_customer_id}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Cliente Asaas</p>
+              {editingAsaasId ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={asaasIdInput}
+                    onChange={e => setAsaasIdInput(e.target.value)}
+                    placeholder="cus_000000000000"
+                    className="h-8 text-sm font-mono"
+                    autoFocus
+                  />
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={saveAsaasId} disabled={savingAsaasId}>
+                    {savingAsaasId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-green-500" />}
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingAsaasId(false)}>
+                    <X className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-mono text-muted-foreground">
+                    {company.asaas_customer_id || 'Não vinculado'}
+                  </p>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={() => { setAsaasIdInput(company.asaas_customer_id || ''); setEditingAsaasId(true); }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4">
