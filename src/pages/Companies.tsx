@@ -16,7 +16,7 @@ import {
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell
 } from '@/components/ui/table';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { CompanyStatus, COMPANY_STATUS_LABELS, COMPANY_STATUS_COLORS } from '@/lib/company-constants';
 
