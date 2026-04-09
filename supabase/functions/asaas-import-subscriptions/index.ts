@@ -1,28 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY');
-if (!ASAAS_API_KEY) {
-  throw new Error('Variável de ambiente ASAAS_API_KEY não configurada no Supabase.');
-}
-
-const ASAAS_BASE_URL = 'https://api.asaas.com/api/v3';
+const ASAAS_BASE_URL = 'https://api.asaas.com/v3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const asaasHeaders = {
-  'Content-Type': 'application/json',
-  'access_token': ASAAS_API_KEY,
-};
-
 // Busca todas as assinaturas do Asaas para um cliente específico com paginação
-async function fetchAllCustomerSubscriptions(customerId: string) {
+async function fetchAllCustomerSubscriptions(customerId: string, apiKey: string) {
   const subscriptions = [];
   let page = 1;
   let hasMore = true;
+  const asaasHeaders = { 'Content-Type': 'application/json', 'access_token': apiKey };
 
   while (hasMore) {
     const res = await fetch(
@@ -62,6 +53,11 @@ serve(async (req) => {
   }
 
   try {
+    const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY');
+    if (!ASAAS_API_KEY) {
+      throw new Error('Variável de ambiente ASAAS_API_KEY não configurada no Supabase.');
+    }
+
     const { company_id } = await req.json();
 
     const supabaseClient = createClient(
@@ -85,7 +81,7 @@ serve(async (req) => {
     }
 
     // 2. Busca todas as assinaturas do Asaas para este cliente
-    const customerSubscriptions = await fetchAllCustomerSubscriptions(company.asaas_customer_id);
+    const customerSubscriptions = await fetchAllCustomerSubscriptions(company.asaas_customer_id, ASAAS_API_KEY);
 
     if (customerSubscriptions.length === 0) {
       return new Response(
