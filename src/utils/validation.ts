@@ -7,11 +7,13 @@ export function isValidCNPJ(cnpj: string): boolean {
   if (cleanCNPJ.length !== 14) return false;
   if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false;
 
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
   let sum = 0;
   let remainder: number;
 
   for (let i = 0; i < 12; i++) {
-    sum += parseInt(cleanCNPJ[i]) * (5 - (i % 4));
+    sum += parseInt(cleanCNPJ[i]) * weights1[i];
   }
 
   remainder = sum % 11;
@@ -20,7 +22,7 @@ export function isValidCNPJ(cnpj: string): boolean {
 
   sum = 0;
   for (let i = 0; i < 13; i++) {
-    sum += parseInt(cleanCNPJ[i]) * (6 - ((i + 1) % 5));
+    sum += parseInt(cleanCNPJ[i]) * weights2[i];
   }
 
   remainder = sum % 11;

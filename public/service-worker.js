@@ -1,5 +1,5 @@
-const CACHE_NAME = 'vertex-v1';
-const RUNTIME_CACHE = 'vertex-runtime-v1';
+const CACHE_NAME = 'vertex-v2';
+const RUNTIME_CACHE = 'vertex-runtime-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
