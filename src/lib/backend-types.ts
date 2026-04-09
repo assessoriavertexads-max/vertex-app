@@ -92,5 +92,6 @@ export interface TransactionWithCompany {
   subscription_cycle: string | null;
   asaas_payment_url?: string | null;
   asaas_subscription_id?: string | null;
+  asaas_payment_id?: string | null;
   companies?: { name: string } | null;
 }
