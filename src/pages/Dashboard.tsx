@@ -43,7 +43,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('financial_transactions')
-        .select('id, type, amount, status');
+        .select('id, type, amount, status, created_at');
       if (error) throw error;
       return data || [];
     },
@@ -51,7 +51,7 @@ export default function Dashboard() {
 
   // Memoized calculations
   const metrics = useMemo(() => {
-    const activeCompanies = companies.filter((c: { status: string }) => c.status === 'ativo').length;
+    const activeCompanies = companies.filter((c: { status: string }) => c.status === 'ativo' || c.status === 'active').length;
     const pipelineTotal = leads.reduce((acc: number, l: { estimated_value: number | null }) => acc + Number(l.estimated_value ?? 0), 0);
     const activeLeads = leads.filter((l: { funnel_stage: string }) => l.funnel_stage !== 'closed').length;
     const pendingTasks = tasks.filter((t: { status: string }) => t.status !== 'concluido').length;
