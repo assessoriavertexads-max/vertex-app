@@ -170,18 +170,30 @@ serve(async (req) => {
           imported++;
         }
 
-        // Importa pagamentos históricos (exceto pendentes)
+        // Importa todos os pagamentos da assinatura (incluindo pendentes)
         const payments = await fetchPaymentsForSubscription(subscription.id, ASAAS_API_KEY);
         for (const payment of payments) {
-          if (payment.status === 'PENDING') continue;
+          // Pula apenas se for o mesmo vencimento do registro principal da assinatura
+          // (evita duplicata do "próxima cobrança")
+          if (payment.status === 'PENDING' && payment.dueDate === subscription.nextDueDate) continue;
 
           const { data: existingPayment } = await supabase
             .from('financial_transactions')
-            .select('id')
+            .select('id, status, asaas_payment_url')
             .eq('asaas_payment_id', payment.id)
             .maybeSingle();
 
-          if (existingPayment) continue;
+          if (existingPayment) {
+            // Atualiza status e link se mudou
+            const newStatus = mapPaymentStatus(payment.status);
+            if (existingPayment.status !== newStatus || (!existingPayment.asaas_payment_url && payment.invoiceUrl)) {
+              await supabase.from('financial_transactions').update({
+                status: newStatus,
+                asaas_payment_url: payment.invoiceUrl || null,
+              }).eq('asaas_payment_id', payment.id);
+            }
+            continue;
+          }
 
           const { error: insertError } = await supabase.from('financial_transactions').insert({
             company_id,
@@ -192,6 +204,7 @@ serve(async (req) => {
             subscription_cycle: mapCycle(subscription.cycle),
             asaas_subscription_id: subscription.id,
             asaas_payment_id: payment.id,
+            asaas_payment_url: payment.invoiceUrl || null,
             status: mapPaymentStatus(payment.status),
           });
 
