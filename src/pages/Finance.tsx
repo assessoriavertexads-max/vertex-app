@@ -75,7 +75,8 @@ export const Finance = () => {
       const { data, error } = await supabase
         .from('companies')
         .select('id, name, asaas_customer_id')
-        .not('asaas_customer_id', 'is', null);
+        .not('document', 'is', null)
+        .order('name');
       if (error) throw error;
       return data || [];
     },
