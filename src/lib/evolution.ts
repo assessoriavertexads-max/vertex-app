@@ -1,11 +1,4 @@
-const EVOLUTION_URL = import.meta.env.VITE_EVOLUTION_URL;
-const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY;
-const EVOLUTION_INSTANCE = import.meta.env.VITE_EVOLUTION_INSTANCE;
-
-const headers = {
-  'apikey': EVOLUTION_API_KEY,
-  'Content-Type': 'application/json',
-};
+import { supabase } from '@/lib/supabase';
 
 export interface EvolutionChat {
   id: string;
@@ -14,11 +7,6 @@ export interface EvolutionChat {
   pushName?: string;
   isGroup: boolean;
   unreadCount?: number;
-  lastMessage?: {
-    content: string;
-    fromMe: boolean;
-    timestamp: number;
-  };
   profilePicUrl?: string;
 }
 
@@ -36,14 +24,18 @@ export interface EvolutionMessage {
   status?: string;
 }
 
-export async function fetchChats(limit = 30, offset = 0): Promise<EvolutionChat[]> {
-  const res = await fetch(`${EVOLUTION_URL}/chat/findChats/${EVOLUTION_INSTANCE}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ where: {}, limit, offset }),
+async function callProxy(action: string, payload?: unknown) {
+  const { data, error } = await supabase.functions.invoke('evolution-proxy', {
+    body: { action, payload },
   });
-  const data = await res.json();
-  const chats = Array.isArray(data) ? data : data.chats || data.data || [];
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+export async function fetchChats(limit = 50): Promise<EvolutionChat[]> {
+  const data = await callProxy('fetchChats', { where: {}, limit });
+  const chats = Array.isArray(data) ? data : data?.chats || data?.data || [];
 
   return chats.map((c: Record<string, unknown>) => {
     const remoteJid = (c.remoteJid || c.id || '') as string;
@@ -59,30 +51,22 @@ export async function fetchChats(limit = 30, offset = 0): Promise<EvolutionChat[
   });
 }
 
-export async function fetchMessages(remoteJid: string, limit = 40): Promise<EvolutionMessage[]> {
-  const res = await fetch(`${EVOLUTION_URL}/chat/findMessages/${EVOLUTION_INSTANCE}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      where: { key: { remoteJid } },
-      limit,
-    }),
+export async function fetchMessages(remoteJid: string, limit = 50): Promise<EvolutionMessage[]> {
+  const data = await callProxy('fetchMessages', {
+    where: { key: { remoteJid } },
+    limit,
   });
-  const data = await res.json();
   const msgs = Array.isArray(data)
     ? data
-    : data.messages?.records || data.messages || data.data || [];
+    : data?.messages?.records || data?.messages || data?.data || [];
+
   return msgs.sort((a: EvolutionMessage, b: EvolutionMessage) =>
     a.messageTimestamp - b.messageTimestamp
   );
 }
 
 export async function sendTextMessage(remoteJid: string, text: string): Promise<void> {
-  await fetch(`${EVOLUTION_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ number: remoteJid, text }),
-  });
+  await callProxy('sendMessage', { number: remoteJid, text });
 }
 
 export function getMessageText(msg: EvolutionMessage): string {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Send, Loader2, MessageSquare, Users, User, RefreshCw } from 'lucide-react';
+import { Search, Send, Loader2, MessageSquare, Users, RefreshCw, Lock, Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,7 +9,68 @@ import {
 } from '@/lib/evolution';
 import { toast } from 'sonner';
 
+const WHATSAPP_PIN = '1234'; // Altere para o PIN desejado
+const SESSION_KEY = 'whatsapp_unlocked';
+
+function PinLock({ onUnlock }: { onUnlock: () => void }) {
+  const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [error, setError] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pin === WHATSAPP_PIN) {
+      sessionStorage.setItem(SESSION_KEY, '1');
+      onUnlock();
+    } else {
+      setError(true);
+      setPin('');
+      setTimeout(() => setError(false), 1500);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-6">
+      <div className="bg-white rounded-2xl border shadow-sm p-8 w-80 flex flex-col items-center gap-5">
+        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+          <Lock className="w-8 h-8 text-green-600" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-slate-800">WhatsApp Protegido</h2>
+          <p className="text-sm text-slate-500 mt-1">Digite o PIN para acessar</p>
+        </div>
+        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3">
+          <div className="relative">
+            <Input
+              type={showPin ? 'text' : 'password'}
+              inputMode="numeric"
+              maxLength={8}
+              placeholder="PIN"
+              value={pin}
+              onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+              className={`text-center text-xl tracking-widest h-12 ${error ? 'border-red-400 bg-red-50' : ''}`}
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => setShowPin(!showPin)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+            >
+              {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          {error && <p className="text-xs text-red-500 text-center">PIN incorreto</p>}
+          <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white w-full">
+            Entrar
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function WhatsApp() {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === '1');
   const [chats, setChats] = useState<EvolutionChat[]>([]);
   const [loadingChats, setLoadingChats] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,6 +82,8 @@ export default function WhatsApp() {
   const [filterGroup, setFilterGroup] = useState<'all' | 'contacts' | 'groups'>('all');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  if (!unlocked) return <PinLock onUnlock={() => setUnlocked(true)} />;
 
   const loadChats = useCallback(async () => {
     try {
