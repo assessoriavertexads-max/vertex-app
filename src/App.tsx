@@ -22,6 +22,7 @@ const Processes = lazy(() => import("./pages/Processes"));
 const Docs = lazy(() => import("./pages/Docs"));
 const AIInsights = lazy(() => import("./pages/AIInsights"));
 const Settings = lazy(() => import("./pages/Settings"));
+const WhatsApp = lazy(() => import("./pages/WhatsApp"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => (
                       <Route path="/companies/:companyId" element={<CompanyWorkspace />} />
                       <Route path="/companies/:companyId/profile" element={<CompanyProfile />} />
                       <Route path="/companies/:companyId/contracts" element={<CompanyContracts />} />
+                      <Route path="/whatsapp" element={<WhatsApp />} />
                       <Route path="/ai-insights" element={<AIInsights />} />
                       <Route path="/docs" element={<Docs />} />
                       <Route path="/settings" element={<Settings />} />

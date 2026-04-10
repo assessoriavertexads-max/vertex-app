@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Briefcase, DollarSign,
-  CheckSquare, BookOpen, BrainCircuit, Menu, LogOut, Settings as SettingsIcon
+  CheckSquare, BookOpen, BrainCircuit, Menu, LogOut, Settings as SettingsIcon,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -30,6 +31,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: Briefcase, label: 'Empresas (Demandas)', path: '/companies' },
     { icon: Users, label: 'CRM (Comercial/Jurídico)', path: '/crm' },
     { icon: DollarSign, label: 'Financeiro (Vertex)', path: '/finance' },
+    { icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
     { icon: BrainCircuit, label: 'IA Insights', path: '/ai-insights' },
     { icon: BookOpen, label: 'Processos & Docs', path: '/docs' },
   ];
