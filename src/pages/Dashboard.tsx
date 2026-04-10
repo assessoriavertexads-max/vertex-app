@@ -18,6 +18,7 @@ export default function Dashboard() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 60_000,
   });
 
   const { data: leads = [] } = useQuery({
@@ -27,6 +28,7 @@ export default function Dashboard() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 60_000,
   });
 
   const { data: tasks = [] } = useQuery({
@@ -36,6 +38,7 @@ export default function Dashboard() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 60_000,
   });
 
   const { data: transactions = [] } = useQuery({
