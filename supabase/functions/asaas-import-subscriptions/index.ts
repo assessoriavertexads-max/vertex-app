@@ -34,7 +34,9 @@ async function fetchAllSubscriptions(customerId: string, apiKey: string) {
     );
     const data = await res.json();
     if (data.data?.length > 0) {
-      subscriptions.push(...data.data);
+      // Filtra apenas assinaturas que pertencem ao customer correto
+      const filtered = data.data.filter((s: { customer: string }) => s.customer === customerId);
+      subscriptions.push(...filtered);
       offset += data.data.length;
       hasMore = data.hasMore ?? false;
     } else {
