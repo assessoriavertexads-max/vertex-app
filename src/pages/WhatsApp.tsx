@@ -9,7 +9,7 @@ import {
 } from '@/lib/evolution';
 import { toast } from 'sonner';
 
-const WHATSAPP_PIN = '1234'; // Altere para o PIN desejado
+const WHATSAPP_PIN = 'Adminsitepixel2020#';
 const SESSION_KEY = 'whatsapp_unlocked';
 
 function PinLock({ onUnlock }: { onUnlock: () => void }) {
@@ -43,11 +43,10 @@ function PinLock({ onUnlock }: { onUnlock: () => void }) {
           <div className="relative">
             <Input
               type={showPin ? 'text' : 'password'}
-              inputMode="numeric"
-              maxLength={8}
-              placeholder="PIN"
+              maxLength={30}
+              placeholder="Senha"
               value={pin}
-              onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+              onChange={e => setPin(e.target.value)}
               className={`text-center text-xl tracking-widest h-12 ${error ? 'border-red-400 bg-red-50' : ''}`}
               autoFocus
             />
