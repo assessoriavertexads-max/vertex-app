@@ -8,7 +8,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function fetchAllCustomerSubscriptions(customerId: string, apiKey: string) {
+function cleanDocument(doc: string): string {
+  return doc.replace(/\D/g, '');
+}
+
+async function findCustomerByCnpj(cnpj: string, apiKey: string): Promise<string | null> {
+  const headers = { 'Content-Type': 'application/json', 'access_token': apiKey };
+  const res = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${cnpj}&limit=1`, { headers });
+  const data = await res.json();
+  if (data.data?.length > 0) return data.data[0].id;
+  return null;
+}
+
+async function fetchAllSubscriptions(customerId: string, apiKey: string) {
   const subscriptions = [];
   let offset = 0;
   const limit = 100;
@@ -32,7 +44,7 @@ async function fetchAllCustomerSubscriptions(customerId: string, apiKey: string)
   return subscriptions;
 }
 
-async function fetchAllPaymentsForSubscription(subscriptionId: string, apiKey: string) {
+async function fetchPaymentsForSubscription(subscriptionId: string, apiKey: string) {
   const payments = [];
   let offset = 0;
   const limit = 100;
@@ -56,7 +68,7 @@ async function fetchAllPaymentsForSubscription(subscriptionId: string, apiKey: s
   return payments;
 }
 
-function mapAsaasCycle(cycle: string): string {
+function mapCycle(cycle: string): string {
   const map: Record<string, string> = {
     'MONTHLY': 'MONTHLY', 'WEEKLY': 'WEEKLY', 'BIWEEKLY': 'BIWEEKLY',
     'QUARTERLY': 'QUARTERLY', 'SEMIANNUALLY': 'SEMIANNUALLY', 'YEARLY': 'YEARLY',
@@ -87,20 +99,32 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Busca empresa com document (CNPJ/CPF)
     const { data: company, error: companyError } = await supabase
       .from('companies')
-      .select('id, asaas_customer_id')
+      .select('id, name, document, asaas_customer_id')
       .eq('id', company_id)
       .single();
 
     if (companyError || !company) throw new Error('Empresa não encontrada');
-    if (!company.asaas_customer_id) throw new Error('Empresa não possui ID Asaas vinculado');
+    if (!company.document) throw new Error('Empresa não possui CNPJ/CPF cadastrado');
 
-    const subscriptions = await fetchAllCustomerSubscriptions(company.asaas_customer_id, ASAAS_API_KEY);
+    const cnpj = cleanDocument(company.document);
+
+    // Busca o customer ID no Asaas pelo CNPJ (fonte da verdade)
+    const customerId = await findCustomerByCnpj(cnpj, ASAAS_API_KEY);
+    if (!customerId) throw new Error(`Nenhum cliente encontrado no Asaas com CNPJ ${company.document}`);
+
+    // Atualiza asaas_customer_id se mudou
+    if (company.asaas_customer_id !== customerId) {
+      await supabase.from('companies').update({ asaas_customer_id: customerId }).eq('id', company_id);
+    }
+
+    const subscriptions = await fetchAllSubscriptions(customerId, ASAAS_API_KEY);
 
     if (subscriptions.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, imported: 0, updated: 0, total_found: 0 }),
+        JSON.stringify({ success: true, imported: 0, updated: 0, total_found: 0, customer_id: customerId }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -111,7 +135,7 @@ serve(async (req) => {
 
     for (const subscription of subscriptions) {
       try {
-        // 1. Upsert registro da assinatura (próxima cobrança)
+        // Upsert registro de próxima cobrança
         const { data: existingSub } = await supabase
           .from('financial_transactions')
           .select('id')
@@ -120,7 +144,6 @@ serve(async (req) => {
           .maybeSingle();
 
         if (existingSub) {
-          // Atualiza data da próxima cobrança
           await supabase
             .from('financial_transactions')
             .update({
@@ -137,7 +160,7 @@ serve(async (req) => {
             type: 'income',
             category: subscription.description || 'Assinatura Importada',
             due_date: subscription.nextDueDate,
-            subscription_cycle: mapAsaasCycle(subscription.cycle),
+            subscription_cycle: mapCycle(subscription.cycle),
             asaas_subscription_id: subscription.id,
             asaas_payment_url: null,
             status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
@@ -145,11 +168,9 @@ serve(async (req) => {
           imported++;
         }
 
-        // 2. Importa pagamentos históricos da assinatura
-        const payments = await fetchAllPaymentsForSubscription(subscription.id, ASAAS_API_KEY);
-
+        // Importa pagamentos históricos (exceto pendentes)
+        const payments = await fetchPaymentsForSubscription(subscription.id, ASAAS_API_KEY);
         for (const payment of payments) {
-          // Ignora pagamentos pendentes (já cobertos pelo registro da assinatura)
           if (payment.status === 'PENDING') continue;
 
           const { data: existingPayment } = await supabase
@@ -166,21 +187,21 @@ serve(async (req) => {
             type: 'income',
             category: subscription.description || 'Assinatura Importada',
             due_date: payment.dueDate,
-            subscription_cycle: mapAsaasCycle(subscription.cycle),
+            subscription_cycle: mapCycle(subscription.cycle),
             asaas_subscription_id: subscription.id,
             asaas_payment_id: payment.id,
             status: mapPaymentStatus(payment.status),
           });
 
           if (insertError) {
-            errors.push(`Erro no pagamento ${payment.id}: ${insertError.message}`);
+            errors.push(`Pagamento ${payment.id}: ${insertError.message}`);
           } else {
             imported++;
           }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Erro desconhecido';
-        errors.push(`Erro na assinatura ${subscription.id}: ${message}`);
+        errors.push(`Assinatura ${subscription.id}: ${message}`);
       }
     }
 
@@ -190,6 +211,7 @@ serve(async (req) => {
         imported,
         updated,
         total_found: subscriptions.length,
+        customer_id: customerId,
         errors: errors.length > 0 ? errors : undefined,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
