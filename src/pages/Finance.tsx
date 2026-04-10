@@ -153,6 +153,7 @@ export const Finance = () => {
         category: data.category || null,
         status: data.status,
         subscription_cycle: data.subscription_cycle,
+        billing_type: data.billing_type || 'UNDEFINED',
       });
       if (error) throw error;
     },

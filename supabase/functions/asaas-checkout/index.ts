@@ -54,6 +54,7 @@ serve(async (req) => {
       .eq('id', transaction_id)
       .single();
 
+
     if (txError || !transaction) throw new Error('Transação não encontrada.');
     if (!transaction.companies) throw new Error('Nenhuma empresa vinculada a esta transação.');
 
@@ -75,6 +76,7 @@ serve(async (req) => {
       ?? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const isSubscription = !!transaction.subscription_cycle;
+    const billingType = transaction.billing_type || 'UNDEFINED';
 
     if (isSubscription) {
       const res = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
@@ -82,7 +84,7 @@ serve(async (req) => {
         headers: asaasHeaders,
         body: JSON.stringify({
           customer: asaasCustomerId,
-          billingType: 'UNDEFINED',
+          billingType,
           value: Number(transaction.amount),
           nextDueDate: dueDate,
           cycle: transaction.subscription_cycle,
@@ -109,7 +111,7 @@ serve(async (req) => {
         headers: asaasHeaders,
         body: JSON.stringify({
           customer: asaasCustomerId,
-          billingType: 'UNDEFINED',
+          billingType,
           value: Number(transaction.amount),
           dueDate,
           description: transaction.category || 'Cobrança Vertex',

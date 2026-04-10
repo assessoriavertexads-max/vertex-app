@@ -79,6 +79,7 @@ export interface TransactionInsert {
   category?: string | null;
   status: string;
   subscription_cycle: string | null;
+  billing_type?: string;
 }
 
 export interface TransactionWithCompany {
@@ -93,5 +94,6 @@ export interface TransactionWithCompany {
   asaas_payment_url?: string | null;
   asaas_subscription_id?: string | null;
   asaas_payment_id?: string | null;
+  billing_type?: string | null;
   companies?: { name: string } | null;
 }

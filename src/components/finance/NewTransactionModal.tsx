@@ -20,6 +20,7 @@ interface NewTransactionModalProps {
     category?: string | null;
     status: string;
     subscription_cycle: string | null;
+    billing_type?: string;
   }) => void;
   defaultType: 'income' | 'expense';
 }
@@ -33,6 +34,13 @@ const CYCLE_OPTIONS = [
   { value: 'YEARLY', label: 'Anual' },
 ];
 
+const BILLING_TYPE_OPTIONS = [
+  { value: 'UNDEFINED', label: 'Cliente escolhe (PIX, Boleto ou Cartão)' },
+  { value: 'PIX', label: 'PIX' },
+  { value: 'BOLETO', label: 'Boleto Bancário' },
+  { value: 'CREDIT_CARD', label: 'Cartão de Crédito' },
+];
+
 export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: NewTransactionModalProps) => {
   const [type, setType] = useState<'income' | 'expense'>(defaultType);
   const [companyId, setCompanyId] = useState('');
@@ -41,6 +49,7 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
   const [description, setDescription] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [cycle, setCycle] = useState('MONTHLY');
+  const [billingType, setBillingType] = useState('UNDEFINED');
 
   useEffect(() => {
     setType(defaultType);
@@ -50,6 +59,7 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
     setDueDate('');
     setIsRecurring(false);
     setCycle('MONTHLY');
+    setBillingType('UNDEFINED');
   }, [defaultType, isOpen]);
 
   const { data: companies = [], isLoading } = useQuery<CompanyOption[]>({
@@ -78,6 +88,7 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
       category: description || null,
       status: type === 'expense' ? 'paid' : 'pending',
       subscription_cycle: isRecurring && type === 'income' ? cycle : null,
+      billing_type: type === 'income' ? billingType : undefined,
     });
 
     setCompanyId('');
@@ -158,6 +169,23 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
               />
             </div>
           </div>
+
+          {/* Forma de pagamento — apenas para entradas */}
+          {type === 'income' && (
+            <div className="grid gap-2">
+              <Label htmlFor="billingType">Forma de Pagamento</Label>
+              <select
+                id="billingType"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={billingType}
+                onChange={(e) => setBillingType(e.target.value)}
+              >
+                {BILLING_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Toggle de recorrência — apenas para entradas */}
           {type === 'income' && (
