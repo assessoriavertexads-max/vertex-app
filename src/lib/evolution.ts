@@ -56,13 +56,33 @@ export async function fetchMessages(remoteJid: string, limit = 50): Promise<Evol
     where: { key: { remoteJid } },
     limit,
   });
-  const msgs = Array.isArray(data)
-    ? data
-    : data?.messages?.records || data?.messages || data?.data || [];
 
-  return msgs.sort((a: EvolutionMessage, b: EvolutionMessage) =>
-    a.messageTimestamp - b.messageTimestamp
-  );
+  // Evolution API pode retornar em vários formatos
+  const raw: Record<string, unknown>[] = Array.isArray(data)
+    ? data
+    : data?.messages?.records || data?.messages || data?.records || data?.data || [];
+
+  // Normaliza cada mensagem garantindo que id e key existam
+  const msgs: EvolutionMessage[] = raw
+    .filter((m) => m && typeof m === 'object')
+    .map((m) => {
+      const key = (m.key ?? {}) as Record<string, unknown>;
+      return {
+        id: (m.id ?? key.id ?? m._id ?? `${m.messageTimestamp}_${Math.random()}`) as string,
+        key: {
+          id: (key.id ?? m.id ?? '') as string,
+          fromMe: Boolean(key.fromMe ?? false),
+          remoteJid: (key.remoteJid ?? remoteJid) as string,
+        },
+        messageType: (m.messageType ?? m.type ?? 'conversation') as string,
+        message: (m.message ?? {}) as Record<string, unknown>,
+        pushName: m.pushName as string | undefined,
+        messageTimestamp: Number(m.messageTimestamp ?? m.timestamp ?? 0),
+        status: m.status as string | undefined,
+      };
+    });
+
+  return msgs.sort((a, b) => a.messageTimestamp - b.messageTimestamp);
 }
 
 export async function sendTextMessage(remoteJid: string, text: string): Promise<void> {

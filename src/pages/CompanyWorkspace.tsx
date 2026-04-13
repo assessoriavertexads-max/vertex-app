@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Briefcase, CheckCircle2, ClipboardList, FileText,
+  ArrowLeft, Briefcase, ClipboardList, FileText,
   Search, SlidersHorizontal, Sparkles, BarChart2, Download,
+  RefreshCw, TrendingUp, MousePointerClick, Eye, DollarSign,
+  Users, Loader2, AlertCircle, Image as ImageIcon, Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,12 +21,52 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Json } from '@/integrations/supabase/types';
 
+// ── Meta Ads types ────────────────────────────────────────────────────────
+interface MetaInsights {
+  impressions: number; reach: number; clicks: number;
+  ctr: number; cpm: number; cpc: number; spend: number;
+  conversions: number; conversion_value: number; roas: number;
+  link_clicks: number; leads: number; video_views?: number; frequency?: number;
+}
+
+interface MetaCampaign {
+  id: string; name: string; status: string; objective: string | null;
+  daily_budget: number | null; lifetime_budget: number | null;
+  start_time: string | null; stop_time: string | null;
+  insights: MetaInsights;
+}
+
+interface MetaCreative {
+  id: string | null; title: string | null; body: string | null;
+  call_to_action: string | null; image_url: string | null;
+  thumbnail_url: string | null; video_id: string | null;
+}
+
+interface MetaAd {
+  id: string; name: string; status: string;
+  campaign_id: string; adset_id: string;
+  creative: MetaCreative;
+  insights: Omit<MetaInsights, 'conversion_value' | 'roas' | 'video_views' | 'frequency'>;
+}
+
+interface MetaData {
+  date_preset: string;
+  account_totals: MetaInsights;
+  campaigns: MetaCampaign[];
+  ads: MetaAd[];
+}
+
+// ── Company ────────────────────────────────────────────────────────────────
 interface Company {
   id: string;
   name: string;
   document: string | null;
   status: string;
   asaas_customer_id: string | null;
+  phone: string | null;
+  email: string | null;
+  meta_ad_account_id: string | null;
+  google_ad_account_id: string | null;
   custom_data: Json;
   created_at: string;
 }
@@ -88,6 +130,8 @@ export default function CompanyWorkspace() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'metrics' | 'improvements' | 'erp'>('overview');
   const [searchCampaigns, setSearchCampaigns] = useState('');
+  const [metaDatePreset, setMetaDatePreset] = useState('last_30d');
+  const [metaView, setMetaView] = useState<'campaigns' | 'ads'>('campaigns');
   const [erpParameter, setErpParameter] = useState('');
   const [erpNotes, setErpNotes] = useState('');
 
@@ -97,7 +141,7 @@ export default function CompanyWorkspace() {
       if (!companyId) throw new Error('ID de empresa não encontrado');
       const { data, error } = await supabase
         .from('companies')
-        .select('id, name, document, status, asaas_customer_id, custom_data, created_at')
+        .select('id, name, document, status, asaas_customer_id, phone, email, meta_ad_account_id, google_ad_account_id, custom_data, created_at')
         .eq('id', companyId)
         .single();
       if (error) throw error;
@@ -149,6 +193,28 @@ export default function CompanyWorkspace() {
       return (data || []) as unknown as Transaction[];
     },
     enabled: !!companyId,
+  });
+
+  // Meta Ads — só busca se tiver ad_account_id e estiver na aba campanhas
+  const metaAccountId = company?.meta_ad_account_id ?? null;
+  const {
+    data: metaData,
+    isLoading: loadingMeta,
+    isError: metaError,
+    refetch: refetchMeta,
+  } = useQuery<MetaData>({
+    queryKey: ['meta-ads', companyId, metaDatePreset],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('meta-ads-proxy', {
+        body: { ad_account_id: metaAccountId, date_preset: metaDatePreset },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as MetaData;
+    },
+    enabled: !!metaAccountId && activeTab === 'campaigns',
+    staleTime: 5 * 60 * 1000, // 5 minutos
+    retry: false,
   });
 
   useEffect(() => {
@@ -347,98 +413,373 @@ export default function CompanyWorkspace() {
 
         {/* ====== RESUMO ====== */}
         <TabsContent value="overview">
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-5">
+            {/* Dados cadastrais */}
             <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-center gap-2 text-primary mb-3">
-                <Sparkles className="h-4 w-4" />
-                <span className="text-sm font-semibold">Visão geral</span>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" /> Dados do Cliente
+                </p>
+                <button
+                  className="text-xs text-primary underline underline-offset-2"
+                  onClick={() => navigate(`/companies/${companyId}/profile`)}
+                >
+                  Editar →
+                </button>
               </div>
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p><span className="font-medium text-foreground">CNPJ:</span> {company.document || 'Não informado'}</p>
-                <p><span className="font-medium text-foreground">Conta Asaas:</span> {company.asaas_customer_id || 'Nenhuma'}</p>
-                <p><span className="font-medium text-foreground">Criado em:</span> {new Date(company.created_at).toLocaleDateString('pt-BR')}</p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-center gap-2 text-primary mb-3">
-                <ClipboardList className="h-4 w-4" />
-                <span className="text-sm font-semibold">Desempenho das campanhas</span>
-              </div>
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p><span className="font-medium text-foreground">Valor estimado total:</span> R$ {totalRevenue.toFixed(2)}</p>
-                <p><span className="font-medium text-foreground">Última campanha:</span> {campaigns[0]?.title ?? 'Sem campanhas'}</p>
-                <p><span className="font-medium text-foreground">Campanhas ativas:</span> {campaigns.filter(c => c.funnel_stage !== 'closed').length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-border bg-card p-5">
-            <div className="flex items-center gap-2 text-primary mb-3">
-              <FileText className="h-4 w-4" />
-              <span className="text-sm font-semibold">Tarefas recentes</span>
-            </div>
-            {tasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem tarefas vinculadas a este cliente.</p>
-            ) : (
-              <div className="space-y-3">
-                {tasks.slice(0, 4).map(task => (
-                  <div key={task.id} className="rounded-2xl border border-border p-4">
-                    <p className="font-medium text-sm text-foreground">{task.title}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{task.description || 'Sem descrição'}</p>
-                    <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{task.status || 'Sem status'}</span>
-                      <span>{task.due_date ? new Date(task.due_date + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem prazo'}</span>
-                    </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {[
+                  { label: 'CNPJ / CPF', value: company.document },
+                  { label: 'Email', value: company.email },
+                  { label: 'Telefone / WhatsApp', value: company.phone },
+                  { label: 'Asaas ID', value: company.asaas_customer_id, mono: true },
+                  { label: 'Cadastrado em', value: new Date(company.created_at).toLocaleDateString('pt-BR') },
+                ].map(item => (
+                  <div key={item.label}>
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <p className={`text-sm font-medium text-foreground mt-0.5 truncate ${item.mono ? 'font-mono' : ''}`}>
+                      {item.value || <span className="text-muted-foreground font-normal">Não informado</span>}
+                    </p>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+
+            {/* Mídias pagas */}
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-primary" /> Mídias Pagas
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-border">
+                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-blue-600">f</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Meta Ads</p>
+                    <p className={`text-xs font-mono truncate ${company.meta_ad_account_id ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {company.meta_ad_account_id || 'Não conectado'}
+                    </p>
+                  </div>
+                  {company.meta_ad_account_id && <span className="ml-auto w-2 h-2 rounded-full bg-green-500 shrink-0" />}
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-border">
+                  <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-red-500">G</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Google Ads</p>
+                    <p className={`text-xs font-mono truncate ${company.google_ad_account_id ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {company.google_ad_account_id || 'Não conectado'}
+                    </p>
+                  </div>
+                  {company.google_ad_account_id && <span className="ml-auto w-2 h-2 rounded-full bg-green-500 shrink-0" />}
+                </div>
+              </div>
+            </div>
+
+            {/* Tarefas recentes */}
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 text-primary mb-3">
+                <FileText className="h-4 w-4" />
+                <span className="text-sm font-semibold">Tarefas recentes</span>
+              </div>
+              {tasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sem tarefas vinculadas a este cliente.</p>
+              ) : (
+                <div className="space-y-3">
+                  {tasks.slice(0, 4).map(task => (
+                    <div key={task.id} className="rounded-xl border border-border p-3">
+                      <p className="font-medium text-sm text-foreground">{task.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{task.description || 'Sem descrição'}</p>
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{task.status || 'Sem status'}</span>
+                        <span>{task.due_date ? new Date(task.due_date + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem prazo'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </TabsContent>
 
-        {/* ====== CAMPANHAS ====== */}
+        {/* ====== CAMPANHAS META ADS ====== */}
         <TabsContent value="campaigns">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Campanhas vinculadas ao cliente</p>
-              <h2 className="text-lg font-semibold text-foreground">{company.name}</h2>
-            </div>
-            <div className="relative max-w-sm w-full sm:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Buscar campanha..."
-                value={searchCampaigns}
-                onChange={e => setSearchCampaigns(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {filteredCampaigns.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Nenhuma campanha encontrada para este cliente.
+          {!metaAccountId ? (
+            // Sem conta vinculada
+            <div className="rounded-2xl border border-dashed border-border p-10 text-center space-y-3">
+              <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto">
+                <span className="text-xl font-bold text-blue-600">f</span>
+              </div>
+              <p className="font-semibold text-foreground">Meta Ads não conectado</p>
+              <p className="text-sm text-muted-foreground">
+                Acesse o <strong>Perfil da Empresa</strong> e insira o Ad Account ID para sincronizar campanhas.
+              </p>
+              <button
+                className="text-sm text-blue-600 underline underline-offset-2"
+                onClick={() => navigate(`/companies/${companyId}/profile`)}
+              >
+                Ir para o Perfil →
+              </button>
             </div>
           ) : (
-            <div className="grid gap-4 mt-4">
-              {filteredCampaigns.map(campaign => (
-                <div key={campaign.id} className="rounded-2xl border border-border bg-card p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-sm text-foreground">{campaign.title}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{FUNNEL_LABELS[campaign.funnel_stage ?? ''] ?? campaign.funnel_stage ?? 'Sem estágio'}</p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {campaign.legal_status || 'Sem status jurídico'}
-                    </Badge>
+            <div className="space-y-5">
+              {/* Controles */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <span className="text-xs font-bold text-blue-600">f</span>
                   </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span>Valor estimado: R$ {campaign.estimated_value?.toFixed(2) ?? '0.00'}</span>
-                    <span>•</span>
-                    <span>{new Date(campaign.created_at).toLocaleDateString('pt-BR')}</span>
-                  </div>
+                  <span className="text-sm font-semibold text-foreground">Meta Ads</span>
+                  <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                    {metaAccountId}
+                  </span>
                 </div>
-              ))}
+                <div className="flex items-center gap-2">
+                  {/* Período */}
+                  <select
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none"
+                    value={metaDatePreset}
+                    onChange={e => setMetaDatePreset(e.target.value)}
+                  >
+                    <option value="today">Hoje</option>
+                    <option value="yesterday">Ontem</option>
+                    <option value="last_7d">Últimos 7 dias</option>
+                    <option value="last_14d">Últimos 14 dias</option>
+                    <option value="last_30d">Últimos 30 dias</option>
+                    <option value="last_90d">Últimos 90 dias</option>
+                    <option value="this_month">Este mês</option>
+                    <option value="last_month">Mês passado</option>
+                  </select>
+                  {/* Campanhas / Anúncios */}
+                  <div className="flex p-0.5 bg-muted rounded-lg">
+                    {(['campaigns', 'ads'] as const).map(v => (
+                      <button
+                        key={v}
+                        onClick={() => setMetaView(v)}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${metaView === v ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
+                      >
+                        {v === 'campaigns' ? 'Campanhas' : 'Anúncios'}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => refetchMeta()}
+                    disabled={loadingMeta}
+                    className="h-8 w-8 flex items-center justify-center rounded-md border border-input bg-background text-muted-foreground hover:text-foreground transition"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${loadingMeta ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {loadingMeta ? (
+                <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Buscando dados do Meta Ads...</span>
+                </div>
+              ) : metaError || !metaData ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-2">
+                  <AlertCircle className="h-6 w-6 text-red-500 mx-auto" />
+                  <p className="text-sm font-medium text-red-700">Erro ao buscar dados do Meta Ads</p>
+                  <p className="text-xs text-red-600">Verifique se o Ad Account ID está correto e se o META_ACCESS_TOKEN está configurado nos secrets do Supabase.</p>
+                  <button onClick={() => refetchMeta()} className="text-xs text-red-600 underline">Tentar novamente</button>
+                </div>
+              ) : (
+                <>
+                  {/* KPIs totais da conta */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                    {[
+                      { label: 'Investido', value: `R$ ${metaData.account_totals.spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-red-500' },
+                      { label: 'Alcance', value: metaData.account_totals.reach.toLocaleString('pt-BR'), icon: Users, color: 'text-blue-500' },
+                      { label: 'Impressões', value: metaData.account_totals.impressions.toLocaleString('pt-BR'), icon: Eye, color: 'text-purple-500' },
+                      { label: 'Cliques', value: metaData.account_totals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick, color: 'text-indigo-500' },
+                      { label: 'CTR', value: `${metaData.account_totals.ctr.toFixed(2)}%`, icon: TrendingUp, color: 'text-green-500' },
+                      { label: 'CPC', value: `R$ ${metaData.account_totals.cpc.toFixed(2)}`, icon: DollarSign, color: 'text-amber-500' },
+                      { label: 'ROAS', value: metaData.account_totals.roas > 0 ? `${metaData.account_totals.roas.toFixed(2)}x` : '—', icon: TrendingUp, color: 'text-emerald-500' },
+                    ].map(kpi => (
+                      <div key={kpi.label} className="rounded-xl border border-border bg-card p-3">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <kpi.icon className={`h-3.5 w-3.5 ${kpi.color}`} />
+                          <p className="text-xs text-muted-foreground">{kpi.label}</p>
+                        </div>
+                        <p className="text-base font-bold text-foreground leading-tight">{kpi.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Conversões e Leads */}
+                  {(metaData.account_totals.conversions > 0 || metaData.account_totals.leads > 0) && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {metaData.account_totals.conversions > 0 && (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                          <p className="text-xs text-emerald-600">Conversões</p>
+                          <p className="text-xl font-bold text-emerald-700">{metaData.account_totals.conversions.toLocaleString('pt-BR')}</p>
+                          {metaData.account_totals.conversion_value > 0 && (
+                            <p className="text-xs text-emerald-600 mt-0.5">R$ {metaData.account_totals.conversion_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          )}
+                        </div>
+                      )}
+                      {metaData.account_totals.leads > 0 && (
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                          <p className="text-xs text-blue-600">Leads</p>
+                          <p className="text-xl font-bold text-blue-700">{metaData.account_totals.leads.toLocaleString('pt-BR')}</p>
+                          {metaData.account_totals.spend > 0 && metaData.account_totals.leads > 0 && (
+                            <p className="text-xs text-blue-600 mt-0.5">CPL: R$ {(metaData.account_totals.spend / metaData.account_totals.leads).toFixed(2)}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Lista de Campanhas */}
+                  {metaView === 'campaigns' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-foreground">{metaData.campaigns.length} campanha{metaData.campaigns.length !== 1 ? 's' : ''}</p>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input className="pl-8 h-8 text-xs w-52" placeholder="Buscar campanha..." value={searchCampaigns} onChange={e => setSearchCampaigns(e.target.value)} />
+                        </div>
+                      </div>
+
+                      {metaData.campaigns
+                        .filter(c => !searchCampaigns || c.name.toLowerCase().includes(searchCampaigns.toLowerCase()))
+                        .map(campaign => (
+                          <div key={campaign.id} className="rounded-xl border border-border bg-card p-4">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm text-foreground truncate">{campaign.name}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">{campaign.objective ?? 'Sem objetivo'}</p>
+                              </div>
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0 ${
+                                campaign.status === 'ACTIVE' ? 'bg-green-500/10 text-green-600' :
+                                campaign.status === 'PAUSED' ? 'bg-amber-500/10 text-amber-600' :
+                                'bg-muted text-muted-foreground'
+                              }`}>
+                                {campaign.status === 'ACTIVE' ? 'Ativa' : campaign.status === 'PAUSED' ? 'Pausada' : campaign.status}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 md:grid-cols-7 gap-2 text-center">
+                              {[
+                                { label: 'Gasto', value: `R$${campaign.insights.spend.toFixed(2)}` },
+                                { label: 'Alcance', value: campaign.insights.reach.toLocaleString('pt-BR') },
+                                { label: 'Impressões', value: campaign.insights.impressions.toLocaleString('pt-BR') },
+                                { label: 'Cliques', value: campaign.insights.clicks.toLocaleString('pt-BR') },
+                                { label: 'CTR', value: `${campaign.insights.ctr.toFixed(2)}%` },
+                                { label: 'CPC', value: `R$${campaign.insights.cpc.toFixed(2)}` },
+                                { label: 'ROAS', value: campaign.insights.roas > 0 ? `${campaign.insights.roas.toFixed(2)}x` : '—' },
+                              ].map(m => (
+                                <div key={m.label} className="bg-muted/50 rounded-lg p-2">
+                                  <p className="text-xs text-muted-foreground leading-tight">{m.label}</p>
+                                  <p className="text-xs font-semibold text-foreground mt-0.5">{m.value}</p>
+                                </div>
+                              ))}
+                            </div>
+                            {(campaign.insights.conversions > 0 || campaign.insights.leads > 0) && (
+                              <div className="flex gap-3 mt-2">
+                                {campaign.insights.conversions > 0 && (
+                                  <span className="text-xs text-emerald-600 font-medium">✓ {campaign.insights.conversions} conversões</span>
+                                )}
+                                {campaign.insights.leads > 0 && (
+                                  <span className="text-xs text-blue-600 font-medium">◎ {campaign.insights.leads} leads</span>
+                                )}
+                              </div>
+                            )}
+                            {(campaign.daily_budget || campaign.lifetime_budget) && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Budget: {campaign.daily_budget ? `R$ ${campaign.daily_budget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia` : `R$ ${campaign.lifetime_budget?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} total`}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+
+                      {metaData.campaigns.length === 0 && (
+                        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                          Nenhuma campanha encontrada nesta conta no período selecionado.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Lista de Anúncios / Criativos */}
+                  {metaView === 'ads' && (
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold text-foreground">{metaData.ads.length} anúncio{metaData.ads.length !== 1 ? 's' : ''}</p>
+                      {metaData.ads.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                          Nenhum anúncio encontrado no período selecionado.
+                        </div>
+                      ) : (
+                        metaData.ads.map(ad => (
+                          <div key={ad.id} className="rounded-xl border border-border bg-card p-4">
+                            <div className="flex gap-4">
+                              {/* Thumbnail */}
+                              <div className="h-20 w-20 rounded-lg bg-muted flex-shrink-0 overflow-hidden flex items-center justify-center">
+                                {ad.creative.thumbnail_url || ad.creative.image_url ? (
+                                  <img
+                                    src={ad.creative.thumbnail_url ?? ad.creative.image_url ?? ''}
+                                    alt={ad.name}
+                                    className="h-full w-full object-cover"
+                                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                ) : ad.creative.video_id ? (
+                                  <Play className="h-6 w-6 text-muted-foreground" />
+                                ) : (
+                                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                )}
+                              </div>
+
+                              {/* Info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="font-medium text-sm text-foreground truncate">{ad.name}</p>
+                                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0 ${
+                                    ad.status === 'ACTIVE' ? 'bg-green-500/10 text-green-600' :
+                                    ad.status === 'PAUSED' ? 'bg-amber-500/10 text-amber-600' :
+                                    'bg-muted text-muted-foreground'
+                                  }`}>
+                                    {ad.status === 'ACTIVE' ? 'Ativo' : ad.status === 'PAUSED' ? 'Pausado' : ad.status}
+                                  </span>
+                                </div>
+                                {ad.creative.title && (
+                                  <p className="text-xs font-medium text-foreground mt-1 line-clamp-1">{ad.creative.title}</p>
+                                )}
+                                {ad.creative.body && (
+                                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{ad.creative.body}</p>
+                                )}
+                                {ad.creative.call_to_action && (
+                                  <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-blue-500/10 text-blue-600 rounded">
+                                    {ad.creative.call_to_action}
+                                  </span>
+                                )}
+                                {/* Métricas do anúncio */}
+                                <div className="flex flex-wrap gap-3 mt-2">
+                                  {[
+                                    { label: 'Gasto', value: `R$${ad.insights.spend.toFixed(2)}` },
+                                    { label: 'Alcance', value: ad.insights.reach.toLocaleString('pt-BR') },
+                                    { label: 'Cliques', value: ad.insights.clicks.toLocaleString('pt-BR') },
+                                    { label: 'CTR', value: `${ad.insights.ctr.toFixed(2)}%` },
+                                    { label: 'CPC', value: `R$${ad.insights.cpc.toFixed(2)}` },
+                                    ...(ad.insights.conversions > 0 ? [{ label: 'Conv.', value: String(ad.insights.conversions) }] : []),
+                                    ...(ad.insights.leads > 0 ? [{ label: 'Leads', value: String(ad.insights.leads) }] : []),
+                                  ].map(m => (
+                                    <div key={m.label} className="text-center bg-muted/50 rounded px-2 py-1">
+                                      <p className="text-xs text-muted-foreground leading-none">{m.label}</p>
+                                      <p className="text-xs font-semibold text-foreground mt-0.5">{m.value}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </TabsContent>

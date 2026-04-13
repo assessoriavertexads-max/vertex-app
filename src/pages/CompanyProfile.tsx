@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Mail, Phone, MapPin, Calendar, Pencil, Check, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Calendar, Pencil, Check, X, User, CreditCard, Megaphone, Phone, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
@@ -17,70 +17,119 @@ interface Company {
   custom_data: Json | null;
   asaas_customer_id: string | null;
   phone: string | null;
+  email: string | null;
+  meta_ad_account_id: string | null;
+  google_ad_account_id: string | null;
 }
 
-interface Lead {
-  id: string;
-  title: string;
-  estimated_value: number | null;
-  funnel_stage: string | null;
-  legal_status: string | null;
-  created_at: string;
+// Campo inline editável reutilizável
+function InlineField({
+  label,
+  value,
+  placeholder,
+  mono,
+  icon,
+  onSave,
+}: {
+  label: string;
+  value: string | null;
+  placeholder: string;
+  mono?: boolean;
+  icon?: React.ReactNode;
+  onSave: (val: string | null) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState(value ?? '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setInput(value ?? ''); }, [value]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(input.trim() || null);
+    setSaving(false);
+    setEditing(false);
+  };
+
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+        {icon}{label}
+      </p>
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <Input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder={placeholder}
+            className={`h-8 text-sm ${mono ? 'font-mono' : ''}`}
+            autoFocus
+            onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+          />
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-green-500" />}
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setEditing(false)}>
+            <X className="h-4 w-4 text-red-500" />
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 group">
+          <p className={`text-sm ${mono ? 'font-mono' : 'font-medium'} ${value ? 'text-foreground' : 'text-muted-foreground'}`}>
+            {value || 'Não informado'}
+          </p>
+          <Button
+            size="icon" variant="ghost"
+            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={() => { setInput(value ?? ''); setEditing(true); }}
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CompanyProfile() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const [company, setCompany] = useState<Company | null>(null);
-  const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingAsaasId, setEditingAsaasId] = useState(false);
-  const [asaasIdInput, setAsaasIdInput] = useState('');
-  const [savingAsaasId, setSavingAsaasId] = useState(false);
-  const [editingPhone, setEditingPhone] = useState(false);
-  const [phoneInput, setPhoneInput] = useState('');
-  const [savingPhone, setSavingPhone] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!companyId) return;
-      
       setLoading(true);
-      
-      const { data: companyData, error: companyError } = await supabase
+      const { data, error } = await supabase
         .from('companies')
         .select('*')
         .eq('id', companyId)
         .single();
-
-      const { data: leadsData, error: leadsError } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: false });
-
-      if (companyError) {
-        console.error('Erro ao buscar empresa:', companyError);
+      if (error) {
         toast.error('Erro ao carregar dados da empresa');
-      } else if (companyData) {
-        setCompany(companyData as Company);
+      } else if (data) {
+        setCompany(data as Company);
       }
-
-      if (leadsError) {
-        console.error('Erro ao buscar leads:', leadsError);
-      } else if (leadsData) {
-        setLeads(leadsData as Lead[]);
-      }
-
       setLoading(false);
     };
-
     fetchData();
   }, [companyId]);
 
+  const saveField = async (field: string, value: string | null) => {
+    if (!companyId) return;
+    const { error } = await supabase.from('companies').update({ [field]: value }).eq('id', companyId);
+    if (error) {
+      toast.error(`Erro ao salvar campo`);
+    } else {
+      setCompany(prev => prev ? { ...prev, [field]: value } : prev);
+      toast.success('Atualizado!');
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[40vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -90,8 +139,7 @@ export default function CompanyProfile() {
     return (
       <div className="space-y-4">
         <Button variant="outline" onClick={() => navigate('/companies')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
+          <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
         </Button>
         <div className="text-center py-12">
           <p className="text-muted-foreground">Empresa não encontrada</p>
@@ -100,151 +148,151 @@ export default function CompanyProfile() {
     );
   }
 
-  const saveAsaasId = async () => {
-    if (!companyId) return;
-    setSavingAsaasId(true);
-    const value = asaasIdInput.trim() || null;
-    const { error } = await supabase
-      .from('companies')
-      .update({ asaas_customer_id: value })
-      .eq('id', companyId);
-    setSavingAsaasId(false);
-    if (error) {
-      toast.error('Erro ao salvar ID Asaas');
-    } else {
-      setCompany(prev => prev ? { ...prev, asaas_customer_id: value } : prev);
-      setEditingAsaasId(false);
-      toast.success('ID Asaas atualizado com sucesso!');
-    }
-  };
-
   const statusLabel = COMPANY_STATUS_LABELS[company.status as keyof typeof COMPANY_STATUS_LABELS] || company.status;
   const statusColor = COMPANY_STATUS_COLORS[company.status as keyof typeof COMPANY_STATUS_COLORS] || 'bg-gray-500/20 text-gray-400';
 
   return (
-    <div className="space-y-6">
-      <Button variant="outline" onClick={() => navigate('/companies')}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Voltar
-      </Button>
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="sm" onClick={() => navigate('/companies')}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => navigate(`/companies/${companyId}`)}>
+          Abrir Workspace
+        </Button>
+      </div>
 
-      <div className="bg-card rounded-lg border border-border p-6">
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center text-2xl font-semibold text-primary">
-              {company.name.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">{company.name}</h1>
-              <div className="flex items-center gap-2 mt-2">
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusColor}`}>
-                  {statusLabel}
-                </span>
-              </div>
-            </div>
-          </div>
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary flex-shrink-0">
+          {company.name.charAt(0).toUpperCase()}
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">CNPJ/CPF</p>
-              <p className="text-lg font-medium text-foreground">{company.document || 'Não informado'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">ID da Empresa</p>
-              <p className="text-sm font-mono text-muted-foreground break-all">{company.id}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Cliente Asaas</p>
-              {editingAsaasId ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={asaasIdInput}
-                    onChange={e => setAsaasIdInput(e.target.value)}
-                    placeholder="cus_000000000000"
-                    className="h-8 text-sm font-mono"
-                    autoFocus
-                  />
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={saveAsaasId} disabled={savingAsaasId}>
-                    {savingAsaasId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-green-500" />}
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingAsaasId(false)}>
-                    <X className="h-4 w-4 text-red-500" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-mono text-muted-foreground">
-                    {company.asaas_customer_id || 'Não vinculado'}
-                  </p>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6"
-                    onClick={() => { setAsaasIdInput(company.asaas_customer_id || ''); setEditingAsaasId(true); }}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Data de Cadastro
-              </p>
-              <p className="text-lg font-medium text-foreground">
-                {new Date(company.created_at).toLocaleDateString('pt-BR')}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                Oportunidades
-              </p>
-              <p className="text-lg font-medium text-foreground">{leads.length} leads</p>
-            </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{company.name}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor}`}>
+              {statusLabel}
+            </span>
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Desde {new Date(company.created_at).toLocaleDateString('pt-BR')}
+            </span>
           </div>
         </div>
       </div>
 
-      {leads.length > 0 && (
-        <div className="bg-card rounded-lg border border-border p-6">
-          <h2 className="text-xl font-bold text-foreground mb-4">Oportunidades Vinculadas</h2>
-          <div className="space-y-3">
-            {leads.map((lead) => (
-              <div key={lead.id} className="border border-border rounded-lg p-4 hover:bg-muted/50 transition">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium text-foreground">{lead.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {lead.funnel_stage && `Estágio: ${lead.funnel_stage}`}
-                    </p>
-                  </div>
-                  {lead.estimated_value && (
-                    <p className="text-lg font-semibold text-primary">
-                      R$ {lead.estimated_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                  )}
-                </div>
-                {lead.legal_status && (
-                  <p className="text-xs text-muted-foreground mt-2">Status Legal: {lead.legal_status}</p>
-                )}
-              </div>
-            ))}
+      {/* Dados Cadastrais */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-5">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <User className="h-4 w-4 text-primary" /> Dados Cadastrais
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <InlineField
+            label="CNPJ / CPF"
+            value={company.document}
+            placeholder="00.000.000/0001-00"
+            mono
+            onSave={v => saveField('document', v)}
+          />
+          <InlineField
+            label="Email"
+            value={company.email}
+            placeholder="cliente@empresa.com.br"
+            icon={<Mail className="h-3 w-3" />}
+            onSave={v => saveField('email', v)}
+          />
+          <InlineField
+            label="Telefone / WhatsApp"
+            value={company.phone}
+            placeholder="5511999999999"
+            mono
+            icon={<Phone className="h-3 w-3" />}
+            onSave={v => saveField('phone', v)}
+          />
+        </div>
+      </div>
+
+      {/* Financeiro */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-5">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-primary" /> Financeiro
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <InlineField
+              label="Asaas — ID do Cliente"
+              value={company.asaas_customer_id}
+              placeholder="cus_000000000000"
+              mono
+              onSave={v => saveField('asaas_customer_id', v)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Encontre em: Asaas → Clientes → ID do cliente
+            </p>
           </div>
         </div>
-      )}
+      </div>
 
-      {leads.length === 0 && (
-        <div className="bg-muted/50 rounded-lg border border-border p-8 text-center">
-          <p className="text-muted-foreground">Nenhuma oportunidade vinculada a esta empresa ainda.</p>
+      {/* Mídias Pagas */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-5">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-primary" /> Mídias Pagas
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Meta */}
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <span className="text-xs font-bold text-blue-600">f</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Meta Ads</p>
+                <p className="text-xs text-muted-foreground">Facebook & Instagram</p>
+              </div>
+              {company.meta_ad_account_id && (
+                <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-600 rounded-full">Conectado</span>
+              )}
+            </div>
+            <InlineField
+              label="Ad Account ID"
+              value={company.meta_ad_account_id}
+              placeholder="act_000000000000"
+              mono
+              onSave={v => saveField('meta_ad_account_id', v)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Meta Business Suite → Configurações → Contas de Anúncio
+            </p>
+          </div>
+
+          {/* Google */}
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-red-500/10 flex items-center justify-center">
+                <span className="text-xs font-bold text-red-500">G</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Google Ads</p>
+                <p className="text-xs text-muted-foreground">Google & YouTube</p>
+              </div>
+              {company.google_ad_account_id && (
+                <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-600 rounded-full">Conectado</span>
+              )}
+            </div>
+            <InlineField
+              label="Customer ID"
+              value={company.google_ad_account_id}
+              placeholder="000-000-0000"
+              mono
+              onSave={v => saveField('google_ad_account_id', v)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Google Ads → Ferramentas → ID do cliente (canto superior direito)
+            </p>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
