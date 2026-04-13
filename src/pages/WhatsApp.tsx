@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Send, Loader2, MessageSquare, Users, RefreshCw, Lock, Eye, EyeOff } from 'lucide-react';
+import { Search, Send, Loader2, MessageSquare, Users, RefreshCw, Lock, Eye, EyeOff, WifiOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -71,7 +71,8 @@ function PinLock({ onUnlock }: { onUnlock: () => void }) {
 export default function WhatsApp() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === '1');
   const [chats, setChats] = useState<EvolutionChat[]>([]);
-  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingChats, setLoadingChats] = useState(false);
+  const [chatsError, setChatsError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeChat, setActiveChat] = useState<EvolutionChat | null>(null);
   const [messages, setMessages] = useState<EvolutionMessage[]>([]);
@@ -82,14 +83,17 @@ export default function WhatsApp() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  if (!unlocked) return <PinLock onUnlock={() => setUnlocked(true)} />;
-
+  // Todos os hooks devem ser declarados antes de qualquer return condicional
   const loadChats = useCallback(async () => {
+    setLoadingChats(true);
+    setChatsError(null);
     try {
       const data = await fetchChats(50);
       setChats(data);
-    } catch {
-      toast.error('Erro ao carregar conversas');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+      setChatsError(msg);
+      toast.error('Erro ao carregar conversas: ' + msg);
     } finally {
       setLoadingChats(false);
     }
@@ -97,11 +101,13 @@ export default function WhatsApp() {
 
   const loadMessages = useCallback(async (chat: EvolutionChat) => {
     setLoadingMessages(true);
+    setMessages([]);
     try {
       const data = await fetchMessages(chat.remoteJid, 50);
       setMessages(data);
-    } catch {
-      toast.error('Erro ao carregar mensagens');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+      toast.error('Erro ao carregar mensagens: ' + msg);
     } finally {
       setLoadingMessages(false);
     }
@@ -113,22 +119,25 @@ export default function WhatsApp() {
       const data = await fetchMessages(activeChat.remoteJid, 50);
       setMessages(data);
     } catch {
-      // silently fail on poll
+      // silently fail on poll — evita spam de toasts
     }
   }, [activeChat]);
 
-  useEffect(() => { loadChats(); }, [loadChats]);
-
+  // Carrega chats apenas quando desbloqueado
   useEffect(() => {
-    if (activeChat) {
-      loadMessages(activeChat);
-      // Poll a cada 5s
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(refreshMessages, 5000);
-    }
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [activeChat, loadMessages, refreshMessages]);
+    if (unlocked) loadChats();
+  }, [unlocked, loadChats]);
 
+  // Carrega mensagens e inicia polling ao mudar de chat
+  useEffect(() => {
+    if (!unlocked || !activeChat) return;
+    loadMessages(activeChat);
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(refreshMessages, 5000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [activeChat, unlocked, loadMessages, refreshMessages]);
+
+  // Scroll automático para última mensagem
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -140,8 +149,8 @@ export default function WhatsApp() {
       await sendTextMessage(activeChat.remoteJid, messageInput.trim());
       setMessageInput('');
       setTimeout(refreshMessages, 1000);
-    } catch {
-      toast.error('Erro ao enviar mensagem');
+    } catch (err) {
+      toast.error('Erro ao enviar mensagem: ' + (err instanceof Error ? err.message : 'Tente novamente'));
     } finally {
       setSending(false);
     }
@@ -156,6 +165,9 @@ export default function WhatsApp() {
     return matchesSearch && matchesFilter;
   });
 
+  // Return condicional APÓS todos os hooks
+  if (!unlocked) return <PinLock onUnlock={() => setUnlocked(true)} />;
+
   return (
     <div className="flex h-[calc(100vh-8rem)] bg-white rounded-xl border shadow-sm overflow-hidden">
 
@@ -168,8 +180,8 @@ export default function WhatsApp() {
               <MessageSquare className="w-5 h-5 text-green-600" />
               WhatsApp
             </h2>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={loadChats}>
-              <RefreshCw className="w-4 h-4 text-slate-500" />
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={loadChats} disabled={loadingChats}>
+              <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingChats ? 'animate-spin' : ''}`} />
             </Button>
           </div>
 
@@ -201,11 +213,21 @@ export default function WhatsApp() {
         {/* Lista de chats */}
         <div className="flex-1 overflow-y-auto">
           {loadingChats ? (
-            <div className="flex items-center justify-center h-32">
+            <div className="flex flex-col items-center justify-center h-32 gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+              <p className="text-xs text-slate-400">Carregando conversas...</p>
+            </div>
+          ) : chatsError ? (
+            <div className="flex flex-col items-center justify-center h-40 gap-3 p-4 text-center">
+              <WifiOff className="w-8 h-8 text-slate-300" />
+              <p className="text-sm text-slate-500">Não foi possível carregar as conversas</p>
+              <p className="text-xs text-slate-400">{chatsError}</p>
+              <Button variant="outline" size="sm" onClick={loadChats}>Tentar novamente</Button>
             </div>
           ) : filteredChats.length === 0 ? (
-            <div className="text-center py-10 text-slate-400 text-sm">Nenhuma conversa encontrada</div>
+            <div className="text-center py-10 text-slate-400 text-sm">
+              {chats.length === 0 ? 'Nenhuma conversa disponível' : 'Nenhuma conversa encontrada'}
+            </div>
           ) : (
             filteredChats.map(chat => (
               <button
@@ -215,7 +237,6 @@ export default function WhatsApp() {
                   activeChat?.id === chat.id ? 'bg-green-50 border-l-2 border-l-green-500' : ''
                 }`}
               >
-                {/* Avatar */}
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-white font-semibold text-sm ${
                   chat.isGroup ? 'bg-violet-500' : 'bg-green-500'
                 }`}>
@@ -265,8 +286,9 @@ export default function WhatsApp() {
           {/* Mensagens */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/50">
             {loadingMessages ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center justify-center h-full gap-2">
                 <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                <p className="text-xs text-slate-400">Carregando mensagens...</p>
               </div>
             ) : messages.length === 0 ? (
               <div className="flex items-center justify-center h-full text-slate-400 text-sm">
@@ -276,7 +298,7 @@ export default function WhatsApp() {
               messages.map(msg => {
                 const text = getMessageText(msg);
                 if (!text) return null;
-                const fromMe = msg.key.fromMe;
+                const fromMe = msg.key?.fromMe ?? false;
                 return (
                   <div key={msg.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm shadow-sm ${
@@ -284,7 +306,7 @@ export default function WhatsApp() {
                         ? 'bg-green-500 text-white rounded-br-sm'
                         : 'bg-white text-slate-800 rounded-bl-sm border'
                     }`}>
-                      {!fromMe && activeChat.isGroup && (
+                      {!fromMe && activeChat.isGroup && msg.pushName && (
                         <p className="text-xs font-semibold text-violet-600 mb-1">{msg.pushName}</p>
                       )}
                       <p className="whitespace-pre-wrap break-words">{text}</p>

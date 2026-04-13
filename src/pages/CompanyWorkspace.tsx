@@ -21,6 +21,21 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Json } from '@/integrations/supabase/types';
 
+// ── Google Ads types ──────────────────────────────────────────────────────
+interface GoogleAdsInsights {
+  impressions: number; clicks: number; cost: number; ctr: number;
+  avg_cpc: number; avg_cpm: number; conversions: number; conversion_value: number; roas: number;
+}
+interface GoogleAdsCampaign {
+  id: string; name: string; status: string; channel_type: string;
+  insights: Omit<GoogleAdsInsights, 'roas'>;
+}
+interface GoogleAdsData {
+  customer_id: string; date_range: string;
+  account_totals: GoogleAdsInsights;
+  campaigns: GoogleAdsCampaign[];
+}
+
 // ── Meta Ads types ────────────────────────────────────────────────────────
 interface MetaInsights {
   impressions: number; reach: number; clicks: number;
@@ -128,10 +143,11 @@ export default function CompanyWorkspace() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'metrics' | 'improvements' | 'erp'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'google-ads' | 'metrics' | 'improvements' | 'erp'>('overview');
   const [searchCampaigns, setSearchCampaigns] = useState('');
   const [metaDatePreset, setMetaDatePreset] = useState('last_30d');
   const [metaView, setMetaView] = useState<'campaigns' | 'ads'>('campaigns');
+  const [googleDateRange, setGoogleDateRange] = useState('LAST_30_DAYS');
   const [erpParameter, setErpParameter] = useState('');
   const [erpNotes, setErpNotes] = useState('');
 
@@ -171,11 +187,12 @@ export default function CompanyWorkspace() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, title, description, status, due_date, created_at')
+        .select('id, name, description, status, due_date, created_at')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as Task[];
+      // Map name → title for compatibility
+      return (data || []).map((t: Record<string, unknown>) => ({ ...t, title: t.name })) as unknown as Task[];
     },
     enabled: !!companyId,
   });
@@ -195,7 +212,7 @@ export default function CompanyWorkspace() {
     enabled: !!companyId,
   });
 
-  // Meta Ads — só busca se tiver ad_account_id e estiver na aba campanhas
+  // Meta Ads
   const metaAccountId = company?.meta_ad_account_id ?? null;
   const {
     data: metaData,
@@ -212,8 +229,30 @@ export default function CompanyWorkspace() {
       if (data?.error) throw new Error(data.error);
       return data as MetaData;
     },
-    enabled: !!metaAccountId && activeTab === 'campaigns',
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    enabled: !!metaAccountId && (activeTab === 'campaigns' || activeTab === 'improvements'),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  // Google Ads
+  const googleAccountId = company?.google_ad_account_id ?? null;
+  const {
+    data: googleData,
+    isLoading: loadingGoogle,
+    isError: googleError,
+    refetch: refetchGoogle,
+  } = useQuery<GoogleAdsData>({
+    queryKey: ['google-ads', companyId, googleDateRange],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('google-ads-proxy', {
+        body: { customer_id: googleAccountId, date_range: googleDateRange },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as GoogleAdsData;
+    },
+    enabled: !!googleAccountId && activeTab === 'google-ads',
+    staleTime: 5 * 60 * 1000,
     retry: false,
   });
 
@@ -297,48 +336,185 @@ export default function CompanyWorkspace() {
     return { totalPaid, totalPending, tasksDone, tasksPending, completionRate, funnelData, revenueByMonth };
   }, [transactions, tasks, campaigns]);
 
-  // --- GERA RELATÓRIO ---
+  // --- DIAGNÓSTICO IA ---
+  const aiInsights = useMemo(() => {
+    const result: { level: 'alta' | 'media' | 'baixa'; type: string; color: string; title: string; desc: string }[] = [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+    // Financeiro
+    const overdueTx = transactions.filter(t => t.type === 'income' && t.status === 'pending' && t.due_date < todayStr);
+    const overdueAmt = overdueTx.reduce((a, t) => a + Number(t.amount), 0);
+    if (overdueAmt > 0) {
+      result.push({ level: 'alta', type: 'alerta', color: 'red', title: `R$ ${fmt(overdueAmt)} em atraso`, desc: `${overdueTx.length} cobrança(s) vencida(s). Acesse Financeiro → Cobrança Personalizada para notificar o cliente.` });
+    }
+    const collRate = metrics.totalPaid + metrics.totalPending > 0 ? (metrics.totalPaid / (metrics.totalPaid + metrics.totalPending)) * 100 : 100;
+    if (collRate < 70 && metrics.totalPending > 500) {
+      result.push({ level: 'media', type: 'alerta', color: 'amber', title: `Taxa de recebimento: ${collRate.toFixed(0)}%`, desc: `${(100 - collRate).toFixed(0)}% da receita ainda está pendente. Considere automatizar cobranças.` });
+    }
+
+    // Tarefas
+    const overdueTasks = tasks.filter(t => t.due_date && t.due_date < todayStr && t.status !== 'concluido');
+    if (overdueTasks.length > 0) {
+      result.push({ level: 'alta', type: 'alerta', color: 'orange', title: `${overdueTasks.length} tarefa(s) com prazo vencido`, desc: `Prazos ultrapassados. Revise ou redistribua as atividades pendentes.` });
+    }
+    if (metrics.completionRate < 60 && tasks.length >= 3) {
+      result.push({ level: 'media', type: 'sugestão', color: 'amber', title: `Conclusão de tarefas: ${metrics.completionRate}%`, desc: `Apenas ${metrics.tasksDone}/${tasks.length} tarefas concluídas. Revise as prioridades.` });
+    }
+    if (tasks.length === 0) {
+      result.push({ level: 'media', type: 'sugestão', color: 'blue', title: 'Sem tarefas planejadas', desc: 'Crie um plano de ação com marcos e entregas claras para este cliente.' });
+    }
+
+    // Meta Ads
+    if (metaData && metaData.account_totals.spend > 0) {
+      const t = metaData.account_totals;
+      if (t.roas < 1) {
+        result.push({ level: 'alta', type: 'alerta', color: 'red', title: `ROAS negativo (${t.roas.toFixed(2)}x)`, desc: `Retorno abaixo do investimento. Revise segmentação e criativos urgentemente.` });
+      } else if (t.roas < 2) {
+        result.push({ level: 'media', type: 'sugestão', color: 'amber', title: `ROAS abaixo do benchmark (${t.roas.toFixed(2)}x)`, desc: `Meta recomendada: 3x+. Teste novos criativos e audiências.` });
+      } else if (t.roas >= 4) {
+        result.push({ level: 'baixa', type: 'oportunidade', color: 'green', title: `Excelente ROAS: ${t.roas.toFixed(2)}x`, desc: `Performance sólida. Escale o orçamento nas campanhas de maior desempenho.` });
+      }
+      if (t.ctr < 1 && t.impressions > 5000) {
+        result.push({ level: 'media', type: 'sugestão', color: 'amber', title: `CTR baixo: ${t.ctr.toFixed(2)}%`, desc: `Benchmark: 1-2%. Teste novos títulos e imagens nos anúncios.` });
+      }
+      if (t.conversions === 0 && t.spend > 500) {
+        result.push({ level: 'alta', type: 'alerta', color: 'red', title: 'Sem conversões registradas', desc: `R$ ${fmt(t.spend)} investido sem conversões. Verifique o pixel de conversão e a landing page.` });
+      }
+      if (metaData.campaigns.length > 1) {
+        const sorted = [...metaData.campaigns].sort((a, b) => b.insights.roas - a.insights.roas);
+        const best = sorted[0];
+        if (best.insights.roas >= 3) {
+          result.push({ level: 'baixa', type: 'oportunidade', color: 'green', title: `Campanha destaque: ${best.name.substring(0, 40)}`, desc: `ROAS: ${best.insights.roas.toFixed(2)}x. Considere aumentar o orçamento desta campanha.` });
+        }
+        const worst = sorted[sorted.length - 1];
+        if (worst.insights.spend > 0 && worst.insights.roas < 0.5 && sorted.length > 1) {
+          result.push({ level: 'alta', type: 'alerta', color: 'red', title: `Campanha com baixo retorno: ${worst.name.substring(0, 35)}`, desc: `ROAS de ${worst.insights.roas.toFixed(2)}x. Considere pausar ou revisar criativos.` });
+        }
+      }
+    } else if (metaAccountId && !metaData) {
+      result.push({ level: 'baixa', type: 'sugestão', color: 'blue', title: 'Carregue os dados do Meta Ads', desc: 'Acesse a aba "Meta Ads" para analisar a performance das campanhas.' });
+    } else if (!metaAccountId) {
+      result.push({ level: 'baixa', type: 'sugestão', color: 'blue', title: 'Meta Ads não conectado', desc: 'Configure o Ad Account ID no Perfil para receber insights de anúncios.' });
+    }
+
+    // Positivos
+    if (overdueAmt === 0 && metrics.totalPaid > 0) {
+      result.push({ level: 'baixa', type: 'oportunidade', color: 'green', title: 'Financeiro em dia!', desc: `R$ ${fmt(metrics.totalPaid)} recebido sem inadimplências.` });
+    }
+    if (metrics.completionRate === 100 && tasks.length >= 3) {
+      result.push({ level: 'baixa', type: 'oportunidade', color: 'green', title: 'Todas as tarefas concluídas!', desc: 'Ótimo trabalho! Certifique-se de planejar as próximas entregas.' });
+    }
+
+    if (result.length === 0) {
+      result.push({ level: 'baixa', type: 'oportunidade', color: 'green', title: 'Cliente em boa situação!', desc: 'Nenhum alerta ou ação urgente no momento. Continue acompanhando.' });
+    }
+
+    const order = { alta: 0, media: 1, baixa: 2 };
+    return result.sort((a, b) => order[a.level] - order[b.level]);
+  }, [transactions, tasks, metrics, metaData, metaAccountId]);
+
+  const healthScore = useMemo(() => {
+    const high = aiInsights.filter(i => i.level === 'alta' && i.type === 'alerta').length;
+    const med = aiInsights.filter(i => i.level === 'media' && i.type === 'alerta').length;
+    return Math.max(0, 100 - high * 20 - med * 10);
+  }, [aiInsights]);
+
+  // --- GERA RELATÓRIO PDF ---
   const generateReport = () => {
     if (!company) return;
+    const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const dateStr = new Date().toLocaleDateString('pt-BR');
+    const timeStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-    const lines: string[] = [
-      `RELATÓRIO DO CLIENTE: ${company.name}`,
-      `Gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`,
-      `Status: ${statusLabels[company.status] ?? company.status}`,
-      `CNPJ/CPF: ${company.document ?? 'Não informado'}`,
-      `Cadastrado em: ${new Date(company.created_at).toLocaleDateString('pt-BR')}`,
-      '',
-      '=== FINANCEIRO ===',
-      `Receita recebida: R$ ${metrics.totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      `A receber: R$ ${metrics.totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      `Total transações: ${transactions.length}`,
-      '',
-      '=== CAMPANHAS / CRM ===',
-      `Total de campanhas: ${campaigns.length}`,
-      `Valor estimado total: R$ ${totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      ...campaigns.map(c =>
-        `  - [${FUNNEL_LABELS[c.funnel_stage ?? ''] ?? c.funnel_stage ?? 'sem estágio'}] ${c.title} — R$ ${Number(c.estimated_value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      ),
-      '',
-      '=== TAREFAS ===',
-      `Total: ${tasks.length} | Concluídas: ${metrics.tasksDone} | Pendentes: ${metrics.tasksPending} | Taxa: ${metrics.completionRate}%`,
-      ...tasks.map(t =>
-        `  - [${t.status ?? 'sem status'}] ${t.title}${t.due_date ? ` — vence ${new Date(t.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}` : ''}`
-      ),
-      '',
-      '=== ERP ===',
-      `Chave ERP: ${erpParameter || 'Não definido'}`,
-      `Notas: ${erpNotes || 'Nenhuma'}`,
-    ];
+    const txRows = transactions.map(t => `
+      <tr>
+        <td>${new Date(t.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+        <td>${t.category || '—'}</td>
+        <td>${t.type === 'income' ? 'Receita' : 'Despesa'}</td>
+        <td>R$ ${fmt(Number(t.amount))}</td>
+        <td class="badge ${t.status === 'paid' ? 'badge-green' : t.status === 'overdue' ? 'badge-red' : 'badge-amber'}">${t.status === 'paid' ? 'Pago' : t.status === 'overdue' ? 'Vencido' : 'Pendente'}</td>
+      </tr>`).join('');
 
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `relatorio-${company.name.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Relatório gerado!');
+    const taskRows = tasks.map(t => `
+      <tr>
+        <td>${t.title || '—'}</td>
+        <td class="badge ${t.status === 'concluido' ? 'badge-green' : t.status === 'em_progresso' ? 'badge-blue' : 'badge-gray'}">${t.status === 'concluido' ? 'Concluído' : t.status === 'em_progresso' ? 'Em progresso' : 'A fazer'}</td>
+        <td>${t.due_date ? new Date(t.due_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+      </tr>`).join('');
+
+    const campaignRows = campaigns.map(c => `
+      <tr>
+        <td>${c.title}</td>
+        <td>${FUNNEL_LABELS[c.funnel_stage ?? ''] ?? c.funnel_stage ?? '—'}</td>
+        <td>R$ ${fmt(Number(c.estimated_value ?? 0))}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Relatório — ${company.name}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,sans-serif;font-size:12px;color:#1e293b;padding:36px;background:#fff}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #e2e8f0;padding-bottom:18px;margin-bottom:22px}
+  .logo{font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-0.5px}.logo span{color:#6366f1}
+  .co-name{font-size:20px;font-weight:700;margin-top:4px}
+  .sub{color:#64748b;font-size:11px;margin-top:3px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
+  .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px}
+  .kpi-label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
+  .kpi-value{font-size:16px;font-weight:700;margin-top:3px}
+  .green{color:#059669}.amber{color:#d97706}.red{color:#dc2626}.blue{color:#2563eb}
+  .section{margin-bottom:20px}
+  .section-title{font-size:12px;font-weight:700;margin-bottom:8px;border-left:3px solid #6366f1;padding-left:8px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{background:#f1f5f9;text-align:left;padding:7px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#64748b}
+  td{padding:6px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  .badge{display:inline-block;padding:2px 7px;border-radius:100px;font-size:10px;font-weight:600}
+  .badge-green{background:#d1fae5;color:#065f46}.badge-amber{background:#fef3c7;color:#92400e}
+  .badge-red{background:#fee2e2;color:#991b1b}.badge-blue{background:#dbeafe;color:#1e40af}
+  .badge-gray{background:#f1f5f9;color:#475569}
+  .footer{margin-top:28px;border-top:1px solid #e2e8f0;padding-top:10px;color:#94a3b8;font-size:10px;display:flex;justify-content:space-between}
+  @media print{body{padding:20px}}
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="logo">VERTEX<span>.</span>ERP</div>
+    <div class="co-name">${company.name}</div>
+    <div class="sub">Status: ${statusLabels[company.status] ?? company.status} · CNPJ: ${company.document ?? 'N/A'} · Desde ${new Date(company.created_at).toLocaleDateString('pt-BR')}</div>
+  </div>
+  <div style="text-align:right;color:#64748b;font-size:11px">
+    <div>Relatório gerado em</div>
+    <div style="font-weight:700;color:#0f172a">${dateStr} ${timeStr}</div>
+  </div>
+</div>
+<div class="kpi-grid">
+  <div class="kpi"><div class="kpi-label">Receita Recebida</div><div class="kpi-value green">R$ ${fmt(metrics.totalPaid)}</div></div>
+  <div class="kpi"><div class="kpi-label">A Receber</div><div class="kpi-value amber">R$ ${fmt(metrics.totalPending)}</div></div>
+  <div class="kpi"><div class="kpi-label">Conclusão Tarefas</div><div class="kpi-value">${metrics.completionRate}%</div></div>
+  <div class="kpi"><div class="kpi-label">Total Tarefas</div><div class="kpi-value">${tasks.length}</div></div>
+</div>
+${transactions.length > 0 ? `<div class="section"><div class="section-title">Histórico Financeiro (${transactions.length})</div>
+<table><thead><tr><th>Vencimento</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Status</th></tr></thead>
+<tbody>${txRows}</tbody></table></div>` : ''}
+${tasks.length > 0 ? `<div class="section"><div class="section-title">Tarefas (${tasks.length})</div>
+<table><thead><tr><th>Tarefa</th><th>Status</th><th>Vencimento</th></tr></thead>
+<tbody>${taskRows}</tbody></table></div>` : ''}
+${campaigns.length > 0 ? `<div class="section"><div class="section-title">Campanhas / CRM (${campaigns.length}) · Pipeline: R$ ${fmt(totalRevenue)}</div>
+<table><thead><tr><th>Campanha</th><th>Estágio</th><th>Valor Estimado</th></tr></thead>
+<tbody>${campaignRows}</tbody></table></div>` : ''}
+${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
+<table><tbody>
+  <tr><td style="font-weight:600;width:140px">Chave ERP</td><td>${erpParameter}</td></tr>
+  ${erpNotes ? `<tr><td style="font-weight:600">Notas</td><td>${erpNotes}</td></tr>` : ''}
+</tbody></table></div>` : ''}
+<div class="footer"><span>VERTEX ERP · ${company.name}</span><span>Gerado em ${dateStr} ${timeStr}</span></div>
+<script>window.onload=()=>window.print()</script>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(html); win.document.close(); }
+    toast.success('Relatório aberto para impressão / salvar como PDF!');
   };
 
   const statusText = company?.status ? (statusLabels[company.status] ?? company.status) : 'Sem status';
@@ -405,7 +581,8 @@ export default function CompanyWorkspace() {
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as typeof activeTab)}>
         <TabsList>
           <TabsTrigger value="overview">Resumo</TabsTrigger>
-          <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
+          <TabsTrigger value="campaigns">Meta Ads</TabsTrigger>
+          <TabsTrigger value="google-ads">Google Ads</TabsTrigger>
           <TabsTrigger value="metrics">Métricas</TabsTrigger>
           <TabsTrigger value="improvements">Diagnóstico IA</TabsTrigger>
           <TabsTrigger value="erp">ERP</TabsTrigger>
@@ -784,6 +961,140 @@ export default function CompanyWorkspace() {
           )}
         </TabsContent>
 
+        {/* ====== GOOGLE ADS ====== */}
+        <TabsContent value="google-ads">
+          {!googleAccountId ? (
+            <div className="rounded-2xl border border-dashed border-border p-10 text-center space-y-3">
+              <div className="h-12 w-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
+                <span className="text-xl font-bold text-red-500">G</span>
+              </div>
+              <p className="font-semibold text-foreground">Google Ads não conectado</p>
+              <p className="text-sm text-muted-foreground">
+                Acesse o <strong>Perfil da Empresa</strong> e insira o Customer ID para sincronizar campanhas.
+              </p>
+              <button className="text-sm text-red-600 underline underline-offset-2" onClick={() => navigate(`/companies/${companyId}/profile`)}>
+                Ir para o Perfil →
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Controles */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-red-500/10 flex items-center justify-center">
+                    <span className="text-xs font-bold text-red-500">G</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">Google Ads</span>
+                  <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">{googleAccountId}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    value={googleDateRange}
+                    onChange={e => setGoogleDateRange(e.target.value)}
+                  >
+                    <option value="TODAY">Hoje</option>
+                    <option value="YESTERDAY">Ontem</option>
+                    <option value="LAST_7_DAYS">Últimos 7 dias</option>
+                    <option value="LAST_14_DAYS">Últimos 14 dias</option>
+                    <option value="LAST_30_DAYS">Últimos 30 dias</option>
+                    <option value="LAST_90_DAYS">Últimos 90 dias</option>
+                    <option value="THIS_MONTH">Este mês</option>
+                    <option value="LAST_MONTH">Mês passado</option>
+                  </select>
+                  <button
+                    onClick={() => refetchGoogle()}
+                    disabled={loadingGoogle}
+                    className="h-8 w-8 flex items-center justify-center rounded-md border border-input bg-background text-muted-foreground hover:text-foreground transition"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${loadingGoogle ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {loadingGoogle ? (
+                <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Buscando dados do Google Ads...</span>
+                </div>
+              ) : googleError || !googleData ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-2">
+                  <AlertCircle className="h-6 w-6 text-red-500 mx-auto" />
+                  <p className="text-sm font-medium text-red-700">Erro ao buscar dados do Google Ads</p>
+                  <p className="text-xs text-red-600">Verifique o Customer ID e se as credenciais OAuth estão configuradas nos secrets do Supabase.</p>
+                  <button onClick={() => refetchGoogle()} className="text-xs text-red-600 underline">Tentar novamente</button>
+                </div>
+              ) : (
+                <>
+                  {/* KPIs */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                    {[
+                      { label: 'Investido', value: `R$ ${googleData.account_totals.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-red-500' },
+                      { label: 'Impressões', value: googleData.account_totals.impressions.toLocaleString('pt-BR'), icon: Eye, color: 'text-purple-500' },
+                      { label: 'Cliques', value: googleData.account_totals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick, color: 'text-indigo-500' },
+                      { label: 'CTR', value: `${googleData.account_totals.ctr.toFixed(2)}%`, icon: TrendingUp, color: 'text-green-500' },
+                      { label: 'CPC Médio', value: `R$ ${googleData.account_totals.avg_cpc.toFixed(2)}`, icon: DollarSign, color: 'text-amber-500' },
+                      { label: 'Conversões', value: googleData.account_totals.conversions.toLocaleString('pt-BR'), icon: Users, color: 'text-blue-500' },
+                      { label: 'ROAS', value: googleData.account_totals.roas > 0 ? `${googleData.account_totals.roas.toFixed(2)}x` : '—', icon: TrendingUp, color: 'text-emerald-500' },
+                    ].map(kpi => (
+                      <div key={kpi.label} className="rounded-xl border border-border bg-card p-3">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <kpi.icon className={`h-3.5 w-3.5 ${kpi.color}`} />
+                          <p className="text-xs text-muted-foreground">{kpi.label}</p>
+                        </div>
+                        <p className="text-base font-bold text-foreground leading-tight">{kpi.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Campanhas */}
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-foreground">{googleData.campaigns.length} campanha{googleData.campaigns.length !== 1 ? 's' : ''}</p>
+                    {googleData.campaigns.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                        Nenhuma campanha encontrada nesta conta no período selecionado.
+                      </div>
+                    ) : (
+                      googleData.campaigns.map(campaign => (
+                        <div key={campaign.id} className="rounded-xl border border-border bg-card p-4">
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm text-foreground truncate">{campaign.name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{campaign.channel_type}</p>
+                            </div>
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0 ${
+                              campaign.status === 'ENABLED' ? 'bg-green-500/10 text-green-600' :
+                              campaign.status === 'PAUSED' ? 'bg-amber-500/10 text-amber-600' :
+                              'bg-muted text-muted-foreground'
+                            }`}>
+                              {campaign.status === 'ENABLED' ? 'Ativa' : campaign.status === 'PAUSED' ? 'Pausada' : campaign.status}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 md:grid-cols-6 gap-2 text-center">
+                            {[
+                              { label: 'Gasto', value: `R$${campaign.insights.cost.toFixed(2)}` },
+                              { label: 'Impressões', value: campaign.insights.impressions.toLocaleString('pt-BR') },
+                              { label: 'Cliques', value: campaign.insights.clicks.toLocaleString('pt-BR') },
+                              { label: 'CTR', value: `${campaign.insights.ctr.toFixed(2)}%` },
+                              { label: 'CPC', value: `R$${campaign.insights.avg_cpc.toFixed(2)}` },
+                              { label: 'Conv.', value: campaign.insights.conversions.toLocaleString('pt-BR') },
+                            ].map(m => (
+                              <div key={m.label} className="bg-muted/50 rounded-lg p-2">
+                                <p className="text-xs text-muted-foreground leading-tight">{m.label}</p>
+                                <p className="text-xs font-semibold text-foreground mt-0.5">{m.value}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </TabsContent>
+
         {/* ====== MÉTRICAS ====== */}
         <TabsContent value="metrics">
           <div className="space-y-6">
@@ -891,106 +1202,61 @@ export default function CompanyWorkspace() {
 
         {/* ====== DIAGNÓSTICO IA ====== */}
         <TabsContent value="improvements">
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground mb-2">Diagnóstico com IA</h2>
-              <p className="text-sm text-muted-foreground">Análise inteligente baseada no desempenho e histórico do cliente</p>
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Diagnóstico com IA</h2>
+                <p className="text-sm text-muted-foreground">Análise automática baseada em dados reais do cliente</p>
+              </div>
+              {/* Health Score */}
+              <div className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
+                <div className="relative h-12 w-12">
+                  <svg viewBox="0 0 36 36" className="h-12 w-12 -rotate-90">
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+                    <circle
+                      cx="18" cy="18" r="14" fill="none"
+                      stroke={healthScore >= 80 ? '#10b981' : healthScore >= 60 ? '#f59e0b' : '#ef4444'}
+                      strokeWidth="3"
+                      strokeDasharray={`${(healthScore / 100) * 87.96} 87.96`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{healthScore}</span>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Saúde do Cliente</p>
+                  <p className={`text-sm font-semibold ${healthScore >= 80 ? 'text-emerald-600' : healthScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                    {healthScore >= 80 ? 'Ótimo' : healthScore >= 60 ? 'Atenção' : 'Crítico'}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="grid gap-4">
-              {campaigns.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
-                  <Sparkles className="h-8 w-8 text-muted-foreground mx-auto mb-3 opacity-50" />
-                  <p className="text-sm text-muted-foreground">Sem campanhas para análise. Cadastre campanhas para receber recomendações.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="rounded-2xl border border-border bg-blue-500/5 p-5">
+            <div className="space-y-3">
+              {aiInsights.map((insight, i) => {
+                const bgMap: Record<string, string> = { red: 'bg-red-500/5 border-red-200', orange: 'bg-orange-500/5 border-orange-200', amber: 'bg-amber-500/5 border-amber-200', blue: 'bg-blue-500/5 border-blue-200', green: 'bg-green-500/5 border-green-200' };
+                const iconMap: Record<string, string> = { red: 'text-red-500', orange: 'text-orange-500', amber: 'text-amber-500', blue: 'text-blue-500', green: 'text-green-500' };
+                const typeMap: Record<string, string> = { alerta: 'bg-red-100 text-red-700', sugestão: 'bg-amber-100 text-amber-700', oportunidade: 'bg-green-100 text-green-700' };
+                return (
+                  <div key={i} className={`rounded-xl border p-4 ${bgMap[insight.color] ?? 'border-border'}`}>
                     <div className="flex items-start gap-3">
-                      <Sparkles className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-foreground">Otimização de Campanha</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {campaigns.length > 2
-                            ? `Com ${campaigns.length} campanhas ativas, considere consolidar esforços nas 3 melhores oportunidades para maximizar ROI.`
-                            : `Você tem ${campaigns.length} campanha(s). Recomenda-se aumentar o portfolio para melhor diversificação de risco.`}
-                        </p>
+                      <Sparkles className={`h-5 w-5 shrink-0 mt-0.5 ${iconMap[insight.color] ?? 'text-primary'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <p className="font-semibold text-sm text-foreground">{insight.title}</p>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeMap[insight.type] ?? ''}`}>
+                            {insight.type}
+                          </span>
+                          <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded-full">
+                            {insight.level === 'alta' ? 'Alta prioridade' : insight.level === 'media' ? 'Média prioridade' : 'Baixa prioridade'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{insight.desc}</p>
                       </div>
                     </div>
                   </div>
-
-                  <div className="rounded-2xl border border-border bg-green-500/5 p-5">
-                    <div className="flex items-start gap-3">
-                      <Sparkles className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-foreground">Acompanhamento de Receita</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Valor estimado total: R$ {totalRevenue.toFixed(2)}.{' '}
-                          {totalRevenue > 50000
-                            ? ' Este é um cliente de alto valor. Recomenda-se atendimento VIP com revisões trimestrais.'
-                            : ' Há potencial para aumento. Identifique oportunidades cross-sell.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {metrics.totalPending > 0 && (
-                    <div className="rounded-2xl border border-border bg-amber-500/5 p-5">
-                      <div className="flex items-start gap-3">
-                        <Sparkles className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-foreground">Cobranças Pendentes</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            R$ {metrics.totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em aberto. Acesse o Financeiro para regularizar ou gerar cobranças.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="rounded-2xl border border-border bg-purple-500/5 p-5">
-                    <div className="flex items-start gap-3">
-                      <Sparkles className="h-5 w-5 text-purple-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-foreground">Saúde do Pipeline</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {campaigns.filter(c => c.funnel_stage === 'closed').length > 0
-                            ? 'Existem oportunidades fechadas! Considere fazer follow-up para novos projetos.'
-                            : 'Todas as campanhas estão em andamento. Mantenha o ritmo e agende reviews semanais.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {metrics.completionRate < 50 && tasks.length > 0 && (
-                    <div className="rounded-2xl border border-border bg-orange-500/5 p-5">
-                      <div className="flex items-start gap-3">
-                        <Sparkles className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-foreground">Taxa de Conclusão Baixa</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Apenas {metrics.completionRate}% das tarefas foram concluídas. Revise prioridades e redistributa atividades.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {tasks.length === 0 && (
-                    <div className="rounded-2xl border border-border bg-orange-500/5 p-5">
-                      <div className="flex items-start gap-3">
-                        <Sparkles className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-foreground">Falta de Tarefas Planejadas</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Não há tarefas vinculadas a este cliente. Crie um plano de ação com marcos e deliverables claros.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+                );
+              })}
             </div>
           </div>
         </TabsContent>

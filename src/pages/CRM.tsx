@@ -217,6 +217,61 @@ export const CRM = () => {
       }
       toast.error('Erro ao mover o card.');
     },
+    onSuccess: async (_, { id, funnel_stage }) => {
+      // Executa automações configuradas para o novo estágio
+      try {
+        const { data: rules } = await supabase
+          .from('automation_rules')
+          .select('*')
+          .eq('trigger_event', 'lead_stage_change')
+          .eq('trigger_value', funnel_stage)
+          .eq('enabled', true);
+
+        if (rules && rules.length > 0) {
+          const leads = queryClient.getQueryData<LeadWithCompany[]>(['leads']) || [];
+          const lead = leads.find(l => l.id === id);
+
+          // Garante que há uma lista padrão para as tarefas
+          const { data: existingList } = await supabase.from('lists').select('id').limit(1).maybeSingle();
+          let listId = existingList?.id ?? null;
+
+          if (!listId) {
+            const { data: space } = await supabase.from('spaces').insert({ name: 'Operacional' }).select('id').single();
+            if (space) {
+              const { data: list } = await supabase.from('lists').insert({ name: 'Geral', space_id: space.id }).select('id').single();
+              listId = list?.id ?? null;
+            }
+          }
+
+          if (listId) {
+            for (const rule of rules) {
+              const ad = rule.action_data as { task_name: string; task_priority: string; task_description?: string; due_in_days?: number };
+              const taskName = (ad.task_name ?? rule.name).replace('{lead_name}', lead?.title || '');
+              const dueDate = ad.due_in_days
+                ? new Date(Date.now() + ad.due_in_days * 86400000).toISOString().slice(0, 10)
+                : null;
+              await supabase.from('tasks').insert({
+                name: taskName,
+                description: ad.task_description || `Criado automaticamente por "${rule.name}"`,
+                priority: ad.task_priority || 'normal',
+                due_date: dueDate,
+                company_id: lead?.company_id || null,
+                list_id: listId,
+                status: 'a_receber',
+              });
+            }
+            queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
+            if (rules.length === 1) {
+              toast.success(`Automação executada: "${rules[0].name}"`);
+            } else {
+              toast.success(`${rules.length} automações executadas`);
+            }
+          }
+        }
+      } catch {
+        // Automação falhou silenciosamente — não deve bloquear o drag
+      }
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     },

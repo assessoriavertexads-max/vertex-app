@@ -9,6 +9,14 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense } from "react";
 
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
 const Login = lazy(() => import("./pages/Login"));
 const SignUp = lazy(() => import("./pages/SignUp"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -19,6 +27,7 @@ const CompanyWorkspace = lazy(() => import("./pages/CompanyWorkspace"));
 const CompanyProfile = lazy(() => import("./pages/CompanyProfile"));
 const CompanyContracts = lazy(() => import("./pages/CompanyContracts"));
 const Processes = lazy(() => import("./pages/Processes"));
+const Automation = lazy(() => import("./pages/Automation"));
 const Docs = lazy(() => import("./pages/Docs"));
 const AIInsights = lazy(() => import("./pages/AIInsights"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -35,7 +44,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Rotas públicas */}
             <Route path="/login" element={<Login />} />
@@ -50,6 +59,7 @@ const App = () => (
                     <Routes>
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/tasks" element={<Processes />} />
+                      <Route path="/automation" element={<Automation />} />
                       <Route path="/crm" element={<CRM />} />
                       <Route path="/finance" element={<Finance />} />
                       <Route path="/companies" element={<Companies />} />
