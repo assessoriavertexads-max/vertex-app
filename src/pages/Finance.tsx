@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -17,14 +17,17 @@ import {
   FileDown,
   CalendarDays,
   Send,
-  Copy,
-  ExternalLink,
+  MessageSquare,
+  Mail,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { sendTextMessage } from '@/lib/evolution';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -58,7 +61,11 @@ const BILLING_TYPE_OPTIONS = [
   { value: 'CREDIT_CARD', label: 'Cartão de Crédito' },
 ];
 
-// Modal de cobrança personalizada: cria transação + gera link Asaas em uma etapa
+function getSendChannels() {
+  try { return JSON.parse(localStorage.getItem('vertex_send_channels') || '{}'); } catch { return {}; }
+}
+
+// Modal de envio de cobrança personalizada via WhatsApp e/ou Email
 function CustomChargeModal({
   isOpen,
   onClose,
@@ -72,53 +79,81 @@ function CustomChargeModal({
   const [amount, setAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [description, setDescription] = useState('');
-  const [billingType, setBillingType] = useState('UNDEFINED');
-  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const [sendWhatsApp, setSendWhatsApp] = useState(() => getSendChannels().whatsapp ?? true);
+  const [sendEmail, setSendEmail] = useState(() => getSendChannels().email ?? false);
   const [isSending, setIsSending] = useState(false);
+  const [result, setResult] = useState<{ whatsapp?: 'ok' | 'err' | 'skip'; email?: 'ok' | 'skip' } | null>(null);
+
+  const selectedCompany = companies.find(c => c.id === companyId);
 
   const reset = () => {
-    setCompanyId(''); setAmount(''); setDueDate('');
-    setDescription(''); setBillingType('UNDEFINED'); setPaymentUrl(null);
+    setCompanyId(''); setAmount(''); setDueDate(''); setDescription(''); setMessage(''); setResult(null);
   };
-
   const handleClose = () => { reset(); onClose(); };
+
+  // Auto-gera template da mensagem quando inputs mudam
+  useEffect(() => {
+    if (!selectedCompany || !amount || !dueDate) return;
+    const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(amount));
+    const formattedDate = new Date(dueDate + 'T00:00:00').toLocaleDateString('pt-BR');
+    const desc = description.trim() || 'Serviços prestados';
+    setMessage(
+      `Olá ${selectedCompany.name}! 👋\n\nSegue cobrança referente a: *${desc}*\n\n💰 Valor: *${formattedAmount}*\n📅 Vencimento: *${formattedDate}*\n\nQualquer dúvida, estamos à disposição! 🙂`
+    );
+  }, [selectedCompany, amount, dueDate, description]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyId) { toast.error('Selecione a empresa.'); return; }
     if (!amount || Number(amount) <= 0) { toast.error('Informe um valor válido.'); return; }
     if (!dueDate) { toast.error('Informe a data de vencimento.'); return; }
-    if (!description.trim()) { toast.error('Informe uma descrição para a cobrança.'); return; }
+    if (!message.trim()) { toast.error('Personalize a mensagem antes de enviar.'); return; }
+    if (!sendWhatsApp && !sendEmail) { toast.error('Ative pelo menos um canal de envio.'); return; }
 
     setIsSending(true);
+    const res: { whatsapp?: 'ok' | 'err' | 'skip'; email?: 'ok' | 'skip' } = {};
+
     try {
-      // 1. Cria a transação
-      const { data: tx, error: txErr } = await supabase
-        .from('financial_transactions')
-        .insert({
-          company_id: companyId,
-          type: 'income',
-          amount: parseFloat(amount),
-          due_date: dueDate,
-          category: description.trim(),
-          status: 'pending',
-          subscription_cycle: null,
-          billing_type: billingType,
-        })
-        .select('id')
-        .single();
-
-      if (txErr || !tx) throw txErr ?? new Error('Erro ao criar transação');
-
-      // 2. Gera cobrança no Asaas
-      const { data: checkout, error: checkoutErr } = await supabase.functions.invoke('asaas-checkout', {
-        body: { transaction_id: tx.id },
+      // Registra a transação como pendente
+      await supabase.from('financial_transactions').insert({
+        company_id: companyId,
+        type: 'income',
+        amount: parseFloat(amount),
+        due_date: dueDate,
+        category: description.trim() || 'Cobrança Personalizada',
+        status: 'pending',
+        subscription_cycle: null,
       });
 
-      if (checkoutErr) throw checkoutErr;
+      // Envia via WhatsApp (Evolution API)
+      if (sendWhatsApp) {
+        if (selectedCompany?.phone) {
+          const phone = selectedCompany.phone.replace(/\D/g, '');
+          try {
+            await sendTextMessage(phone, message);
+            res.whatsapp = 'ok';
+          } catch {
+            res.whatsapp = 'err';
+          }
+        } else {
+          res.whatsapp = 'skip';
+        }
+      }
 
-      setPaymentUrl(checkout?.url ?? null);
-      toast.success('Cobrança personalizada gerada com sucesso!');
+      // Envia via Email (abre cliente de e-mail)
+      if (sendEmail) {
+        if (selectedCompany?.email) {
+          const subject = encodeURIComponent(`Cobrança — ${description.trim() || 'Serviços'}`);
+          const body = encodeURIComponent(message);
+          window.open(`mailto:${selectedCompany.email}?subject=${subject}&body=${body}`, '_blank');
+          res.email = 'ok';
+        } else {
+          res.email = 'skip';
+        }
+      }
+
+      setResult(res);
     } catch (err: unknown) {
       toast.error(`Erro: ${err instanceof Error ? err.message : 'Tente novamente'}`);
     } finally {
@@ -126,33 +161,50 @@ function CustomChargeModal({
     }
   };
 
+  const hasPhone = Boolean(selectedCompany?.phone);
+  const hasEmail = Boolean(selectedCompany?.email);
+
   return (
     <Dialog open={isOpen} onOpenChange={open => !open && handleClose()}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle className="text-blue-600 flex items-center gap-2">
-            <Send className="h-4 w-4" /> Cobrança Personalizada
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-4 w-4 text-blue-600" /> Enviar Cobrança
           </DialogTitle>
           <DialogDescription>
-            Crie e envie uma cobrança diretamente ao cliente com descrição customizada.
+            Envie a cobrança diretamente ao cliente via WhatsApp ou e-mail.
           </DialogDescription>
         </DialogHeader>
 
-        {paymentUrl ? (
+        {result ? (
           <div className="space-y-4 py-2">
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto mb-2" />
-              <p className="font-semibold text-emerald-700">Cobrança gerada!</p>
-              <p className="text-sm text-emerald-600 mt-1">Compartilhe o link abaixo com o cliente.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Input value={paymentUrl} readOnly className="text-xs font-mono" />
-              <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(paymentUrl); toast.success('Link copiado!'); }}>
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => window.open(paymentUrl, '_blank')}>
-                <ExternalLink className="h-4 w-4" />
-              </Button>
+            <div className="space-y-2">
+              {result.whatsapp === 'ok' && (
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" /> WhatsApp enviado com sucesso!
+                </div>
+              )}
+              {result.whatsapp === 'err' && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                  <XCircle className="h-4 w-4 shrink-0" /> Falha ao enviar WhatsApp — verifique a conexão.
+                </div>
+              )}
+              {result.whatsapp === 'skip' && (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+                  <AlertCircle className="h-4 w-4 shrink-0" /> WhatsApp ignorado — empresa sem telefone cadastrado.
+                </div>
+              )}
+              {result.email === 'ok' && (
+                <div className="flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" /> Cliente de e-mail aberto para envio.
+                </div>
+              )}
+              {result.email === 'skip' && (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+                  <AlertCircle className="h-4 w-4 shrink-0" /> E-mail ignorado — empresa sem e-mail cadastrado.
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">A transação foi registrada como pendente no financeiro.</p>
             </div>
             <DialogFooter>
               <Button onClick={handleClose}>Fechar</Button>
@@ -173,13 +225,23 @@ function CustomChargeModal({
               </select>
             </div>
 
+            {selectedCompany && (
+              <div className="flex gap-2 text-xs">
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasPhone ? 'bg-green-50 border-green-200 text-green-700' : 'bg-muted border-border text-muted-foreground'}`}>
+                  <MessageSquare className="h-3 w-3" /> {hasPhone ? selectedCompany.phone : 'Sem telefone'}
+                </span>
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasEmail ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-muted border-border text-muted-foreground'}`}>
+                  <Mail className="h-3 w-3" /> {hasEmail ? selectedCompany.email : 'Sem e-mail'}
+                </span>
+              </div>
+            )}
+
             <div className="grid gap-2">
-              <Label>Descrição da Cobrança *</Label>
-              <Textarea
-                placeholder="Ex: Assessoria de Marketing - Abril/2026"
+              <Label>Descrição *</Label>
+              <Input
+                placeholder="Ex: Assessoria de Marketing — Abril/2026"
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                rows={2}
                 required
               />
             </div>
@@ -187,44 +249,47 @@ function CustomChargeModal({
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-2">
                 <Label>Valor (R$) *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  required
-                />
+                <Input type="number" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} required />
               </div>
               <div className="grid gap-2">
                 <Label>Vencimento *</Label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  required
-                />
+                <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required />
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label>Forma de Pagamento</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={billingType}
-                onChange={e => setBillingType(e.target.value)}
-              >
-                {BILLING_TYPE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+            {message && (
+              <div className="grid gap-2">
+                <Label>Mensagem</Label>
+                <Textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} className="text-xs" />
+              </div>
+            )}
+
+            {/* Canais de envio */}
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Canais de envio</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-green-600" />
+                  <span className="text-sm">WhatsApp</span>
+                  {!hasPhone && companyId && <span className="text-xs text-muted-foreground">(sem telefone)</span>}
+                </div>
+                <Switch checked={sendWhatsApp} onCheckedChange={setSendWhatsApp} disabled={!hasPhone && Boolean(companyId)} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm">E-mail</span>
+                  {!hasEmail && companyId && <span className="text-xs text-muted-foreground">(sem e-mail)</span>}
+                </div>
+                <Switch checked={sendEmail} onCheckedChange={setSendEmail} disabled={!hasEmail && Boolean(companyId)} />
+              </div>
             </div>
 
             <DialogFooter className="mt-2">
               <Button type="button" variant="outline" onClick={handleClose}>Cancelar</Button>
-              <Button type="submit" disabled={isSending} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+              <Button type="submit" disabled={isSending} className="gap-2">
                 {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Gerar e Enviar Cobrança
+                Enviar Cobrança
               </Button>
             </DialogFooter>
           </form>
@@ -264,8 +329,7 @@ export const Finance = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('companies')
-        .select('id, name, asaas_customer_id')
-        .not('document', 'is', null)
+        .select('id, name, asaas_customer_id, phone, email')
         .order('name');
       if (error) throw error;
       return data || [];

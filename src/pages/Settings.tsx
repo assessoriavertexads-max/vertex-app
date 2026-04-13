@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Bell, Shield, Loader2 } from "lucide-react";
+import { User, Bell, Shield, Loader2, MessageSquare, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -9,11 +9,27 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
+function getSendChannels(): { whatsapp: boolean; email: boolean } {
+  try { return { whatsapp: true, email: false, ...JSON.parse(localStorage.getItem('vertex_send_channels') || '{}') }; }
+  catch { return { whatsapp: true, email: false }; }
+}
+function saveSendChannels(channels: { whatsapp: boolean; email: boolean }) {
+  localStorage.setItem('vertex_send_channels', JSON.stringify(channels));
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [sendChannels, setSendChannels] = useState(getSendChannels);
+
+  const toggleChannel = (channel: 'whatsapp' | 'email') => {
+    const updated = { ...sendChannels, [channel]: !sendChannels[channel] };
+    setSendChannels(updated);
+    saveSendChannels(updated);
+    toast.success('Configuração salva!');
+  };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +140,42 @@ export default function Settings() {
               <Switch defaultChecked />
             </div>
           ))}
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Canais de Envio */}
+      <div className="stat-card space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <MessageSquare className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold text-foreground">Canais de Envio</h2>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Defina quais canais serão usados ao enviar cobranças personalizadas aos clientes.
+          Para ativar um canal, o cadastro da empresa deve ter o contato correspondente preenchido.
+        </p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-green-600" />
+              <div>
+                <p className="text-sm font-medium text-foreground">WhatsApp</p>
+                <p className="text-xs text-muted-foreground">Envia via Evolution API usando o telefone do cliente</p>
+              </div>
+            </div>
+            <Switch checked={sendChannels.whatsapp} onCheckedChange={() => toggleChannel('whatsapp')} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-blue-500" />
+              <div>
+                <p className="text-sm font-medium text-foreground">E-mail</p>
+                <p className="text-xs text-muted-foreground">Abre o cliente de e-mail com a mensagem pré-preenchida</p>
+              </div>
+            </div>
+            <Switch checked={sendChannels.email} onCheckedChange={() => toggleChannel('email')} />
+          </div>
         </div>
       </div>
     </div>
