@@ -16,9 +16,15 @@ import {
   TrendingUp,
   FileDown,
   CalendarDays,
+  Send,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -45,12 +51,196 @@ const MRR_MULTIPLIER: Record<string, number> = {
   YEARLY: 1 / 12,
 };
 
+const BILLING_TYPE_OPTIONS = [
+  { value: 'UNDEFINED', label: 'Cliente escolhe (PIX, Boleto ou Cartão)' },
+  { value: 'PIX', label: 'PIX' },
+  { value: 'BOLETO', label: 'Boleto Bancário' },
+  { value: 'CREDIT_CARD', label: 'Cartão de Crédito' },
+];
+
+// Modal de cobrança personalizada: cria transação + gera link Asaas em uma etapa
+function CustomChargeModal({
+  isOpen,
+  onClose,
+  companies,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  companies: CompanyOption[];
+}) {
+  const [companyId, setCompanyId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [description, setDescription] = useState('');
+  const [billingType, setBillingType] = useState('UNDEFINED');
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+
+  const reset = () => {
+    setCompanyId(''); setAmount(''); setDueDate('');
+    setDescription(''); setBillingType('UNDEFINED'); setPaymentUrl(null);
+  };
+
+  const handleClose = () => { reset(); onClose(); };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyId) { toast.error('Selecione a empresa.'); return; }
+    if (!amount || Number(amount) <= 0) { toast.error('Informe um valor válido.'); return; }
+    if (!dueDate) { toast.error('Informe a data de vencimento.'); return; }
+    if (!description.trim()) { toast.error('Informe uma descrição para a cobrança.'); return; }
+
+    setIsSending(true);
+    try {
+      // 1. Cria a transação
+      const { data: tx, error: txErr } = await supabase
+        .from('financial_transactions')
+        .insert({
+          company_id: companyId,
+          type: 'income',
+          amount: parseFloat(amount),
+          due_date: dueDate,
+          category: description.trim(),
+          status: 'pending',
+          subscription_cycle: null,
+          billing_type: billingType,
+        })
+        .select('id')
+        .single();
+
+      if (txErr || !tx) throw txErr ?? new Error('Erro ao criar transação');
+
+      // 2. Gera cobrança no Asaas
+      const { data: checkout, error: checkoutErr } = await supabase.functions.invoke('asaas-checkout', {
+        body: { transaction_id: tx.id },
+      });
+
+      if (checkoutErr) throw checkoutErr;
+
+      setPaymentUrl(checkout?.url ?? null);
+      toast.success('Cobrança personalizada gerada com sucesso!');
+    } catch (err: unknown) {
+      toast.error(`Erro: ${err instanceof Error ? err.message : 'Tente novamente'}`);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={open => !open && handleClose()}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="text-blue-600 flex items-center gap-2">
+            <Send className="h-4 w-4" /> Cobrança Personalizada
+          </DialogTitle>
+          <DialogDescription>
+            Crie e envie uma cobrança diretamente ao cliente com descrição customizada.
+          </DialogDescription>
+        </DialogHeader>
+
+        {paymentUrl ? (
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
+              <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto mb-2" />
+              <p className="font-semibold text-emerald-700">Cobrança gerada!</p>
+              <p className="text-sm text-emerald-600 mt-1">Compartilhe o link abaixo com o cliente.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input value={paymentUrl} readOnly className="text-xs font-mono" />
+              <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(paymentUrl); toast.success('Link copiado!'); }}>
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => window.open(paymentUrl, '_blank')}>
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleClose}>Fechar</Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <form onSubmit={handleSend} className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label>Empresa / Cliente *</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={companyId}
+                onChange={e => setCompanyId(e.target.value)}
+                required
+              >
+                <option value="">Selecione o cliente</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Descrição da Cobrança *</Label>
+              <Textarea
+                placeholder="Ex: Assessoria de Marketing - Abril/2026"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                rows={2}
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label>Valor (R$) *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Vencimento *</Label>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={e => setDueDate(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Forma de Pagamento</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={billingType}
+                onChange={e => setBillingType(e.target.value)}
+              >
+                {BILLING_TYPE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <DialogFooter className="mt-2">
+              <Button type="button" variant="outline" onClick={handleClose}>Cancelar</Button>
+              <Button type="submit" disabled={isSending} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+                {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Gerar e Enviar Cobrança
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export const Finance = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'income' | 'expense'>('income');
+  const [isCustomChargeOpen, setIsCustomChargeOpen] = useState(false);
   const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [selectedCompanyForImport, setSelectedCompanyForImport] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCompany | null>(null);
@@ -355,6 +545,12 @@ export const Finance = () => {
           >
             <CreditCard className="w-4 h-4" /> Nova Entrada / Cobrar
           </Button>
+          <Button
+            onClick={() => setIsCustomChargeOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+          >
+            <Send className="w-4 h-4" /> Cobrança Personalizada
+          </Button>
         </div>
       </div>
 
@@ -587,6 +783,12 @@ export const Finance = () => {
         transaction={editingTransaction}
         onClose={() => setEditingTransaction(null)}
         onSave={(id, data) => editTransaction.mutate({ id, data })}
+      />
+
+      <CustomChargeModal
+        isOpen={isCustomChargeOpen}
+        onClose={() => setIsCustomChargeOpen(false)}
+        companies={companies}
       />
     </div>
   );

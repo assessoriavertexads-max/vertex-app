@@ -16,6 +16,7 @@ interface Company {
   created_at: string;
   custom_data: Json | null;
   asaas_customer_id: string | null;
+  phone: string | null;
 }
 
 interface Lead {
@@ -36,6 +37,9 @@ export default function CompanyProfile() {
   const [editingAsaasId, setEditingAsaasId] = useState(false);
   const [asaasIdInput, setAsaasIdInput] = useState('');
   const [savingAsaasId, setSavingAsaasId] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
