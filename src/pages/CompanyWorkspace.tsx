@@ -519,14 +519,17 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
 
   const statusText = company?.status ? (statusLabels[company.status] ?? company.status) : 'Sem status';
 
-  if (isLoadingCompany || isLoadingCampaigns || isLoadingTasks) {
+  if (isLoadingCompany) {
     return <div className="flex items-center justify-center h-64">Carregando workspace do cliente...</div>;
   }
 
-  if (isErrorCompany || isErrorCampaigns || isErrorTasks || !company) {
+  if (isErrorCompany || !company) {
     return (
-      <div className="flex items-center justify-center h-64 text-red-500">
-        Erro ao carregar o workspace do cliente. Tente novamente.
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <p className="text-red-500 text-sm">Erro ao carregar o workspace do cliente. Tente novamente.</p>
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['company', companyId] })}>
+          Tentar novamente
+        </Button>
       </div>
     );
   }

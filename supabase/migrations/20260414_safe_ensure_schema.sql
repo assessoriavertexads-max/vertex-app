@@ -55,9 +55,24 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- ── RLS for spaces / lists / tasks (safe: only if not enabled yet) ────────────
+-- ── Ensure auth_user_id exists where RLS policies may reference it ────────────
+ALTER TABLE spaces ADD COLUMN IF NOT EXISTS auth_user_id UUID DEFAULT auth.uid();
+ALTER TABLE lists ADD COLUMN IF NOT EXISTS auth_user_id UUID DEFAULT auth.uid();
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS auth_user_id UUID DEFAULT auth.uid();
+ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS auth_user_id UUID DEFAULT auth.uid();
+
+-- ── RLS for spaces ────────────────────────────────────────────────────────────
 DO $$ BEGIN
   ALTER TABLE spaces ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Drop old restrictive policy if present, replace with permissive for authenticated
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Users can view their own spaces" ON spaces;
+  DROP POLICY IF EXISTS "Users can insert their own spaces" ON spaces;
+  DROP POLICY IF EXISTS "Users can update their own spaces" ON spaces;
+  DROP POLICY IF EXISTS "Users can delete their own spaces" ON spaces;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -67,8 +82,17 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- ── RLS for lists ─────────────────────────────────────────────────────────────
 DO $$ BEGIN
   ALTER TABLE lists ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Users can view their own lists" ON lists;
+  DROP POLICY IF EXISTS "Users can insert their own lists" ON lists;
+  DROP POLICY IF EXISTS "Users can update their own lists" ON lists;
+  DROP POLICY IF EXISTS "Users can delete their own lists" ON lists;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -78,8 +102,18 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- ── RLS for tasks ─────────────────────────────────────────────────────────────
 DO $$ BEGIN
   ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Drop old restrictive policies (auth_user_id check causes errors if rows were inserted without it)
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Users can view their own tasks" ON tasks;
+  DROP POLICY IF EXISTS "Users can insert their own tasks" ON tasks;
+  DROP POLICY IF EXISTS "Users can update their own tasks" ON tasks;
+  DROP POLICY IF EXISTS "Users can delete their own tasks" ON tasks;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
