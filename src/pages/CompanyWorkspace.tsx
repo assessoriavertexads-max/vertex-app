@@ -157,7 +157,7 @@ export default function CompanyWorkspace() {
       if (!companyId) throw new Error('ID de empresa não encontrado');
       const { data, error } = await supabase
         .from('companies')
-        .select('id, name, document, status, asaas_customer_id, phone, email, meta_ad_account_id, google_ad_account_id, custom_data, created_at')
+        .select('*')
         .eq('id', companyId)
         .single();
       if (error) throw error;

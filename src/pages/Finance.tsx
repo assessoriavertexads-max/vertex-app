@@ -329,7 +329,7 @@ export const Finance = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('companies')
-        .select('id, name, asaas_customer_id, phone, email')
+        .select('*')
         .order('name');
       if (error) throw error;
       return data || [];

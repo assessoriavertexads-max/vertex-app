@@ -91,7 +91,10 @@ export default function WhatsApp() {
       const data = await fetchChats(50);
       setChats(data);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+      const raw = err instanceof Error ? err.message : 'Erro desconhecido';
+      const msg = raw.includes('non-2xx')
+        ? 'Evolution API não configurada. Configure EVOLUTION_API_URL, EVOLUTION_API_KEY e EVOLUTION_INSTANCE_NAME nos Supabase Secrets.'
+        : raw;
       setChatsError(msg);
       toast.error('Erro ao carregar conversas: ' + msg);
     } finally {

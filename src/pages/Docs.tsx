@@ -468,8 +468,17 @@ export default function Docs() {
 
   if (hasError) {
     return (
-      <div className="flex items-center justify-center h-64 text-red-500">
-        Erro ao carregar a página. Tente novamente.
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <p className="text-red-500 text-sm">Erro ao carregar Processos & Docs.</p>
+        <p className="text-muted-foreground text-xs max-w-sm text-center">
+          Verifique se a migração <code className="bg-muted px-1 rounded">20260414_safe_ensure_schema.sql</code> foi aplicada no Supabase.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => {
+          queryClient.invalidateQueries({ queryKey: ['spaces'] });
+          queryClient.invalidateQueries({ queryKey: ['lists'] });
+        }}>
+          Tentar novamente
+        </Button>
       </div>
     );
   }
