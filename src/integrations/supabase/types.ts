@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_rules: {
+        Row: {
+          action_data: Json
+          action_type: string
+          auth_user_id: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          name: string
+          trigger_event: string
+          trigger_value: string
+        }
+        Insert: {
+          action_data?: Json
+          action_type: string
+          auth_user_id?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          trigger_event: string
+          trigger_value: string
+        }
+        Update: {
+          action_data?: Json
+          action_type?: string
+          auth_user_id?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          trigger_event?: string
+          trigger_value?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           created_at: string
@@ -40,6 +76,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      financial_transactions: {
+        Row: {
+          amount: number
+          auth_user_id: string | null
+          company_id: string | null
+          created_at: string
+          description: string
+          due_date: string | null
+          id: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          auth_user_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          description: string
+          due_date?: string | null
+          id?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          auth_user_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leads: {
         Row: {
@@ -75,6 +158,122 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lists: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string
+          id: string
+          name: string
+          space_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          space_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          space_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lists_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spaces: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          auth_user_id: string | null
+          company_id: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          list_id: string | null
+          name: string
+          priority: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          list_id?: string | null
+          name: string
+          priority?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          list_id?: string | null
+          name?: string
+          priority?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "lists"
             referencedColumns: ["id"]
           },
         ]
