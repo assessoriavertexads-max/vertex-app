@@ -52,26 +52,44 @@ export type Database = {
       }
       companies: {
         Row: {
+          asaas_customer_id: string | null
           created_at: string
+          custom_data: Json | null
           document: string | null
+          email: string | null
+          google_ad_account_id: string | null
           id: string
+          meta_ad_account_id: string | null
           name: string
+          phone: string | null
           status: string
           updated_at: string
         }
         Insert: {
+          asaas_customer_id?: string | null
           created_at?: string
+          custom_data?: Json | null
           document?: string | null
+          email?: string | null
+          google_ad_account_id?: string | null
           id?: string
+          meta_ad_account_id?: string | null
           name: string
+          phone?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
+          asaas_customer_id?: string | null
           created_at?: string
+          custom_data?: Json | null
           document?: string | null
+          email?: string | null
+          google_ad_account_id?: string | null
           id?: string
+          meta_ad_account_id?: string | null
           name?: string
+          phone?: string | null
           status?: string
           updated_at?: string
         }
@@ -81,6 +99,7 @@ export type Database = {
         Row: {
           amount: number
           auth_user_id: string | null
+          category: string | null
           company_id: string | null
           created_at: string
           description: string
@@ -93,6 +112,7 @@ export type Database = {
         Insert: {
           amount?: number
           auth_user_id?: string | null
+          category?: string | null
           company_id?: string | null
           created_at?: string
           description: string
@@ -105,6 +125,7 @@ export type Database = {
         Update: {
           amount?: number
           auth_user_id?: string | null
+          category?: string | null
           company_id?: string | null
           created_at?: string
           description?: string
@@ -128,7 +149,10 @@ export type Database = {
         Row: {
           company_id: string | null
           created_at: string
+          estimated_value: number | null
+          funnel_stage: string | null
           id: string
+          legal_status: string | null
           status: string
           title: string
           updated_at: string
@@ -137,7 +161,10 @@ export type Database = {
         Insert: {
           company_id?: string | null
           created_at?: string
+          estimated_value?: number | null
+          funnel_stage?: string | null
           id?: string
+          legal_status?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -146,7 +173,10 @@ export type Database = {
         Update: {
           company_id?: string | null
           created_at?: string
+          estimated_value?: number | null
+          funnel_stage?: string | null
           id?: string
+          legal_status?: string | null
           status?: string
           title?: string
           updated_at?: string
