@@ -38,7 +38,6 @@ interface TaskItem {
   priority: string;
   due_date: string | null;
   company_id: string | null;
-  companies?: { name: string } | null;
 }
 
 interface CompanyItem { id: string; name: string; }
@@ -178,13 +177,23 @@ export default function Processes() {
   const queryClient = useQueryClient();
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
 
-  // Busca todas as tarefas sem precisar de lista
+  // Busca empresas sempre (usado tanto no dropdown quanto para resolver nomes nas tarefas)
+  const { data: companies = [] } = useQuery<CompanyItem[]>({
+    queryKey: ['companies-dropdown'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('companies').select('id, name').order('name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Busca todas as tarefas sem join para evitar problemas de RLS
   const { data: tasks = [], isLoading, isError, error: tasksError } = useQuery<TaskItem[]>({
     queryKey: ['all-tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, name, description, status, priority, due_date, company_id, companies(name)')
+        .select('id, name, description, status, priority, due_date, company_id')
         .order('created_at', { ascending: false });
       if (error) {
         console.error('[Processes] Erro ao buscar tarefas:', error);
@@ -193,16 +202,6 @@ export default function Processes() {
       return (data || []) as unknown as TaskItem[];
     },
     retry: 1,
-  });
-
-  const { data: companies = [] } = useQuery<CompanyItem[]>({
-    queryKey: ['companies-dropdown'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('companies').select('id, name').order('name');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: isNewTaskOpen,
   });
 
   // Obtém ou cria lista padrão "Geral" para o usuário
@@ -353,8 +352,10 @@ export default function Processes() {
                           {task.description && (
                             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>
                           )}
-                          {task.companies?.name && (
-                            <p className="text-xs text-primary mt-1 font-medium">{task.companies.name}</p>
+                          {task.company_id && companies.find(c => c.id === task.company_id)?.name && (
+                            <p className="text-xs text-primary mt-1 font-medium">
+                              {companies.find(c => c.id === task.company_id)!.name}
+                            </p>
                           )}
                         </div>
                       </div>
