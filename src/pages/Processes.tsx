@@ -179,16 +179,20 @@ export default function Processes() {
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
 
   // Busca todas as tarefas sem precisar de lista
-  const { data: tasks = [], isLoading, isError } = useQuery<TaskItem[]>({
+  const { data: tasks = [], isLoading, isError, error: tasksError } = useQuery<TaskItem[]>({
     queryKey: ['all-tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
         .select('id, name, description, status, priority, due_date, company_id, companies(name)')
         .order('created_at', { ascending: false });
-      if (error) throw error;
+      if (error) {
+        console.error('[Processes] Erro ao buscar tarefas:', error);
+        throw error;
+      }
       return (data || []) as unknown as TaskItem[];
     },
+    retry: 1,
   });
 
   const { data: companies = [] } = useQuery<CompanyItem[]>({
@@ -289,6 +293,9 @@ export default function Processes() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <p className="text-red-500 text-sm">Erro ao carregar tarefas.</p>
+        {tasksError instanceof Error && (
+          <p className="text-xs text-muted-foreground max-w-sm text-center">{tasksError.message}</p>
+        )}
         <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['all-tasks'] })}>
           Tentar novamente
         </Button>
