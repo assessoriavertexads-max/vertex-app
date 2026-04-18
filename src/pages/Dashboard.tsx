@@ -11,37 +11,37 @@ import { useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export default function Dashboard() {
-  const { data: companies = [] } = useQuery({
+  const { data: companies = [], isError: errCompanies } = useQuery({
     queryKey: ['dashboard-companies'],
     queryFn: async () => {
       const { data, error } = await supabase.from('companies').select('id, status');
       if (error) throw error;
       return data || [];
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
-  const { data: leads = [] } = useQuery({
+  const { data: leads = [], isError: errLeads } = useQuery({
     queryKey: ['dashboard-leads'],
     queryFn: async () => {
       const { data, error } = await supabase.from('leads').select('id, estimated_value, funnel_stage');
       if (error) throw error;
       return data || [];
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
-  const { data: tasks = [] } = useQuery({
+  const { data: tasks = [], isError: errTasks } = useQuery({
     queryKey: ['dashboard-tasks'],
     queryFn: async () => {
       const { data, error } = await supabase.from('tasks').select('id, status, due_date');
       if (error) throw error;
       return data || [];
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 
-  const { data: transactions = [] } = useQuery({
+  const { data: transactions = [], isError: errTransactions } = useQuery({
     queryKey: ['dashboard-transactions'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -50,7 +50,10 @@ export default function Dashboard() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 30_000,
   });
+
+  const hasError = errCompanies || errLeads || errTasks || errTransactions;
 
   // Memoized calculations
   const metrics = useMemo(() => {
@@ -123,6 +126,12 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Visão Geral</h1>
         <p className="text-muted-foreground mt-1">Bem-vindo ao Vertex Workspace. Aqui está o resumo da sua operação hoje.</p>
       </div>
+
+      {hasError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+          Alguns dados não puderam ser carregados. Verifique sua conexão ou recarregue a página.
+        </div>
+      )}
 
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

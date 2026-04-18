@@ -231,7 +231,7 @@ export default function CompanyWorkspace() {
     },
     enabled: !!metaAccountId && (activeTab === 'campaigns' || activeTab === 'improvements'),
     staleTime: 5 * 60 * 1000,
-    retry: false,
+    retry: 1,
   });
 
   // Google Ads
@@ -253,7 +253,7 @@ export default function CompanyWorkspace() {
     },
     enabled: !!googleAccountId && activeTab === 'google-ads',
     staleTime: 5 * 60 * 1000,
-    retry: false,
+    retry: 1,
   });
 
   useEffect(() => {
@@ -879,6 +879,12 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                           Nenhuma campanha encontrada nesta conta no período selecionado.
                         </div>
+                      )}
+
+                      {metaData.campaigns.length >= 50 && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 text-center py-2">
+                          Exibindo as primeiras 50 campanhas. Algumas podem não aparecer.
+                        </p>
                       )}
                     </div>
                   )}

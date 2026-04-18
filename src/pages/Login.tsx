@@ -20,9 +20,30 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function Login() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [showReset, setShowReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) return;
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) { toast.error(error.message); return; }
+      setResetSent(true);
+    } catch {
+      toast.error('Erro ao enviar email de redefinição');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
@@ -75,7 +96,16 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-200">Senha</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-slate-200">Senha</Label>
+                <button
+                  type="button"
+                  onClick={() => setShowReset(true)}
+                  className="text-xs text-blue-400 hover:text-blue-300"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -102,6 +132,39 @@ export default function Login() {
               )}
             </Button>
           </form>
+
+          {/* Modal reset de senha */}
+          {showReset && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-sm shadow-xl">
+                <h3 className="text-white font-semibold mb-1">Redefinir senha</h3>
+                {resetSent ? (
+                  <>
+                    <p className="text-slate-400 text-sm mb-4">Email enviado! Verifique sua caixa de entrada e siga as instruções.</p>
+                    <Button className="w-full" onClick={() => { setShowReset(false); setResetSent(false); }}>Fechar</Button>
+                  </>
+                ) : (
+                  <form onSubmit={handleReset} className="space-y-3 mt-3">
+                    <p className="text-slate-400 text-sm">Informe seu email para receber o link de redefinição.</p>
+                    <Input
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={resetEmail}
+                      onChange={e => setResetEmail(e.target.value)}
+                      className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                      required
+                    />
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" className="flex-1 border-slate-600 text-slate-300" onClick={() => setShowReset(false)}>Cancelar</Button>
+                      <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700" disabled={resetLoading}>
+                        {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enviar'}
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 pt-6 border-t border-slate-700 text-center">
             <p className="text-slate-400 text-sm">
