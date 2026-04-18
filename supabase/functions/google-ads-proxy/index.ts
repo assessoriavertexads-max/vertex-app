@@ -69,6 +69,16 @@ serve(async (req) => {
 
   if (!rawCustomerId) return json({ error: "customer_id é obrigatório" }, 400);
 
+  const VALID_DATE_RANGES = new Set([
+    "TODAY", "YESTERDAY", "LAST_7_DAYS", "LAST_14_DAYS",
+    "LAST_30_DAYS", "THIS_MONTH", "LAST_MONTH", "ALL_TIME",
+    "LAST_BUSINESS_WEEK", "LAST_WEEK_MON_SUN", "LAST_WEEK_SUN_SAT",
+    "THIS_WEEK_MON_TODAY", "THIS_WEEK_SUN_TODAY",
+  ]);
+  if (!VALID_DATE_RANGES.has(dateRange)) {
+    return json({ error: "date_range inválido" }, 400);
+  }
+
   try {
     const accessToken = await getAccessToken();
 
