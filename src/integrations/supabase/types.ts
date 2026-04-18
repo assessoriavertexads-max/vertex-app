@@ -53,6 +53,7 @@ export type Database = {
       companies: {
         Row: {
           asaas_customer_id: string | null
+          auth_user_id: string | null
           created_at: string
           custom_data: Json | null
           document: string | null
@@ -67,6 +68,7 @@ export type Database = {
         }
         Insert: {
           asaas_customer_id?: string | null
+          auth_user_id?: string | null
           created_at?: string
           custom_data?: Json | null
           document?: string | null
@@ -81,6 +83,7 @@ export type Database = {
         }
         Update: {
           asaas_customer_id?: string | null
+          auth_user_id?: string | null
           created_at?: string
           custom_data?: Json | null
           document?: string | null
@@ -147,6 +150,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          auth_user_id: string | null
           company_id: string | null
           created_at: string
           estimated_value: number | null
@@ -159,6 +163,7 @@ export type Database = {
           value: number | null
         }
         Insert: {
+          auth_user_id?: string | null
           company_id?: string | null
           created_at?: string
           estimated_value?: number | null
@@ -171,6 +176,7 @@ export type Database = {
           value?: number | null
         }
         Update: {
+          auth_user_id?: string | null
           company_id?: string | null
           created_at?: string
           estimated_value?: number | null
