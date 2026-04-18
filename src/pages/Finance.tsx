@@ -318,6 +318,7 @@ export const Finance = () => {
       const { data, error } = await supabase
         .from('financial_transactions')
         .select('*, companies(name)')
+        .is('deleted_at', null)
         .order('due_date', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -434,13 +435,27 @@ export const Finance = () => {
 
   const deleteTransaction = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('financial_transactions').delete().eq('id', id);
+      const { error } = await supabase
+        .from('financial_transactions')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (id: string) => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
       setDeletingId(null);
-      toast.success('Transação excluída!');
+      toast.success('Transação excluída.', {
+        action: {
+          label: 'Desfazer',
+          onClick: async () => {
+            await supabase.from('financial_transactions').update({ deleted_at: null }).eq('id', id);
+            queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
+            toast.success('Exclusão desfeita!');
+          },
+        },
+        duration: 6000,
+      });
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });

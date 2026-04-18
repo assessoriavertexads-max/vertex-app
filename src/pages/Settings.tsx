@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Bell, Shield, Loader2, MessageSquare, Mail } from "lucide-react";
+import { User, Bell, Shield, Loader2, MessageSquare, Mail, KeyRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -9,12 +9,25 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
-function getSendChannels(): { whatsapp: boolean; email: boolean } {
-  try { return { whatsapp: true, email: false, ...JSON.parse(localStorage.getItem('vertex_send_channels') || '{}') }; }
-  catch { return { whatsapp: true, email: false }; }
+type NotifKey = 'payment_alerts' | 'new_leads' | 'task_due';
+
+function getStoredJson<T>(key: string, fallback: T): T {
+  try { return { ...fallback, ...JSON.parse(localStorage.getItem(key) || '{}') }; }
+  catch { return fallback; }
+}
+
+function getSendChannels() {
+  return getStoredJson<{ whatsapp: boolean; email: boolean }>('vertex_send_channels', { whatsapp: true, email: false });
 }
 function saveSendChannels(channels: { whatsapp: boolean; email: boolean }) {
   localStorage.setItem('vertex_send_channels', JSON.stringify(channels));
+}
+function getNotifications() {
+  return getStoredJson<Record<NotifKey, boolean>>('vertex_notifications', {
+    payment_alerts: true,
+    new_leads: true,
+    task_due: true,
+  });
 }
 
 export default function Settings() {
@@ -23,12 +36,46 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [sendChannels, setSendChannels] = useState(getSendChannels);
+  const [notifications, setNotifications] = useState(getNotifications);
+  const [newPin, setNewPin] = useState('');
+  const [isSavingPin, setIsSavingPin] = useState(false);
 
   const toggleChannel = (channel: 'whatsapp' | 'email') => {
     const updated = { ...sendChannels, [channel]: !sendChannels[channel] };
     setSendChannels(updated);
     saveSendChannels(updated);
     toast.success('Configuração salva!');
+  };
+
+  const toggleNotification = (key: NotifKey) => {
+    const updated = { ...notifications, [key]: !notifications[key] };
+    setNotifications(updated);
+    localStorage.setItem('vertex_notifications', JSON.stringify(updated));
+    toast.success('Preferência salva!');
+  };
+
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPin || newPin.length < 4) {
+      toast.error('O PIN deve ter no mínimo 4 caracteres.');
+      return;
+    }
+    setIsSavingPin(true);
+    try {
+      const { error } = await supabase.functions.invoke('verify-pin', {
+        body: { pin: '__set__', newPin },
+      });
+      if (error) {
+        toast.info('Configure o WHATSAPP_PIN nos Secrets do Supabase para alterar o PIN.');
+      } else {
+        toast.success('Solicitação enviada. Configure o novo PIN nos Secrets do Supabase.');
+      }
+    } catch {
+      toast.info('Configure o WHATSAPP_PIN diretamente nos Secrets do Supabase Dashboard.');
+    } finally {
+      setIsSavingPin(false);
+      setNewPin('');
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -127,20 +174,49 @@ export default function Settings() {
           <h2 className="font-semibold text-foreground">Notificações</h2>
         </div>
         <div className="space-y-3">
-          {[
-            { label: "Alertas de pagamento", desc: "Notificar sobre pagamentos pendentes ou vencidos" },
-            { label: "Novos leads", desc: "Avisar quando um lead mudar de etapa" },
-            { label: "Tarefas vencendo", desc: "Lembrar de tarefas com prazo próximo" },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between">
+          {([
+            { key: 'payment_alerts' as NotifKey, label: "Alertas de pagamento", desc: "Notificar sobre pagamentos pendentes ou vencidos" },
+            { key: 'new_leads' as NotifKey, label: "Novos leads", desc: "Avisar quando um lead mudar de etapa" },
+            { key: 'task_due' as NotifKey, label: "Tarefas vencendo", desc: "Lembrar de tarefas com prazo próximo" },
+          ]).map((item) => (
+            <div key={item.key} className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">{item.label}</p>
                 <p className="text-xs text-muted-foreground">{item.desc}</p>
               </div>
-              <Switch defaultChecked />
+              <Switch
+                checked={notifications[item.key]}
+                onCheckedChange={() => toggleNotification(item.key)}
+              />
             </div>
           ))}
         </div>
+      </div>
+
+      <Separator />
+
+      {/* PIN do WhatsApp */}
+      <div className="stat-card space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <KeyRound className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold text-foreground">PIN do WhatsApp</h2>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          O PIN protege o acesso à aba WhatsApp. Para alterar, configure o secret{' '}
+          <code className="bg-muted px-1 rounded text-xs">WHATSAPP_PIN</code> no painel do Supabase.
+        </p>
+        <form onSubmit={handleSavePin} className="flex gap-2 max-w-sm">
+          <Input
+            type="password"
+            placeholder="Novo PIN"
+            value={newPin}
+            onChange={e => setNewPin(e.target.value)}
+            minLength={4}
+          />
+          <Button type="submit" disabled={isSavingPin || !newPin}>
+            {isSavingPin ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+          </Button>
+        </form>
       </div>
 
       <Separator />

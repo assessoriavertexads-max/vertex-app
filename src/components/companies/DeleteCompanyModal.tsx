@@ -26,7 +26,7 @@ export const DeleteCompanyModal = ({ isOpen, onClose, onSave, company }: DeleteC
 
     const { error } = await supabase
       .from('companies')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', company.id);
 
     setDeleting(false);
@@ -37,9 +37,20 @@ export const DeleteCompanyModal = ({ isOpen, onClose, onSave, company }: DeleteC
       return;
     }
 
-    toast.success('Empresa excluída com sucesso!');
     onSave();
     onClose();
+
+    toast.success('Empresa excluída.', {
+      action: {
+        label: 'Desfazer',
+        onClick: async () => {
+          await supabase.from('companies').update({ deleted_at: null }).eq('id', company.id);
+          onSave();
+          toast.success('Exclusão desfeita!');
+        },
+      },
+      duration: 6000,
+    });
   };
 
   return (
@@ -47,7 +58,7 @@ export const DeleteCompanyModal = ({ isOpen, onClose, onSave, company }: DeleteC
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Excluir Empresa</DialogTitle>
-          <DialogDescription>Esta ação não pode ser desfeita.</DialogDescription>
+          <DialogDescription>Você poderá desfazer esta ação nos próximos 6 segundos.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">

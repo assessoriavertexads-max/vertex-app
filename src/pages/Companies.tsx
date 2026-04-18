@@ -43,6 +43,7 @@ export default function Companies() {
     const { data, error } = await supabase
       .from('companies')
       .select('id, name, document, status, asaas_customer_id, created_at')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (error) {
       toast.error(`Erro ao buscar empresas: ${error.message}`);

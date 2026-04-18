@@ -7,25 +7,39 @@ import {
   getMessageText, formatTimestamp,
   EvolutionChat, EvolutionMessage,
 } from '@/lib/evolution';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
-const WHATSAPP_PIN = 'Adminsitepixel2020#';
 const SESSION_KEY = 'whatsapp_unlocked';
 
 function PinLock({ onUnlock }: { onUnlock: () => void }) {
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === WHATSAPP_PIN) {
-      sessionStorage.setItem(SESSION_KEY, '1');
-      onUnlock();
-    } else {
+    if (!pin) return;
+    setLoading(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('verify-pin', {
+        body: { pin },
+      });
+      if (fnError || !data?.valid) {
+        setError(true);
+        setPin('');
+        setTimeout(() => setError(false), 1500);
+      } else {
+        sessionStorage.setItem(SESSION_KEY, '1');
+        onUnlock();
+      }
+    } catch {
       setError(true);
       setPin('');
       setTimeout(() => setError(false), 1500);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,8 +73,8 @@ function PinLock({ onUnlock }: { onUnlock: () => void }) {
             </button>
           </div>
           {error && <p className="text-xs text-red-500 text-center">PIN incorreto</p>}
-          <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white w-full">
-            Entrar
+          <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white w-full" disabled={loading}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Entrar'}
           </Button>
         </form>
       </div>
