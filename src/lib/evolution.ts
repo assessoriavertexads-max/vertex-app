@@ -77,7 +77,7 @@ export async function fetchMessages(remoteJid: string, limit = 50): Promise<Evol
         messageType: (m.messageType ?? m.type ?? 'conversation') as string,
         message: (m.message ?? {}) as Record<string, unknown>,
         pushName: m.pushName as string | undefined,
-        messageTimestamp: Number(m.messageTimestamp ?? m.timestamp ?? 0),
+        messageTimestamp: Number(m.messageTimestamp ?? m.timestamp ?? Date.now() / 1000),
         status: m.status as string | undefined,
       };
     });

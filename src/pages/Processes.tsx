@@ -278,6 +278,8 @@ export default function Processes() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['all-tasks'] }),
   });
 
+  const companyMap = useMemo(() => new Map(companies.map(c => [c.id, c.name])), [companies]);
+
   const grouped = useMemo(() => ({
     a_receber: tasks.filter(t => t.status === 'a_receber'),
     em_progresso: tasks.filter(t => t.status === 'em_progresso'),
@@ -352,9 +354,9 @@ export default function Processes() {
                           {task.description && (
                             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>
                           )}
-                          {task.company_id && companies.find(c => c.id === task.company_id)?.name && (
+                          {task.company_id && companyMap.get(task.company_id) && (
                             <p className="text-xs text-primary mt-1 font-medium">
-                              {companies.find(c => c.id === task.company_id)!.name}
+                              {companyMap.get(task.company_id)}
                             </p>
                           )}
                         </div>

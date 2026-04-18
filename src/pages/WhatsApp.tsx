@@ -133,9 +133,9 @@ export default function WhatsApp() {
 
   // Carrega mensagens e inicia polling ao mudar de chat
   useEffect(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
     if (!unlocked || !activeChat) return;
     loadMessages(activeChat);
-    if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(refreshMessages, 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [activeChat, unlocked, loadMessages, refreshMessages]);

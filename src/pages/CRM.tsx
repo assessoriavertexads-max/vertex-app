@@ -168,7 +168,7 @@ export const CRM = () => {
           await supabase.from('leads').update({ funnel_stage, company_id: companyId }).eq('id', id);
 
           if (companyId) {
-            const transactionExists = await supabase
+            const { data: transactionExists, error: txCheckError } = await supabase
               .from('financial_transactions')
               .select('id')
               .eq('company_id', companyId)
@@ -178,6 +178,8 @@ export const CRM = () => {
               .eq('status', 'pending')
               .limit(1)
               .maybeSingle();
+
+            if (txCheckError && txCheckError.code !== 'PGRST116') throw txCheckError;
 
             if (!transactionExists) {
               const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

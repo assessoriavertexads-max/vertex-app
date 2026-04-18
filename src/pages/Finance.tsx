@@ -498,6 +498,7 @@ export const Finance = () => {
   });
 
   const exportCSV = () => {
+    const esc = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const headers = ['Empresa', 'Descrição', 'Tipo', 'Valor', 'Vencimento', 'Status', 'Ciclo'];
     const rows = filteredTransactions.map(t => [
       t.companies?.name || 'Sem Empresa',
@@ -508,7 +509,7 @@ export const Finance = () => {
       t.status === 'paid' ? 'Pago' : t.status === 'pending' ? 'Aguardando' : t.status === 'overdue' ? 'Vencido' : 'Cancelado',
       t.subscription_cycle ? (CYCLE_LABELS[t.subscription_cycle] || t.subscription_cycle) : '',
     ]);
-    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
