@@ -88,7 +88,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
           {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = item.path === '/'
+              ? location.pathname === '/'
+              : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
             const Icon = item.icon;
             return (
               <button

@@ -97,7 +97,7 @@ export const CRM = () => {
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: leads = [], isLoading } = useQuery<LeadWithCompany[]>({
+  const { data: leads = [], isLoading, isError } = useQuery<LeadWithCompany[]>({
     queryKey: ['leads'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -154,7 +154,7 @@ export const CRM = () => {
               .from('companies')
               .insert({
                 name: lead.title,
-                status: 'active',
+                status: 'ativo',
                 custom_data: { created_from_lead: lead.id },
               })
               .select('id')
@@ -298,6 +298,17 @@ export const CRM = () => {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3">
+        <p className="text-red-500 text-sm">Erro ao carregar leads. Verifique sua conexão e tente novamente.</p>
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['leads'] })}>
+          Tentar novamente
+        </Button>
       </div>
     );
   }

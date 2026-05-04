@@ -54,12 +54,6 @@ const MRR_MULTIPLIER: Record<string, number> = {
   YEARLY: 1 / 12,
 };
 
-const BILLING_TYPE_OPTIONS = [
-  { value: 'UNDEFINED', label: 'Cliente escolhe (PIX, Boleto ou Cartão)' },
-  { value: 'PIX', label: 'PIX' },
-  { value: 'BOLETO', label: 'Boleto Bancário' },
-  { value: 'CREDIT_CARD', label: 'Cartão de Crédito' },
-];
 
 function getSendChannels() {
   try { return JSON.parse(localStorage.getItem('vertex_send_channels') || '{}'); } catch { return {}; }
@@ -566,8 +560,8 @@ export const Finance = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Financeiro</h1>
-          <p className="text-slate-500 mt-1">Gestão de caixa da Vertex.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Financeiro</h1>
+          <p className="text-muted-foreground mt-1">Gestão de caixa da Vertex.</p>
         </div>
         <div className="flex flex-wrap gap-2 relative">
           {/* Export CSV */}
@@ -585,20 +579,20 @@ export const Finance = () => {
               <Download className="w-4 h-4" /> Importar Assinaturas
             </Button>
             {showImportDropdown && (
-              <div className="absolute right-0 mt-2 w-72 bg-white border rounded-lg shadow-lg z-10">
-                <div className="p-2 border-b">
-                  <p className="text-xs font-medium text-slate-600 px-2 py-1">Selecione a empresa com Asaas vinculado</p>
+              <div className="absolute right-0 mt-2 w-72 bg-popover border border-border rounded-lg shadow-lg z-10">
+                <div className="p-2 border-b border-border">
+                  <p className="text-xs font-medium text-muted-foreground px-2 py-1">Selecione a empresa com Asaas vinculado</p>
                 </div>
                 <div className="max-h-48 overflow-y-auto">
                   {companies.length === 0 ? (
-                    <div className="p-4 text-sm text-slate-500">Nenhuma empresa com Asaas vinculada. Cadastre o ID Asaas no perfil da empresa.</div>
+                    <div className="p-4 text-sm text-muted-foreground">Nenhuma empresa com Asaas vinculada. Cadastre o ID Asaas no perfil da empresa.</div>
                   ) : (
                     companies.map(company => (
                       <button
                         key={company.id}
                         onClick={() => { setSelectedCompanyForImport(company.id); importAsaasSubscriptions.mutate(company.id); }}
                         disabled={importAsaasSubscriptions.isPending}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center justify-between"
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-between text-foreground"
                       >
                         <span>{company.name}</span>
                         {importAsaasSubscriptions.isPending && selectedCompanyForImport === company.id && (
@@ -636,63 +630,63 @@ export const Finance = () => {
 
       {/* Cards de Resumo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border shadow-sm flex flex-col justify-between">
+        <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
-            <span className="text-slate-500 text-sm font-medium">Receita Recebida</span>
-            <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600"><ArrowUpRight className="w-4 h-4" /></div>
+            <span className="text-muted-foreground text-sm font-medium">Receita Recebida</span>
+            <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-600"><ArrowUpRight className="w-4 h-4" /></div>
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mt-3">
+          <h2 className="text-2xl font-bold text-foreground mt-3">
             R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </h2>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border shadow-sm flex flex-col justify-between">
+        <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
-            <span className="text-slate-500 text-sm font-medium">A Receber</span>
-            <div className="p-2 bg-amber-50 rounded-lg text-amber-600"><Clock className="w-4 h-4" /></div>
+            <span className="text-muted-foreground text-sm font-medium">A Receber</span>
+            <div className="p-2 bg-amber-500/10 rounded-lg text-amber-600"><Clock className="w-4 h-4" /></div>
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mt-3">
+          <h2 className="text-2xl font-bold text-foreground mt-3">
             R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </h2>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border shadow-sm flex flex-col justify-between">
+        <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
-            <span className="text-slate-500 text-sm font-medium">Saídas / Custos</span>
-            <div className="p-2 bg-red-50 rounded-lg text-red-600"><ArrowDownRight className="w-4 h-4" /></div>
+            <span className="text-muted-foreground text-sm font-medium">Saídas / Custos</span>
+            <div className="p-2 bg-red-500/10 rounded-lg text-red-600"><ArrowDownRight className="w-4 h-4" /></div>
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mt-3">
+          <h2 className="text-2xl font-bold text-foreground mt-3">
             R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </h2>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border shadow-sm flex flex-col justify-between">
+        <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
-            <span className="text-slate-500 text-sm font-medium">MRR</span>
-            <div className="p-2 bg-violet-50 rounded-lg text-violet-600"><TrendingUp className="w-4 h-4" /></div>
+            <span className="text-muted-foreground text-sm font-medium">MRR</span>
+            <div className="p-2 bg-violet-500/10 rounded-lg text-violet-600"><TrendingUp className="w-4 h-4" /></div>
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mt-3">
+          <h2 className="text-2xl font-bold text-foreground mt-3">
             R$ {mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </h2>
-          <p className="text-xs text-slate-400 mt-1">Receita Mensal Recorrente</p>
+          <p className="text-xs text-muted-foreground mt-1">Receita Mensal Recorrente</p>
         </div>
       </div>
 
       {/* Tabela */}
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden flex-1 flex flex-col">
-        <div className="p-4 border-b flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-50/50">
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden flex-1 flex flex-col">
+        <div className="p-4 border-b border-border flex flex-col sm:flex-row justify-between items-center gap-3 bg-muted/30">
           {/* Filtros de tipo */}
-          <div className="flex gap-2 p-1 bg-slate-100 rounded-lg shrink-0">
+          <div className="flex gap-2 p-1 bg-muted rounded-lg shrink-0">
             {[['all', 'Todas'], ['income', 'Entradas'], ['expense', 'Saídas']].map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setFilterType(val)}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   filterType === val
-                    ? val === 'income' ? 'bg-white shadow text-emerald-600'
-                    : val === 'expense' ? 'bg-white shadow text-red-600'
-                    : 'bg-white shadow text-slate-800'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? val === 'income' ? 'bg-card shadow text-emerald-600'
+                    : val === 'expense' ? 'bg-card shadow text-red-600'
+                    : 'bg-card shadow text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {label}
@@ -731,16 +725,16 @@ export const Finance = () => {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-white border-b">
+            <thead className="bg-card border-b border-border">
               <tr>
-                <th className="px-5 py-4 font-semibold text-slate-500">Descrição / Cliente</th>
-                <th className="px-5 py-4 font-semibold text-slate-500">Vencimento</th>
-                <th className="px-5 py-4 font-semibold text-slate-500">Status</th>
-                <th className="px-5 py-4 font-semibold text-slate-500 text-right">Valor</th>
-                <th className="px-5 py-4 font-semibold text-slate-500 text-right">Ações</th>
+                <th className="px-5 py-4 font-semibold text-muted-foreground">Descrição / Cliente</th>
+                <th className="px-5 py-4 font-semibold text-muted-foreground">Vencimento</th>
+                <th className="px-5 py-4 font-semibold text-muted-foreground">Status</th>
+                <th className="px-5 py-4 font-semibold text-muted-foreground text-right">Valor</th>
+                <th className="px-5 py-4 font-semibold text-muted-foreground text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border">
               {filteredTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-10 text-slate-400">
@@ -749,10 +743,10 @@ export const Finance = () => {
                 </tr>
               ) : (
                 filteredTransactions.map(t => (
-                  <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={t.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-4 max-w-xs">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="font-medium text-slate-900">{t.companies?.name || 'Sem Empresa'}</p>
+                        <p className="font-medium text-foreground">{t.companies?.name || 'Sem Empresa'}</p>
                         {t.subscription_cycle && (
                           <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-violet-100 text-violet-700 rounded-full">
                             <RefreshCw className="w-3 h-3" />
@@ -768,7 +762,7 @@ export const Finance = () => {
                       <p className="text-slate-500 text-xs mt-0.5 line-clamp-1">{t.category}</p>
                     </td>
 
-                    <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
+                    <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
                       {new Date(t.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}
                     </td>
 
@@ -846,7 +840,7 @@ export const Finance = () => {
         </div>
 
         {filteredTransactions.length > 0 && (
-          <div className="px-5 py-3 border-t bg-slate-50/50 text-xs text-slate-400">
+          <div className="px-5 py-3 border-t border-border bg-muted/30 text-xs text-muted-foreground">
             {filteredTransactions.length} registro{filteredTransactions.length !== 1 ? 's' : ''}
           </div>
         )}

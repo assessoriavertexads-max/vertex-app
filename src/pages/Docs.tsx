@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { TaskCreateInput, TaskUpdate } from '@/lib/backend-types';
 
 const statusConfig = {
@@ -69,7 +70,7 @@ function CreateSpaceModal({ isOpen, onClose, onSave }: { isOpen: boolean; onClos
           onSubmit={(event) => {
             event.preventDefault();
             if (!name.trim()) {
-              alert('Informe o nome do espaço.');
+              toast.error('Informe o nome do espaço.');
               return;
             }
             onSave(name.trim());
@@ -133,7 +134,7 @@ function CreateListModal({
           onSubmit={(event) => {
             event.preventDefault();
             if (!name.trim() || !spaceId) {
-              alert('Informe o nome da lista e um espaço.');
+              toast.error('Informe o nome da lista e um espaço.');
               return;
             }
             onSave(name.trim(), spaceId);
@@ -221,7 +222,7 @@ function NewTaskModal({
           onSubmit={(event) => {
             event.preventDefault();
             if (!name.trim()) {
-              alert('Informe o título da tarefa.');
+              toast.error('Informe o título da tarefa.');
               return;
             }
             onSave({

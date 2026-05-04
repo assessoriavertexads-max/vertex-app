@@ -19,6 +19,7 @@ function PageLoader() {
 
 const Login = lazy(() => import("./pages/Login"));
 const SignUp = lazy(() => import("./pages/SignUp"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const CRM = lazy(() => import("./pages/CRM"));
 const Finance = lazy(() => import("./pages/Finance"));
@@ -34,7 +35,18 @@ const Settings = lazy(() => import("./pages/Settings"));
 const WhatsApp = lazy(() => import("./pages/WhatsApp"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        // Não retry em erros de autenticação/autorização
+        if (error instanceof Error && error.message.includes('JWT')) return false;
+        return failureCount < 2;
+      },
+      staleTime: 30_000,
+    },
+  },
+});
 
 const App = () => (
   <ErrorBoundary>
@@ -49,6 +61,7 @@ const App = () => (
             {/* Rotas públicas */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Rotas protegidas */}
             <Route

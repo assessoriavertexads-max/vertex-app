@@ -71,9 +71,9 @@ function NewTaskModal({ isOpen, onClose, onSave, companies }: NewTaskModalProps)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { alert('Informe um título para a tarefa.'); return; }
+    if (!name.trim()) { toast.error('Informe um título para a tarefa.'); return; }
     if (recurrence !== 'none' && !dueDate) {
-      alert('Para tarefas recorrentes, informe uma data de vencimento inicial.'); return;
+      toast.error('Para tarefas recorrentes, informe uma data de vencimento inicial.'); return;
     }
     onSave({
       name: name.trim(), description: description.trim(), priority,

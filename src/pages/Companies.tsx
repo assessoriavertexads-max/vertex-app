@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, MoreVertical,
@@ -9,15 +9,16 @@ import { EditCompanyModal } from '@/components/companies/EditCompanyModal';
 import { DeleteCompanyModal } from '@/components/companies/DeleteCompanyModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell
 } from '@/components/ui/table';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
+
 import { CompanyStatus, COMPANY_STATUS_LABELS, COMPANY_STATUS_COLORS } from '@/lib/company-constants';
 
 interface Company {
@@ -31,34 +32,29 @@ interface Company {
 
 export default function Companies() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [deletingCompany, setDeletingCompany] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const fetchCompanies = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('companies')
-      .select('id, name, document, status, asaas_customer_id, created_at')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-    if (error) {
-      toast.error(`Erro ao buscar empresas: ${error.message}`);
-    } else if (data) {
-      setCompanies(data as unknown as Company[]);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchCompanies(); }, []);
+  const { data: companies = [], isLoading: loading, isError } = useQuery<Company[]>({
+    queryKey: ['companies'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name, document, status, asaas_customer_id, created_at')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as unknown as Company[];
+    },
+  });
 
   const handleSaveCompany = () => {
     setEditingCompany(null);
     setDeletingCompany(null);
-    fetchCompanies();
+    queryClient.invalidateQueries({ queryKey: ['companies'] });
   };
 
   const filteredCompanies = companies.filter(company => 
@@ -72,6 +68,17 @@ export default function Companies() {
     const colorClass = COMPANY_STATUS_COLORS[statusKey] || 'bg-gray-500/20 text-gray-400';
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colorClass}`}>{label}</span>;
   };
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <p className="text-destructive text-sm">Erro ao carregar empresas.</p>
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['companies'] })}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
