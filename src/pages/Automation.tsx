@@ -1,19 +1,46 @@
 import { useState } from 'react';
-import { Plus, Zap, Trash2, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
+import { Plus, Zap, Trash2, Loader2, MessageSquare, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const TRIGGER_EVENTS: { value: string; label: string; description: string; group: string }[] = [
+  // CRM
+  { value: 'lead_stage_change',    label: 'Lead muda de estágio',      description: 'Dispara quando um lead é movido para um estágio específico no funil.',        group: 'CRM' },
+  { value: 'new_lead_created',     label: 'Novo lead criado',           description: 'Dispara toda vez que um novo lead é cadastrado no CRM.',                      group: 'CRM' },
+  { value: 'lead_closed',          label: 'Lead fechado (ganho)',        description: 'Dispara especificamente quando um lead é marcado como Fechado (Ganho).',      group: 'CRM' },
+  // Tarefas
+  { value: 'task_completed',       label: 'Tarefa concluída',           description: 'Dispara quando qualquer tarefa é marcada como concluída.',                    group: 'Tarefas' },
+  { value: 'task_created',         label: 'Nova tarefa criada',         description: 'Dispara quando uma nova tarefa é adicionada ao sistema.',                     group: 'Tarefas' },
+  // Empresas
+  { value: 'new_company_created',  label: 'Nova empresa cadastrada',    description: 'Dispara quando uma nova empresa é registrada.',                               group: 'Empresas' },
+  { value: 'company_status_change',label: 'Status da empresa muda',     description: 'Dispara quando o status de uma empresa é alterado para um valor específico.', group: 'Empresas' },
+  // Financeiro
+  { value: 'transaction_paid',     label: 'Pagamento recebido',         description: 'Dispara quando uma transação financeira é marcada como paga.',                group: 'Financeiro' },
+  { value: 'new_transaction_created', label: 'Nova transação criada',   description: 'Dispara quando uma nova transação financeira é registrada.',                  group: 'Financeiro' },
+];
 
 const STAGE_LABELS: Record<string, string> = {
   prospect: 'Prospecção',
   negotiation: 'Negociação',
   legal: 'Análise Jurídica',
   closed: 'Fechado (Ganho)',
+};
+
+const COMPANY_STATUS_LABELS: Record<string, string> = {
+  ativo: 'Ativo',
+  'stand-by': 'Stand-by',
+  inativo: 'Inativo',
+  cancelado: 'Cancelado',
+  churn: 'Churn',
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -23,41 +50,70 @@ const PRIORITY_LABELS: Record<string, string> = {
   normal: 'Normal',
 };
 
+const ACTION_TYPES: { value: string; label: string; icon: React.ElementType }[] = [
+  { value: 'create_task', label: 'Criar Tarefa', icon: ClipboardList },
+  { value: 'send_whatsapp', label: 'Enviar WhatsApp', icon: MessageSquare },
+];
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+interface ActionData {
+  // create_task
+  task_name?: string;
+  task_priority?: string;
+  task_description?: string;
+  due_in_days?: number;
+  // send_whatsapp
+  message_template?: string;
+}
+
 interface AutomationRule {
   id: string;
   name: string;
   trigger_event: string;
   trigger_value: string;
   action_type: string;
-  action_data: {
-    task_name: string;
-    task_priority: string;
-    task_description?: string;
-    due_in_days?: number;
-  };
+  action_data: ActionData;
   enabled: boolean;
   created_at: string;
 }
 
-function RuleModal({
-  isOpen,
-  onClose,
-  onSave,
-}: {
+// ── Modal ──────────────────────────────────────────────────────────────────
+
+function RuleModal({ isOpen, onClose, onSave }: {
   isOpen: boolean;
   onClose: () => void;
   onSave: (rule: Omit<AutomationRule, 'id' | 'created_at'>) => void;
 }) {
   const [name, setName] = useState('');
+  const [triggerEvent, setTriggerEvent] = useState('lead_stage_change');
   const [triggerValue, setTriggerValue] = useState('negotiation');
+  const [actionType, setActionType] = useState('create_task');
+  // create_task fields
   const [taskName, setTaskName] = useState('');
   const [taskPriority, setTaskPriority] = useState('normal');
   const [taskDesc, setTaskDesc] = useState('');
   const [dueInDays, setDueInDays] = useState(3);
+  // send_whatsapp fields
+  const [messageTemplate, setMessageTemplate] = useState('');
 
   const reset = () => {
-    setName(''); setTriggerValue('negotiation'); setTaskName('');
-    setTaskPriority('normal'); setTaskDesc(''); setDueInDays(3);
+    setName(''); setTriggerEvent('lead_stage_change'); setTriggerValue('negotiation');
+    setActionType('create_task'); setTaskName(''); setTaskPriority('normal');
+    setTaskDesc(''); setDueInDays(3); setMessageTemplate('');
+  };
+
+  // Variables available per trigger for the template hint
+  const templateVars: Record<string, string[]> = {
+    lead_stage_change:     ['{lead_name}', '{company_name}'],
+    new_lead_created:      ['{lead_name}', '{company_name}'],
+    lead_closed:           ['{lead_name}', '{company_name}'],
+    task_completed:        ['{task_name}', '{company_name}'],
+    task_created:          ['{task_name}', '{company_name}'],
+    new_company_created:   ['{company_name}'],
+    company_status_change: ['{company_name}'],
+    transaction_paid:      ['{entity_name}', '{company_name}'],
+    new_transaction_created:['{entity_name}', '{company_name}'],
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -65,18 +121,28 @@ function RuleModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { toast.error('Informe um nome para a regra.'); return; }
-    if (!taskName.trim()) { toast.error('Informe o título da tarefa.'); return; }
+    if (actionType === 'create_task' && !taskName.trim()) { toast.error('Informe o título da tarefa.'); return; }
+    if (actionType === 'send_whatsapp' && !messageTemplate.trim()) { toast.error('Informe o template da mensagem.'); return; }
+
+    const resolvedTriggerValue =
+      triggerEvent === 'lead_stage_change'     ? triggerValue :
+      triggerEvent === 'lead_closed'           ? 'closed' :
+      triggerEvent === 'company_status_change' ? triggerValue :
+      'any';
+
+    const resolvedEvent = triggerEvent === 'lead_closed' ? 'lead_stage_change' : triggerEvent;
+
+    const actionData: ActionData =
+      actionType === 'create_task'
+        ? { task_name: taskName.trim(), task_priority: taskPriority, task_description: taskDesc.trim() || undefined, due_in_days: dueInDays }
+        : { message_template: messageTemplate.trim() };
+
     onSave({
       name: name.trim(),
-      trigger_event: 'lead_stage_change',
-      trigger_value: triggerValue,
-      action_type: 'create_task',
-      action_data: {
-        task_name: taskName.trim(),
-        task_priority: taskPriority,
-        task_description: taskDesc.trim() || undefined,
-        due_in_days: dueInDays,
-      },
+      trigger_event: resolvedEvent,
+      trigger_value: resolvedTriggerValue,
+      action_type: actionType,
+      action_data: actionData,
       enabled: true,
     });
     handleClose();
@@ -84,15 +150,14 @@ function RuleModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={open => !open && handleClose()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" /> Nova Regra de Automação
           </DialogTitle>
-          <DialogDescription>
-            Crie uma ação automática que é executada quando um lead muda de estágio no CRM.
-          </DialogDescription>
+          <DialogDescription>Configure um gatilho e a ação que será executada automaticamente.</DialogDescription>
         </DialogHeader>
+
         <form onSubmit={handleSubmit} className="grid gap-4 py-2">
           <div className="grid gap-2">
             <Label>Nome da Regra *</Label>
@@ -101,61 +166,141 @@ function RuleModal({
 
           {/* Gatilho */}
           <div className="rounded-lg border border-border p-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gatilho</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gatilho — Quando isso acontecer</p>
+
             <div className="grid gap-2">
-              <Label>Quando lead mover para</Label>
+              <Label>Tipo de evento</Label>
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={triggerValue}
-                onChange={e => setTriggerValue(e.target.value)}
+                value={triggerEvent}
+                onChange={e => { setTriggerEvent(e.target.value); setTriggerValue('negotiation'); }}
               >
-                {Object.entries(STAGE_LABELS).map(([val, label]) => (
-                  <option key={val} value={val}>{label}</option>
+                {['CRM', 'Tarefas', 'Empresas', 'Financeiro'].map(group => (
+                  <optgroup key={group} label={group}>
+                    {TRIGGER_EVENTS.filter(t => t.group === group).map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
+              <p className="text-xs text-muted-foreground">
+                {TRIGGER_EVENTS.find(t => t.value === triggerEvent)?.description}
+              </p>
             </div>
-          </div>
 
-          {/* Ação */}
-          <div className="rounded-lg border border-border p-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ação — Criar Tarefa</p>
-            <div className="grid gap-2">
-              <Label>Título da Tarefa *</Label>
-              <Input
-                value={taskName}
-                onChange={e => setTaskName(e.target.value)}
-                placeholder="Ex: Preparar proposta para {lead_name}"
-              />
-              <p className="text-xs text-muted-foreground">Use <code className="bg-muted px-1 rounded">{'{lead_name}'}</code> para incluir o nome do lead.</p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            {triggerEvent === 'lead_stage_change' && (
               <div className="grid gap-2">
-                <Label>Prioridade</Label>
+                <Label>Estágio destino</Label>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={taskPriority}
-                  onChange={e => setTaskPriority(e.target.value)}
+                  value={triggerValue}
+                  onChange={e => setTriggerValue(e.target.value)}
                 >
-                  {Object.entries(PRIORITY_LABELS).map(([val, label]) => (
+                  {Object.entries(STAGE_LABELS).map(([val, label]) => (
                     <option key={val} value={val}>{label}</option>
                   ))}
                 </select>
               </div>
+            )}
+
+            {triggerEvent === 'company_status_change' && (
               <div className="grid gap-2">
-                <Label>Vencimento (dias)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={90}
-                  value={dueInDays}
-                  onChange={e => setDueInDays(Number(e.target.value))}
-                />
+                <Label>Novo status</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={triggerValue}
+                  onChange={e => setTriggerValue(e.target.value)}
+                >
+                  {Object.entries(COMPANY_STATUS_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Ação */}
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ação — Então fazer isso</p>
+
+            <div className="grid gap-2">
+              <Label>Tipo de ação</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {ACTION_TYPES.map(a => (
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => setActionType(a.value)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                      actionType === a.value
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-input bg-background text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <a.icon className="h-4 w-4" />
+                    {a.label}
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label>Descrição da Tarefa (opcional)</Label>
-              <Input value={taskDesc} onChange={e => setTaskDesc(e.target.value)} placeholder="Detalhes adicionais sobre a tarefa..." />
-            </div>
+
+            {actionType === 'create_task' && (
+              <>
+                <div className="grid gap-2">
+                  <Label>Título da Tarefa *</Label>
+                  <Input
+                    value={taskName}
+                    onChange={e => setTaskName(e.target.value)}
+                    placeholder="Ex: Preparar proposta para {lead_name}"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Variáveis: {(templateVars[triggerEvent] ?? []).map(v => (
+                      <code key={v} className="bg-muted px-1 rounded mr-1">{v}</code>
+                    ))}
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Prioridade</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={taskPriority}
+                      onChange={e => setTaskPriority(e.target.value)}
+                    >
+                      {Object.entries(PRIORITY_LABELS).map(([val, label]) => (
+                        <option key={val} value={val}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Vencimento (dias)</Label>
+                    <Input type="number" min={1} max={90} value={dueInDays} onChange={e => setDueInDays(Number(e.target.value))} />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Descrição (opcional)</Label>
+                  <Input value={taskDesc} onChange={e => setTaskDesc(e.target.value)} placeholder="Detalhes adicionais..." />
+                </div>
+              </>
+            )}
+
+            {actionType === 'send_whatsapp' && (
+              <div className="grid gap-2">
+                <Label>Mensagem *</Label>
+                <Textarea
+                  value={messageTemplate}
+                  onChange={e => setMessageTemplate(e.target.value)}
+                  placeholder="Ex: Olá! Seu lead {lead_name} avançou no funil. Precisamos de atenção."
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Variáveis: {(templateVars[triggerEvent] ?? []).map(v => (
+                    <code key={v} className="bg-muted px-1 rounded mr-1">{v}</code>
+                  ))}
+                  · Enviado para o WhatsApp da empresa vinculada.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -167,6 +312,40 @@ function RuleModal({
     </Dialog>
   );
 }
+
+// ── Rule card helpers ──────────────────────────────────────────────────────
+
+function triggerSummary(rule: AutomationRule): string {
+  const ev = TRIGGER_EVENTS.find(t => t.value === rule.trigger_event || (rule.trigger_event === 'lead_stage_change' && t.value === 'lead_closed' && rule.trigger_value === 'closed'));
+  switch (rule.trigger_event) {
+    case 'lead_stage_change':
+      return rule.trigger_value === 'closed'
+        ? 'Quando lead for fechado (ganho)'
+        : `Quando lead mover para "${STAGE_LABELS[rule.trigger_value] ?? rule.trigger_value}"`;
+    case 'new_lead_created':      return 'Quando um novo lead for criado';
+    case 'task_completed':        return 'Quando uma tarefa for concluída';
+    case 'task_created':          return 'Quando uma nova tarefa for criada';
+    case 'new_company_created':   return 'Quando uma nova empresa for cadastrada';
+    case 'company_status_change': return `Quando status da empresa mudar para "${COMPANY_STATUS_LABELS[rule.trigger_value] ?? rule.trigger_value}"`;
+    case 'transaction_paid':      return 'Quando um pagamento for recebido';
+    case 'new_transaction_created': return 'Quando uma nova transação for criada';
+    default: return ev?.label ?? rule.trigger_event;
+  }
+}
+
+function actionSummary(rule: AutomationRule): string {
+  if (rule.action_type === 'create_task') {
+    const ad = rule.action_data;
+    return `Criar tarefa "${ad.task_name}" · prioridade ${PRIORITY_LABELS[ad.task_priority ?? 'normal'] ?? ad.task_priority}${ad.due_in_days ? ` · vence em ${ad.due_in_days} dia(s)` : ''}`;
+  }
+  if (rule.action_type === 'send_whatsapp') {
+    const preview = (rule.action_data.message_template ?? '').substring(0, 60);
+    return `Enviar WhatsApp: "${preview}${preview.length === 60 ? '…' : ''}"`;
+  }
+  return rule.action_type;
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
 
 export default function Automation() {
   const queryClient = useQueryClient();
@@ -189,10 +368,7 @@ export default function Automation() {
       const { error } = await supabase.from('automation_rules').insert(rule);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
-      toast.success('Regra criada!');
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['automation-rules'] }); toast.success('Regra criada!'); },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
 
@@ -210,10 +386,7 @@ export default function Automation() {
       const { error } = await supabase.from('automation_rules').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
-      toast.success('Regra removida.');
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['automation-rules'] }); toast.success('Regra removida.'); },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
 
@@ -222,29 +395,54 @@ export default function Automation() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Automação</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Regras automáticas disparadas por eventos no CRM
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">Regras automáticas disparadas por eventos no CRM e no financeiro</p>
         </div>
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> Nova Regra
         </Button>
       </div>
 
-      {/* Info */}
-      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 flex gap-3">
-        <Zap className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-        <div className="text-sm text-amber-800">
-          <p className="font-medium mb-1">Como funciona</p>
-          <p className="text-amber-700">Quando um lead mudar de estágio no CRM, a regra executa automaticamente a ação configurada (ex: criar uma tarefa). O <code className="bg-amber-100 px-1 rounded">{'{lead_name}'}</code> no título da tarefa é substituído pelo nome real do lead.</p>
+      {/* Gatilhos disponíveis */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Gatilhos disponíveis</p>
+        <div className="space-y-3">
+          {['CRM', 'Tarefas', 'Empresas', 'Financeiro'].map(group => (
+            <div key={group}>
+              <p className="text-xs text-muted-foreground font-medium mb-1.5">{group}</p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {TRIGGER_EVENTS.filter(t => t.group === group).map(t => (
+                  <div key={t.value} className="flex items-start gap-2 rounded-lg bg-muted/40 p-2.5">
+                    <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{t.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      <RuleModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={rule => createRule.mutate(rule)}
-      />
+      {/* Ações disponíveis */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Ações disponíveis</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {ACTION_TYPES.map(a => (
+            <div key={a.value} className="flex items-start gap-2 rounded-lg bg-muted/40 p-3">
+              <a.icon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium text-foreground">{a.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                  {a.value === 'create_task' ? 'Cria uma tarefa vinculada ao lead e à empresa.' : 'Envia mensagem pelo WhatsApp da empresa vinculada ao lead.'}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <RuleModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={rule => createRule.mutate(rule)} />
 
       {isLoading ? (
         <div className="flex items-center justify-center h-40">
@@ -263,46 +461,45 @@ export default function Automation() {
         </div>
       ) : (
         <div className="space-y-3">
-          {rules.map(rule => (
-            <div key={rule.id} className={`rounded-xl border p-4 transition-opacity ${rule.enabled ? 'border-border bg-card' : 'border-border bg-muted/30 opacity-60'}`}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className={`mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${rule.enabled ? 'bg-amber-500/10' : 'bg-muted'}`}>
-                    <Zap className={`h-4 w-4 ${rule.enabled ? 'text-amber-500' : 'text-muted-foreground'}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm text-foreground">{rule.name}</p>
-                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
-                      <span className="text-xs text-muted-foreground">
-                        Gatilho: lead move para <strong>{STAGE_LABELS[rule.trigger_value] ?? rule.trigger_value}</strong>
-                      </span>
+          <p className="text-sm font-medium text-foreground">{rules.length} regra{rules.length !== 1 ? 's' : ''} configurada{rules.length !== 1 ? 's' : ''}</p>
+          {rules.map(rule => {
+            const ActionIcon = ACTION_TYPES.find(a => a.value === rule.action_type)?.icon ?? Zap;
+            return (
+              <div key={rule.id} className={`rounded-xl border p-4 transition-opacity ${rule.enabled ? 'border-border bg-card' : 'border-border bg-muted/30 opacity-60'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${rule.enabled ? 'bg-amber-500/10' : 'bg-muted'}`}>
+                      <Zap className={`h-4 w-4 ${rule.enabled ? 'text-amber-500' : 'text-muted-foreground'}`} />
                     </div>
-                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-                      <span className="text-xs text-muted-foreground">
-                        Ação: criar tarefa <strong>"{rule.action_data.task_name}"</strong>
-                        {' '}· prioridade <strong>{PRIORITY_LABELS[rule.action_data.task_priority] ?? rule.action_data.task_priority}</strong>
-                        {rule.action_data.due_in_days ? ` · vence em ${rule.action_data.due_in_days} dia(s)` : ''}
-                      </span>
+                    <div className="min-w-0 space-y-1">
+                      <p className="font-medium text-sm text-foreground">{rule.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground/70">Gatilho:</span> {triggerSummary(rule)}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <ActionIcon className="h-3 w-3 shrink-0" />
+                        {actionSummary(rule)}
+                      </p>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Switch
-                    checked={rule.enabled}
-                    onCheckedChange={enabled => toggleRule.mutate({ id: rule.id, enabled })}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-red-600"
-                    onClick={() => deleteRule.mutate(rule.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Switch
+                      checked={rule.enabled}
+                      onCheckedChange={enabled => toggleRule.mutate({ id: rule.id, enabled })}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                      onClick={() => deleteRule.mutate(rule.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

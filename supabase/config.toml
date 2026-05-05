@@ -1,5 +1,8 @@
-project_id = "lbcgtbfizklsucblixkn"
+project_id = "zfufkschpimuiedstxyl"
 
 [functions.asaas-checkout]
 enabled = true
 verify_jwt = true
+
+[functions.asaas-import-subscriptions]
+verify_jwt = false

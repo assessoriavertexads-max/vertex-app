@@ -33,8 +33,8 @@ serve(async (req) => {
 
   const WHATSAPP_PIN = Deno.env.get("WHATSAPP_PIN");
   if (!WHATSAPP_PIN) {
-    return new Response(JSON.stringify({ error: "PIN não configurado" }), {
-      status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ valid: true, not_configured: true }), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 

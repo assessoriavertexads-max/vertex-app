@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { NewTransactionModal } from '@/components/finance/NewTransactionModal';
 import { EditTransactionModal } from '@/components/finance/EditTransactionModal';
 import { CompanyOption, TransactionInsert, TransactionWithCompany } from '@/lib/backend-types';
+import { runAutomations } from '@/lib/automation';
 
 const CYCLE_LABELS: Record<string, string> = {
   MONTHLY: 'Mensal',
@@ -123,7 +124,8 @@ function CustomChargeModal({
       // Envia via WhatsApp (Evolution API)
       if (sendWhatsApp) {
         if (selectedCompany?.phone) {
-          const phone = selectedCompany.phone.replace(/\D/g, '');
+          const rawPhone = selectedCompany.phone.replace(/\D/g, '');
+          const phone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
           try {
             await sendTextMessage(phone, message);
             res.whatsapp = 'ok';
@@ -302,8 +304,11 @@ export const Finance = () => {
   const [isCustomChargeOpen, setIsCustomChargeOpen] = useState(false);
   const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [selectedCompanyForImport, setSelectedCompanyForImport] = useState<string | null>(null);
+  const [importingAll, setImportingAll] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCompany | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [generatingChargeId, setGeneratingChargeId] = useState<string | null>(null);
+  const [sendingWhatsAppId, setSendingWhatsAppId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: transactions = [], isLoading } = useQuery<TransactionWithCompany[]>({
@@ -311,7 +316,7 @@ export const Finance = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('financial_transactions')
-        .select('*, companies(name)')
+        .select('*, companies(name, phone)')
         .is('deleted_at', null)
         .order('due_date', { ascending: false });
       if (error) throw error;
@@ -346,7 +351,17 @@ export const Finance = () => {
     return new Date(Number(year), Number(month) - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   };
 
-  // MRR: soma das assinaturas ativas normalizadas para mensal
+  // Transações filtradas só pelo mês (sem tipo/busca) — usadas nos cards de resumo
+  const cardTransactions = useMemo(() => {
+    if (filterMonth === 'all') return transactions;
+    return transactions.filter(t => {
+      const d = new Date(t.due_date + 'T00:00:00');
+      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return m === filterMonth;
+    });
+  }, [transactions, filterMonth]);
+
+  // MRR: sempre baseado em todas as assinaturas ativas (métrica atual, não por mês)
   const mrr = useMemo(() => {
     const seenSubs = new Set<string>();
     let total = 0;
@@ -354,7 +369,7 @@ export const Finance = () => {
       .filter(t => t.type === 'income' && t.subscription_cycle && t.status !== 'cancelled')
       .forEach(t => {
         if (t.asaas_subscription_id) {
-          if (t.asaas_payment_id) return; // pula pagamentos históricos
+          if (t.asaas_payment_id) return;
           if (seenSubs.has(t.asaas_subscription_id)) return;
           seenSubs.add(t.asaas_subscription_id);
         }
@@ -364,15 +379,15 @@ export const Finance = () => {
     return total;
   }, [transactions]);
 
-  const totalIncome = transactions
+  const totalIncome = cardTransactions
     .filter(t => t.type === 'income' && t.status === 'paid')
     .reduce((acc, t) => acc + Number(t.amount), 0);
 
-  const totalPending = transactions
+  const totalPending = cardTransactions
     .filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue'))
     .reduce((acc, t) => acc + Number(t.amount), 0);
 
-  const totalExpense = transactions
+  const totalExpense = cardTransactions
     .filter(t => t.type === 'expense' && t.status === 'paid')
     .reduce((acc, t) => acc + Number(t.amount), 0);
 
@@ -405,11 +420,16 @@ export const Finance = () => {
         billing_type: data.billing_type || 'UNDEFINED',
       });
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
       setIsModalOpen(false);
       toast.success('Transação registrada com sucesso!');
+      runAutomations('new_transaction_created', 'any', {
+        entityTitle: data.category || 'Transação',
+        companyId: data.company_id || null,
+      }).catch(() => {});
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
@@ -458,26 +478,37 @@ export const Finance = () => {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('financial_transactions').update({ status: 'paid' }).eq('id', id);
       if (error) throw error;
+      const { data: tx } = await supabase
+        .from('financial_transactions')
+        .select('category, company_id')
+        .eq('id', id)
+        .single();
+      return tx as { category: string | null; company_id: string | null } | null;
     },
-    onSuccess: () => {
+    onSuccess: (tx) => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
       toast.success('Marcado como pago!');
+      runAutomations('transaction_paid', 'any', {
+        entityTitle: tx?.category || 'Pagamento',
+        companyId: tx?.company_id ?? null,
+      }).catch(() => {});
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
 
   const importAsaasSubscriptions = useMutation({
-    mutationFn: async (company_id: string) => {
-      const { data, error } = await supabase.functions.invoke('asaas-import-subscriptions', {
-        body: { company_id },
-      });
+    mutationFn: async (company_id: string | '__all__') => {
+      const body = company_id === '__all__' ? { all: true } : { company_id };
+      const { data, error } = await supabase.functions.invoke('asaas-import-subscriptions', { body });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
       setShowImportDropdown(false);
       setSelectedCompanyForImport(null);
+      setImportingAll(false);
       const imported = data.imported || 0;
       const updated = data.updated || 0;
       if (imported > 0 || updated > 0) {
@@ -487,24 +518,78 @@ export const Finance = () => {
       }
       if (data.errors?.length > 0) toast.error(`Alguns erros: ${data.errors[0]}`);
     },
-    onError: (err: Error) => toast.error(`Erro ao importar: ${err.message}`),
+    onError: (err: Error) => { setImportingAll(false); toast.error(`Erro ao importar: ${err.message}`); },
   });
 
   const generateAsaasCharge = useMutation({
     mutationFn: async (transaction: TransactionWithCompany) => {
+      setGeneratingChargeId(transaction.id);
       const { data, error } = await supabase.functions.invoke('asaas-checkout', {
         body: { transaction_id: transaction.id },
       });
-      if (error) throw error;
+      if (error) {
+        const msg = (error as { context?: { error?: string } })?.context?.error
+          ?? (error as { message?: string })?.message
+          ?? 'Erro ao conectar com a função';
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: (data, transaction) => {
-      toast.success(transaction.subscription_cycle ? 'Assinatura criada no Asaas!' : 'Cobrança gerada no Asaas!');
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
-      if (data.url) window.open(data.url, '_blank');
+      const isSubscription = !!transaction.subscription_cycle;
+      const rawPhone = transaction.companies?.phone?.replace(/\D/g, '') ?? '';
+      const phone = rawPhone ? (rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`) : null;
+      const paymentUrl = data.url as string | null;
+
+      toast.success(isSubscription ? 'Assinatura criada no Asaas!' : 'Cobrança gerada no Asaas!', {
+        action: paymentUrl ? {
+          label: 'Ver link',
+          onClick: () => window.open(paymentUrl, '_blank'),
+        } : undefined,
+      });
+
+      if (paymentUrl && phone) {
+        const amount = Number(transaction.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        const dueDate = new Date(transaction.due_date + 'T00:00:00').toLocaleDateString('pt-BR');
+        const desc = transaction.category || (isSubscription ? 'Assinatura' : 'Cobrança');
+        const msg = `Olá *${transaction.companies?.name}*! 👋\n\nSua ${isSubscription ? 'assinatura foi criada' : 'cobrança foi gerada'}!\n\n📋 *${desc}*\n💰 *R$ ${amount}*\n📅 *Vencimento: ${dueDate}*\n\nClique para pagar:\n${paymentUrl}\n\nQualquer dúvida, estamos à disposição! 🙏`;
+
+        toast('Enviar link via WhatsApp?', {
+          description: `Para ${transaction.companies?.name} (${transaction.companies?.phone})`,
+          action: {
+            label: 'Enviar',
+            onClick: () => sendTextMessage(phone, msg).then(() => toast.success('Mensagem enviada!')).catch(() => toast.error('Falha ao enviar WhatsApp')),
+          },
+          duration: 8000,
+        });
+      }
     },
     onError: (err: Error) => toast.error(`Erro ao gerar cobrança: ${err.message}`),
+    onSettled: () => setGeneratingChargeId(null),
   });
+
+  const sendPaymentWhatsApp = async (t: TransactionWithCompany) => {
+    const raw = t.companies?.phone?.replace(/\D/g, '') ?? '';
+    if (!raw) return;
+    // Garante código do país 55 (Brasil)
+    const phone = raw.startsWith('55') ? raw : `55${raw}`;
+    setSendingWhatsAppId(t.id);
+    try {
+      const amount = Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      const dueDate = new Date(t.due_date + 'T00:00:00').toLocaleDateString('pt-BR');
+      const desc = t.category || (t.subscription_cycle ? 'Assinatura' : 'Cobrança');
+      const linkLine = t.asaas_payment_url ? `\n\nClique para pagar:\n${t.asaas_payment_url}` : '';
+      const msg = `Olá *${t.companies?.name}*! 👋\n\nSegue o lembrete de cobrança:\n\n📋 *${desc}*\n💰 *R$ ${amount}*\n📅 *Vencimento: ${dueDate}*${linkLine}\n\nQualquer dúvida, estamos à disposição! 🙏`;
+      await sendTextMessage(phone, msg);
+      toast.success('Mensagem enviada via WhatsApp!');
+    } catch (err) {
+      toast.error(`Falha ao enviar via WhatsApp: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+    } finally {
+      setSendingWhatsAppId(null);
+    }
+  };
 
   const exportCSV = () => {
     const esc = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -581,11 +666,21 @@ export const Finance = () => {
             {showImportDropdown && (
               <div className="absolute right-0 mt-2 w-72 bg-popover border border-border rounded-lg shadow-lg z-10">
                 <div className="p-2 border-b border-border">
-                  <p className="text-xs font-medium text-muted-foreground px-2 py-1">Selecione a empresa com Asaas vinculado</p>
+                  <button
+                    onClick={() => { setImportingAll(true); importAsaasSubscriptions.mutate('__all__'); }}
+                    disabled={importAsaasSubscriptions.isPending}
+                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    <span>Importar Todas as Empresas</span>
+                    {importAsaasSubscriptions.isPending && importingAll
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Download className="w-4 h-4" />}
+                  </button>
+                  <p className="text-xs text-muted-foreground px-2 pt-1 pb-0">ou selecione uma empresa:</p>
                 </div>
                 <div className="max-h-48 overflow-y-auto">
                   {companies.length === 0 ? (
-                    <div className="p-4 text-sm text-muted-foreground">Nenhuma empresa com Asaas vinculada. Cadastre o ID Asaas no perfil da empresa.</div>
+                    <div className="p-4 text-sm text-muted-foreground">Nenhuma empresa cadastrada.</div>
                   ) : (
                     companies.map(company => (
                       <button
@@ -629,6 +724,11 @@ export const Finance = () => {
       </div>
 
       {/* Cards de Resumo */}
+      {filterMonth !== 'all' && (
+        <p className="text-xs text-muted-foreground -mb-2">
+          Exibindo dados de <span className="font-medium text-foreground">{formatMonthLabel(filterMonth)}</span>
+        </p>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
@@ -798,11 +898,23 @@ export const Finance = () => {
                           ) : !t.asaas_payment_id && !t.asaas_subscription_id ? (
                             <Button variant="ghost" size="sm" className="h-8 gap-1 text-blue-600 hover:bg-blue-50 text-xs"
                               onClick={() => generateAsaasCharge.mutate(t)}
-                              disabled={generateAsaasCharge.isPending}>
-                              {generateAsaasCharge.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <LinkIcon className="w-3 h-3" />}
+                              disabled={generatingChargeId === t.id}>
+                              {generatingChargeId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <LinkIcon className="w-3 h-3" />}
                               {t.subscription_cycle ? 'Criar Assinatura' : 'Gerar Cobrança'}
                             </Button>
                           ) : null
+                        )}
+
+                        {/* Enviar via WhatsApp — disponível para qualquer entrada pendente com telefone */}
+                        {t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && t.companies?.phone && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:bg-green-50"
+                            title="Enviar cobrança via WhatsApp"
+                            onClick={() => sendPaymentWhatsApp(t)}
+                            disabled={sendingWhatsAppId === t.id}>
+                            {sendingWhatsAppId === t.id
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <MessageSquare className="w-3.5 h-3.5" />}
+                          </Button>
                         )}
 
                         {/* Editar */}

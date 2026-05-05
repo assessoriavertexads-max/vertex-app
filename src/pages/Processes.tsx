@@ -187,19 +187,29 @@ export default function Processes() {
     },
   });
 
-  // Busca todas as tarefas sem join para evitar problemas de RLS
   const { data: tasks = [], isLoading, isError, error: tasksError } = useQuery<TaskItem[]>({
     queryKey: ['all-tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, name, description, status, priority, due_date, company_id')
+        .select('*')
         .order('created_at', { ascending: false });
       if (error) {
-        console.error('[Processes] Erro ao buscar tarefas:', error);
+        console.error('[Processes] Erro ao buscar tarefas:', JSON.stringify(error));
         throw error;
       }
-      return (data || []) as unknown as TaskItem[];
+      return ((data || []) as unknown[]).map((row: unknown) => {
+        const r = row as Record<string, unknown>;
+        return {
+          id: String(r.id ?? ''),
+          name: String(r.name ?? ''),
+          description: r.description ? String(r.description) : null,
+          status: String(r.status ?? 'a_receber'),
+          priority: String(r.priority ?? 'normal'),
+          due_date: r.due_date ? String(r.due_date) : null,
+          company_id: r.company_id ? String(r.company_id) : null,
+        } satisfies TaskItem;
+      });
     },
     retry: 1,
   });
@@ -291,12 +301,13 @@ export default function Processes() {
   }
 
   if (isError) {
+    const pgErr = tasksError as { message?: string; code?: string; details?: string } | null;
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-red-500 text-sm">Erro ao carregar tarefas.</p>
-        {tasksError instanceof Error && (
-          <p className="text-xs text-muted-foreground max-w-sm text-center">{tasksError.message}</p>
-        )}
+        <p className="text-red-500 text-sm font-medium">Erro ao carregar tarefas.</p>
+        {pgErr?.message && <p className="text-xs text-muted-foreground max-w-sm text-center">{pgErr.message}</p>}
+        {pgErr?.details && <p className="text-xs text-muted-foreground max-w-sm text-center">{pgErr.details}</p>}
+        {pgErr?.code && <p className="text-xs font-mono text-muted-foreground">Código: {pgErr.code}</p>}
         <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['all-tasks'] })}>
           Tentar novamente
         </Button>

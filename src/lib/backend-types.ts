@@ -97,5 +97,5 @@ export interface TransactionWithCompany {
   asaas_subscription_id?: string | null;
   asaas_payment_id?: string | null;
   billing_type?: string | null;
-  companies?: { name: string } | null;
+  companies?: { name: string; phone?: string | null } | null;
 }

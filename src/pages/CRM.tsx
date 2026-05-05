@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { DndContext, DragEndEvent, closestCorners, useDraggable, useDroppable } from '@dnd-kit/core';
-import { Plus, Building2, DollarSign, Clock, MoreHorizontal, Loader2 } from 'lucide-react';
+import { Plus, Building2, DollarSign, Clock, Pencil, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { NewLeadModal } from '@/components/crm/NewLeadModal';
+import { EditLeadModal } from '@/components/crm/EditLeadModal';
 import { LeadInsert, LeadWithCompany } from '@/lib/backend-types';
 
 const COLUMNS = [
@@ -15,7 +16,7 @@ const COLUMNS = [
   { id: 'closed', title: 'Fechado (Ganho)', color: 'border-emerald-200 bg-emerald-50/50' },
 ];
 
-const LeadCard = ({ lead }: { lead: LeadWithCompany }) => {
+const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (lead: LeadWithCompany) => void }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.id,
     data: lead,
@@ -35,9 +36,13 @@ const LeadCard = ({ lead }: { lead: LeadWithCompany }) => {
       }`}
     >
       <div className="flex justify-between items-start mb-2">
-        <h4 className="font-semibold text-slate-800 text-sm">{lead.title}</h4>
-        <button className="text-slate-400 hover:text-slate-600">
-          <MoreHorizontal className="w-4 h-4" />
+        <h4 className="font-semibold text-slate-800 text-sm leading-tight pr-2">{lead.title}</h4>
+        <button
+          className="text-slate-400 hover:text-blue-600 shrink-0 p-0.5 rounded transition-colors"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onEdit(lead); }}
+        >
+          <Pencil className="w-3.5 h-3.5" />
         </button>
       </div>
       <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
@@ -57,7 +62,7 @@ const LeadCard = ({ lead }: { lead: LeadWithCompany }) => {
   );
 };
 
-const KanbanColumn = ({ column, leads }: { column: typeof COLUMNS[0]; leads: LeadWithCompany[] }) => {
+const KanbanColumn = ({ column, leads, onEdit }: { column: typeof COLUMNS[0]; leads: LeadWithCompany[]; onEdit: (lead: LeadWithCompany) => void }) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
@@ -69,9 +74,6 @@ const KanbanColumn = ({ column, leads }: { column: typeof COLUMNS[0]; leads: Lea
             {leads.length}
           </span>
         </h3>
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-800">
-          <Plus className="w-4 h-4" />
-        </Button>
       </div>
 
       <div
@@ -81,7 +83,7 @@ const KanbanColumn = ({ column, leads }: { column: typeof COLUMNS[0]; leads: Lea
         }`}
       >
         {leads.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} />
+          <LeadCard key={lead.id} lead={lead} onEdit={onEdit} />
         ))}
         {leads.length === 0 && !isOver && (
           <div className="text-center p-4 text-sm text-slate-400 font-medium">
@@ -95,6 +97,7 @@ const KanbanColumn = ({ column, leads }: { column: typeof COLUMNS[0]; leads: Lea
 
 export const CRM = () => {
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
+  const [editingLead, setEditingLead] = useState<LeadWithCompany | null>(null);
   const queryClient = useQueryClient();
 
   const { data: leads = [], isLoading, isError } = useQuery<LeadWithCompany[]>({
@@ -110,16 +113,105 @@ export const CRM = () => {
   });
 
   const createLead = useMutation({
-    mutationFn: async (newLead: LeadInsert) => {
-      const { error } = await supabase.from('leads').insert(newLead);
+    mutationFn: async ({ lead, newCompany }: { lead: LeadInsert; newCompany?: { name: string; phone?: string; document?: string } }) => {
+      let companyId = lead.company_id ?? null;
+
+      if (newCompany?.name) {
+        const { data: existing } = await supabase
+          .from('companies')
+          .select('id')
+          .ilike('name', newCompany.name.trim())
+          .maybeSingle();
+
+        if (existing) {
+          companyId = existing.id;
+        } else {
+          const { data: created, error: createErr } = await supabase
+            .from('companies')
+            .insert({ name: newCompany.name, phone: newCompany.phone || null, document: newCompany.document || null, status: 'ativo' })
+            .select('id')
+            .single();
+          if (createErr) throw createErr;
+          companyId = created.id;
+          toast.success(`Empresa "${newCompany.name}" criada com sucesso!`);
+        }
+      }
+
+      const { error } = await supabase.from('leads').insert({ ...lead, company_id: companyId });
       if (error) throw error;
+      return { title: lead.title, companyId };
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['companies-dropdown'] });
       toast.success('Lead criado com sucesso!');
+
+      // Executa automações do tipo new_lead_created
+      try {
+        const { data: rules } = await supabase
+          .from('automation_rules')
+          .select('*')
+          .eq('trigger_event', 'new_lead_created')
+          .eq('trigger_value', 'any')
+          .eq('enabled', true);
+
+        if (!rules?.length) return;
+
+        const { data: existingList } = await supabase.from('lists').select('id').limit(1).maybeSingle();
+        let listId = existingList?.id ?? null;
+        if (!listId) {
+          const { data: space } = await supabase.from('spaces').insert({ name: 'Operacional' }).select('id').single();
+          if (space) {
+            const { data: list } = await supabase.from('lists').insert({ name: 'Geral', space_id: space.id }).select('id').single();
+            listId = list?.id ?? null;
+          }
+        }
+
+        let companyPhone: string | null = null;
+        let companyName: string | null = null;
+        if (result.companyId) {
+          const { data: co } = await supabase.from('companies').select('name, phone').eq('id', result.companyId).single();
+          companyPhone = co?.phone ?? null;
+          companyName = co?.name ?? null;
+        }
+
+        for (const rule of rules) {
+          const ad = rule.action_data as { task_name?: string; task_priority?: string; task_description?: string; due_in_days?: number; message_template?: string };
+
+          if (rule.action_type === 'create_task' && listId && ad.task_name) {
+            const taskName = (ad.task_name).replace('{lead_name}', result.title || '');
+            const dueDate = ad.due_in_days
+              ? new Date(Date.now() + ad.due_in_days * 86400000).toISOString().slice(0, 10)
+              : null;
+            await supabase.from('tasks').insert({
+              name: taskName,
+              description: ad.task_description || `Criado automaticamente por "${rule.name}"`,
+              priority: ad.task_priority || 'normal',
+              due_date: dueDate,
+              company_id: result.companyId || null,
+              list_id: listId,
+              status: 'a_receber',
+            });
+          }
+
+          if (rule.action_type === 'send_whatsapp' && companyPhone && ad.message_template) {
+            const message = ad.message_template
+              .replace('{lead_name}', result.title || '')
+              .replace('{company_name}', companyName || '');
+            const raw = companyPhone.replace(/\D/g, '');
+            const phone = raw.startsWith('55') ? raw : `55${raw}`;
+            await supabase.functions.invoke('evolution-proxy', { body: { action: 'sendMessage', phone, message } });
+          }
+        }
+
+        if (rules.length === 1) toast.success(`Automação executada: "${rules[0].name}"`);
+        else if (rules.length > 1) toast.success(`${rules.length} automações executadas`);
+      } catch {
+        // Automação falhou silenciosamente
+      }
     },
-    onError: () => {
-      toast.error('Erro ao criar lead.');
+    onError: (err: Error) => {
+      toast.error(`Erro ao criar lead: ${err.message}`);
     },
   });
 
@@ -220,7 +312,6 @@ export const CRM = () => {
       toast.error('Erro ao mover o card.');
     },
     onSuccess: async (_, { id, funnel_stage }) => {
-      // Executa automações configuradas para o novo estágio
       try {
         const { data: rules } = await supabase
           .from('automation_rules')
@@ -229,47 +320,61 @@ export const CRM = () => {
           .eq('trigger_value', funnel_stage)
           .eq('enabled', true);
 
-        if (rules && rules.length > 0) {
-          const leads = queryClient.getQueryData<LeadWithCompany[]>(['leads']) || [];
-          const lead = leads.find(l => l.id === id);
+        if (!rules?.length) return;
 
-          // Garante que há uma lista padrão para as tarefas
-          const { data: existingList } = await supabase.from('lists').select('id').limit(1).maybeSingle();
-          let listId = existingList?.id ?? null;
+        const cachedLeads = queryClient.getQueryData<LeadWithCompany[]>(['leads']) || [];
+        const lead = cachedLeads.find(l => l.id === id);
 
-          if (!listId) {
-            const { data: space } = await supabase.from('spaces').insert({ name: 'Operacional' }).select('id').single();
-            if (space) {
-              const { data: list } = await supabase.from('lists').insert({ name: 'Geral', space_id: space.id }).select('id').single();
-              listId = list?.id ?? null;
-            }
-          }
-
-          if (listId) {
-            for (const rule of rules) {
-              const ad = rule.action_data as { task_name: string; task_priority: string; task_description?: string; due_in_days?: number };
-              const taskName = (ad.task_name ?? rule.name).replace('{lead_name}', lead?.title || '');
-              const dueDate = ad.due_in_days
-                ? new Date(Date.now() + ad.due_in_days * 86400000).toISOString().slice(0, 10)
-                : null;
-              await supabase.from('tasks').insert({
-                name: taskName,
-                description: ad.task_description || `Criado automaticamente por "${rule.name}"`,
-                priority: ad.task_priority || 'normal',
-                due_date: dueDate,
-                company_id: lead?.company_id || null,
-                list_id: listId,
-                status: 'a_receber',
-              });
-            }
-            queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
-            if (rules.length === 1) {
-              toast.success(`Automação executada: "${rules[0].name}"`);
-            } else {
-              toast.success(`${rules.length} automações executadas`);
-            }
+        const { data: existingList } = await supabase.from('lists').select('id').limit(1).maybeSingle();
+        let listId = existingList?.id ?? null;
+        if (!listId) {
+          const { data: space } = await supabase.from('spaces').insert({ name: 'Operacional' }).select('id').single();
+          if (space) {
+            const { data: list } = await supabase.from('lists').insert({ name: 'Geral', space_id: space.id }).select('id').single();
+            listId = list?.id ?? null;
           }
         }
+
+        let companyPhone: string | null = null;
+        let companyName: string | null = null;
+        if (lead?.company_id) {
+          const { data: co } = await supabase.from('companies').select('name, phone').eq('id', lead.company_id).single();
+          companyPhone = co?.phone ?? null;
+          companyName = co?.name ?? null;
+        }
+
+        for (const rule of rules) {
+          const ad = rule.action_data as { task_name?: string; task_priority?: string; task_description?: string; due_in_days?: number; message_template?: string };
+
+          if (rule.action_type === 'create_task' && listId && ad.task_name) {
+            const taskName = (ad.task_name ?? rule.name).replace('{lead_name}', lead?.title || '');
+            const dueDate = ad.due_in_days
+              ? new Date(Date.now() + ad.due_in_days * 86400000).toISOString().slice(0, 10)
+              : null;
+            await supabase.from('tasks').insert({
+              name: taskName,
+              description: ad.task_description || `Criado automaticamente por "${rule.name}"`,
+              priority: ad.task_priority || 'normal',
+              due_date: dueDate,
+              company_id: lead?.company_id || null,
+              list_id: listId,
+              status: 'a_receber',
+            });
+          }
+
+          if (rule.action_type === 'send_whatsapp' && companyPhone && ad.message_template) {
+            const message = ad.message_template
+              .replace('{lead_name}', lead?.title || '')
+              .replace('{company_name}', companyName || '');
+            const raw = companyPhone.replace(/\D/g, '');
+            const phone = raw.startsWith('55') ? raw : `55${raw}`;
+            await supabase.functions.invoke('evolution-proxy', { body: { action: 'sendMessage', phone, message } });
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
+        if (rules.length === 1) toast.success(`Automação executada: "${rules[0].name}"`);
+        else toast.success(`${rules.length} automações executadas`);
       } catch {
         // Automação falhou silenciosamente — não deve bloquear o drag
       }
@@ -277,6 +382,30 @@ export const CRM = () => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
+  });
+
+  const updateLead = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<LeadWithCompany> }) => {
+      const { error } = await supabase.from('leads').update(data).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead atualizado!');
+    },
+    onError: (err: Error) => toast.error(`Erro ao atualizar: ${err.message}`),
+  });
+
+  const deleteLead = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('leads').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead excluído.');
+    },
+    onError: (err: Error) => toast.error(`Erro ao excluir: ${err.message}`),
   });
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -333,7 +462,13 @@ export const CRM = () => {
         </div>
       </div>
 
-      <NewLeadModal isOpen={isNewLeadOpen} onClose={() => setIsNewLeadOpen(false)} onSave={(d) => createLead.mutate(d)} />
+      <NewLeadModal isOpen={isNewLeadOpen} onClose={() => setIsNewLeadOpen(false)} onSave={(lead, newCompany) => createLead.mutate({ lead, newCompany })} />
+      <EditLeadModal
+        lead={editingLead}
+        onClose={() => setEditingLead(null)}
+        onSave={(id, data) => updateLead.mutate({ id, data })}
+        onDelete={(id) => deleteLead.mutate(id)}
+      />
 
       <div className="flex-1 overflow-x-auto pb-4">
         <DndContext collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
@@ -343,6 +478,7 @@ export const CRM = () => {
                 key={column.id}
                 column={column}
                 leads={leads.filter((lead: LeadWithCompany) => lead.funnel_stage === column.id)}
+                onEdit={setEditingLead}
               />
             ))}
           </div>

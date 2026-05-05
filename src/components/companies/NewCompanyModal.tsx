@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { CompanyStatus, COMPANY_STATUS_LABELS } from '@/lib/company-constants';
 import { isValidCNPJorCPF, formatCNPJorCPF } from '@/utils/validation';
+import { runAutomations } from '@/lib/automation';
 
 interface NewCompanyModalProps {
   isOpen: boolean;
@@ -41,11 +42,11 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
 
     setSaving(true);
 
-    const { error } = await supabase.from('companies').insert({
+    const { data: inserted, error } = await supabase.from('companies').insert({
       name: formData.name.trim(),
       document: formData.document ? formatCNPJorCPF(formData.document) : null,
       status: formData.status,
-    });
+    }).select('id, name').single();
 
     setSaving(false);
 
@@ -58,6 +59,14 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
     setFormData({ name: '', document: '', status: 'ativo' });
     onSave();
     onClose();
+
+    if (inserted) {
+      runAutomations('new_company_created', 'any', {
+        entityTitle: inserted.name,
+        companyId: inserted.id,
+        companyName: inserted.name,
+      }).catch(() => {});
+    }
   };
 
   return (

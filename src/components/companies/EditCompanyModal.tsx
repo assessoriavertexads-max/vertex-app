@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { CompanyStatus, COMPANY_STATUS_LABELS } from '@/lib/company-constants';
 import { isValidCNPJorCPF, formatCNPJorCPF } from '@/utils/validation';
+import { runAutomations } from '@/lib/automation';
 
 interface Company {
   id: string;
@@ -61,6 +62,8 @@ export const EditCompanyModal = ({ isOpen, onClose, onSave, company }: EditCompa
 
     setSaving(true);
 
+    const statusChanged = formData.status !== company.status;
+
     const { error } = await supabase
       .from('companies')
       .update({
@@ -81,6 +84,14 @@ export const EditCompanyModal = ({ isOpen, onClose, onSave, company }: EditCompa
     toast.success('Empresa atualizada com sucesso!');
     onSave();
     onClose();
+
+    if (statusChanged) {
+      runAutomations('company_status_change', formData.status, {
+        entityTitle: formData.name.trim(),
+        companyId: company.id,
+        companyName: formData.name.trim(),
+      }).catch(() => {});
+    }
   };
 
   return (

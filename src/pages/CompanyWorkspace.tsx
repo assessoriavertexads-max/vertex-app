@@ -4,7 +4,8 @@ import {
   ArrowLeft, Briefcase, ClipboardList, FileText,
   Search, SlidersHorizontal, Sparkles, BarChart2, Download,
   RefreshCw, TrendingUp, MousePointerClick, Eye, DollarSign,
-  Users, Loader2, AlertCircle, Image as ImageIcon, Play,
+  Users, Loader2, AlertCircle, Image as ImageIcon, Play, ShoppingBag,
+  CheckCircle2, Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -143,7 +144,7 @@ export default function CompanyWorkspace() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'google-ads' | 'metrics' | 'improvements' | 'erp'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'google-ads' | 'metrics' | 'improvements' | 'history' | 'erp'>('overview');
   const [searchCampaigns, setSearchCampaigns] = useState('');
   const [metaDatePreset, setMetaDatePreset] = useState('last_30d');
   const [metaView, setMetaView] = useState<'campaigns' | 'ads'>('campaigns');
@@ -218,14 +219,19 @@ export default function CompanyWorkspace() {
     data: metaData,
     isLoading: loadingMeta,
     isError: metaError,
+    error: metaQueryError,
     refetch: refetchMeta,
   } = useQuery<MetaData>({
-    queryKey: ['meta-ads', companyId, metaDatePreset],
+    queryKey: ['meta-ads', companyId, metaDatePreset, metaAccountId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('meta-ads-proxy', {
         body: { ad_account_id: metaAccountId, date_preset: metaDatePreset },
       });
-      if (error) throw error;
+      if (error) {
+        const ctx = (error as { context?: { error?: string } })?.context;
+        const msg = ctx?.error ?? (error as { message?: string })?.message ?? 'Erro ao conectar com a função';
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
       return data as MetaData;
     },
@@ -240,14 +246,19 @@ export default function CompanyWorkspace() {
     data: googleData,
     isLoading: loadingGoogle,
     isError: googleError,
+    error: googleQueryError,
     refetch: refetchGoogle,
   } = useQuery<GoogleAdsData>({
-    queryKey: ['google-ads', companyId, googleDateRange],
+    queryKey: ['google-ads', companyId, googleDateRange, googleAccountId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('google-ads-proxy', {
         body: { customer_id: googleAccountId, date_range: googleDateRange },
       });
-      if (error) throw error;
+      if (error) {
+        const ctx = (error as { context?: { error?: string } })?.context;
+        const msg = ctx?.error ?? (error as { message?: string })?.message ?? 'Erro ao conectar com a função';
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
       return data as GoogleAdsData;
     },
@@ -584,6 +595,7 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as typeof activeTab)}>
         <TabsList>
           <TabsTrigger value="overview">Resumo</TabsTrigger>
+          <TabsTrigger value="history">Vendas</TabsTrigger>
           <TabsTrigger value="campaigns">Meta Ads</TabsTrigger>
           <TabsTrigger value="google-ads">Google Ads</TabsTrigger>
           <TabsTrigger value="metrics">Métricas</TabsTrigger>
@@ -684,6 +696,116 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
           </div>
         </TabsContent>
 
+        {/* ====== HISTÓRICO DE VENDAS ====== */}
+        <TabsContent value="history">
+          {(() => {
+            const closedDeals = campaigns.filter(c => c.funnel_stage === 'closed');
+            const totalSold = closedDeals.reduce((sum, c) => sum + (Number(c.estimated_value) || 0), 0);
+            const paidIncome = transactions.filter(t => t.type === 'income' && t.status === 'paid');
+            const totalReceived = paidIncome.reduce((sum, t) => sum + Number(t.amount), 0);
+            const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+            return (
+              <div className="space-y-5">
+                {/* KPIs */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                    <p className="text-xs text-emerald-600 font-medium">Contratos Fechados</p>
+                    <p className="text-2xl font-bold text-emerald-700 mt-1">{closedDeals.length}</p>
+                    <p className="text-xs text-emerald-600 mt-1">R$ {fmt(totalSold)} em pipeline</p>
+                  </div>
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+                    <p className="text-xs text-blue-600 font-medium">Receita Recebida</p>
+                    <p className="text-2xl font-bold text-blue-700 mt-1">R$ {fmt(totalReceived)}</p>
+                    <p className="text-xs text-blue-600 mt-1">{paidIncome.length} cobranças pagas</p>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-card p-5 col-span-2 md:col-span-1">
+                    <p className="text-xs text-muted-foreground font-medium">Ticket Médio</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">
+                      R$ {closedDeals.length > 0 ? fmt(totalSold / closedDeals.length) : '0,00'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">por serviço fechado</p>
+                  </div>
+                </div>
+
+                {/* Linha do tempo de serviços vendidos */}
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <ShoppingBag className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">Serviços Vendidos / Contratos</p>
+                  </div>
+
+                  {closedDeals.length === 0 ? (
+                    <div className="text-center py-10 space-y-2">
+                      <ShoppingBag className="h-10 w-10 text-muted-foreground mx-auto" />
+                      <p className="text-sm font-medium text-foreground">Nenhum contrato fechado ainda</p>
+                      <p className="text-xs text-muted-foreground">Mova leads para "Fechado (Ganho)" no CRM para registrar aqui.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {closedDeals.map(deal => (
+                        <div key={deal.id} className="flex items-start gap-4 p-4 rounded-xl border border-emerald-100 bg-emerald-50/30">
+                          <div className="mt-0.5 shrink-0">
+                            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-foreground">{deal.title}</p>
+                            <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(deal.created_at + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                              {deal.legal_status && (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 font-medium">
+                                  {deal.legal_status}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="font-bold text-emerald-700 text-sm">
+                              R$ {fmt(Number(deal.estimated_value ?? 0))}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">estimado</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Cobranças pagas */}
+                {paidIncome.length > 0 && (
+                  <div className="rounded-2xl border border-border bg-card p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold text-foreground">Pagamentos Recebidos</p>
+                    </div>
+                    <div className="space-y-2">
+                      {paidIncome.slice(0, 10).map(t => (
+                        <div key={t.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                          <div>
+                            <p className="text-sm text-foreground">{t.category || 'Sem descrição'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(t.due_date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                          <p className="font-semibold text-emerald-600 text-sm">R$ {fmt(Number(t.amount))}</p>
+                        </div>
+                      ))}
+                      {paidIncome.length > 10 && (
+                        <p className="text-xs text-muted-foreground text-center pt-2">
+                          +{paidIncome.length - 10} pagamentos anteriores
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </TabsContent>
+
         {/* ====== CAMPANHAS META ADS ====== */}
         <TabsContent value="campaigns">
           {!metaAccountId ? (
@@ -763,7 +885,13 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-2">
                   <AlertCircle className="h-6 w-6 text-red-500 mx-auto" />
                   <p className="text-sm font-medium text-red-700">Erro ao buscar dados do Meta Ads</p>
-                  <p className="text-xs text-red-600">Verifique se o Ad Account ID está correto e se o META_ACCESS_TOKEN está configurado nos secrets do Supabase.</p>
+                  {metaQueryError instanceof Error && metaQueryError.message ? (
+                    <p className="text-xs text-red-600 font-mono bg-red-100 rounded px-2 py-1 max-w-sm mx-auto break-words">
+                      {metaQueryError.message}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-red-600">Verifique se o Ad Account ID está correto e se o META_ACCESS_TOKEN está configurado nos secrets do Supabase.</p>
+                  )}
                   <button onClick={() => refetchMeta()} className="text-xs text-red-600 underline">Tentar novamente</button>
                 </div>
               ) : (
@@ -1030,7 +1158,13 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-2">
                   <AlertCircle className="h-6 w-6 text-red-500 mx-auto" />
                   <p className="text-sm font-medium text-red-700">Erro ao buscar dados do Google Ads</p>
-                  <p className="text-xs text-red-600">Verifique o Customer ID e se as credenciais OAuth estão configuradas nos secrets do Supabase.</p>
+                  {googleQueryError instanceof Error && googleQueryError.message ? (
+                    <p className="text-xs text-red-600 font-mono bg-red-100 rounded px-2 py-1 max-w-sm mx-auto break-words">
+                      {googleQueryError.message}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-red-600">Verifique o Customer ID e se as credenciais OAuth estão configuradas nos secrets do Supabase.</p>
+                  )}
                   <button onClick={() => refetchGoogle()} className="text-xs text-red-600 underline">Tentar novamente</button>
                 </div>
               ) : (

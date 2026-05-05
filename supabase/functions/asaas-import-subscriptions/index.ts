@@ -34,7 +34,6 @@ async function fetchAllSubscriptions(customerId: string, apiKey: string) {
     );
     const data = await res.json();
     if (data.data?.length > 0) {
-      // Filtra apenas assinaturas que pertencem ao customer correto
       const filtered = data.data.filter((s: { customer: string }) => s.customer === customerId);
       subscriptions.push(...filtered);
       offset += data.data.length;
@@ -85,6 +84,110 @@ function mapPaymentStatus(status: string): string {
   return 'pending';
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function importCompany(company: { id: string; name: string; document: string; asaas_customer_id: string | null }, apiKey: string, supabase: any) {
+  const cnpj = cleanDocument(company.document);
+  const customerId = await findCustomerByCnpj(cnpj, apiKey);
+  if (!customerId) return { imported: 0, updated: 0, errors: [`${company.name}: nenhum cliente Asaas com CNPJ ${company.document}`] };
+
+  if (company.asaas_customer_id !== customerId) {
+    await supabase.from('companies').update({ asaas_customer_id: customerId }).eq('id', company.id);
+  }
+
+  const subscriptions = await fetchAllSubscriptions(customerId, apiKey);
+  let imported = 0, updated = 0;
+  const errors: string[] = [];
+
+  for (const subscription of subscriptions) {
+    try {
+      const { data: existingSub } = await supabase
+        .from('financial_transactions')
+        .select('id')
+        .eq('asaas_subscription_id', subscription.id)
+        .is('asaas_payment_id', null)
+        .maybeSingle();
+
+      if (existingSub) {
+        await supabase
+          .from('financial_transactions')
+          .update({
+            due_date: subscription.nextDueDate,
+            amount: subscription.value,
+            status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
+          })
+          .eq('id', existingSub.id);
+        updated++;
+      } else {
+        await supabase.from('financial_transactions').insert({
+          company_id: company.id,
+          amount: subscription.value,
+          type: 'income',
+          category: subscription.description || 'Assinatura Importada',
+          due_date: subscription.nextDueDate,
+          subscription_cycle: mapCycle(subscription.cycle),
+          asaas_subscription_id: subscription.id,
+          asaas_payment_url: null,
+          status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
+        });
+        imported++;
+      }
+
+      const payments = await fetchPaymentsForSubscription(subscription.id, apiKey);
+      for (const payment of payments) {
+        // Pagamento pendente do mês atual: atualiza URL no registro principal e pula (evita duplicata)
+        if (payment.status === 'PENDING' && payment.dueDate === subscription.nextDueDate) {
+          if (existingSub && payment.invoiceUrl) {
+            await supabase.from('financial_transactions')
+              .update({ asaas_payment_url: payment.invoiceUrl })
+              .eq('id', existingSub.id);
+          }
+          continue;
+        }
+
+        const { data: existingPayment } = await supabase
+          .from('financial_transactions')
+          .select('id, status, asaas_payment_url')
+          .eq('asaas_payment_id', payment.id)
+          .maybeSingle();
+
+        if (existingPayment) {
+          const newStatus = mapPaymentStatus(payment.status);
+          if (existingPayment.status !== newStatus || (!existingPayment.asaas_payment_url && payment.invoiceUrl)) {
+            await supabase.from('financial_transactions').update({
+              status: newStatus,
+              asaas_payment_url: payment.invoiceUrl || null,
+            }).eq('asaas_payment_id', payment.id);
+          }
+          continue;
+        }
+
+        const { error: insertError } = await supabase.from('financial_transactions').insert({
+          company_id: company.id,
+          amount: payment.value,
+          type: 'income',
+          category: subscription.description || 'Assinatura Importada',
+          due_date: payment.dueDate,
+          subscription_cycle: mapCycle(subscription.cycle),
+          asaas_subscription_id: subscription.id,
+          asaas_payment_id: payment.id,
+          asaas_payment_url: payment.invoiceUrl || null,
+          status: mapPaymentStatus(payment.status),
+        });
+
+        if (insertError) {
+          errors.push(`Pagamento ${payment.id}: ${insertError.message}`);
+        } else {
+          imported++;
+        }
+      }
+    } catch (err) {
+      errors.push(`Assinatura ${subscription.id}: ${err instanceof Error ? err.message : 'Erro'}`);
+    }
+  }
+
+  return { imported, updated, errors };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -94,14 +197,43 @@ serve(async (req) => {
     const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY');
     if (!ASAAS_API_KEY) throw new Error('ASAAS_API_KEY não configurada');
 
-    const { company_id } = await req.json();
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Busca empresa com document (CNPJ/CPF)
+    let body: { company_id?: string; all?: boolean } = {};
+    try { body = await req.json(); } catch { /* cron pode chamar sem body */ }
+
+    const { company_id, all: importAll } = body;
+
+    // ── Modo: importar TODAS as empresas (botão "Importar Todas" ou cron) ────
+    if (importAll || !company_id) {
+      const { data: allCompanies, error: allErr } = await supabase
+        .from('companies')
+        .select('id, name, document, asaas_customer_id')
+        .not('document', 'is', null);
+
+      if (allErr) throw new Error('Erro ao listar empresas');
+
+      let totalImported = 0, totalUpdated = 0;
+      const allErrors: string[] = [];
+
+      for (const company of (allCompanies || [])) {
+        if (!company.document) continue;
+        const result = await importCompany(company, ASAAS_API_KEY, supabase);
+        totalImported += result.imported;
+        totalUpdated += result.updated;
+        allErrors.push(...result.errors);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, imported: totalImported, updated: totalUpdated, errors: allErrors.length ? allErrors : undefined }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── Modo: importar empresa específica ─────────────────────────────────────
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .select('id, name, document, asaas_customer_id')
@@ -111,124 +243,10 @@ serve(async (req) => {
     if (companyError || !company) throw new Error('Empresa não encontrada');
     if (!company.document) throw new Error('Empresa não possui CNPJ/CPF cadastrado');
 
-    const cnpj = cleanDocument(company.document);
-
-    // Busca o customer ID no Asaas pelo CNPJ (fonte da verdade)
-    const customerId = await findCustomerByCnpj(cnpj, ASAAS_API_KEY);
-    if (!customerId) throw new Error(`Nenhum cliente encontrado no Asaas com CNPJ ${company.document}`);
-
-    // Atualiza asaas_customer_id se mudou
-    if (company.asaas_customer_id !== customerId) {
-      await supabase.from('companies').update({ asaas_customer_id: customerId }).eq('id', company_id);
-    }
-
-    const subscriptions = await fetchAllSubscriptions(customerId, ASAAS_API_KEY);
-
-    if (subscriptions.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, imported: 0, updated: 0, total_found: 0, customer_id: customerId }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    let imported = 0;
-    let updated = 0;
-    const errors: string[] = [];
-
-    for (const subscription of subscriptions) {
-      try {
-        // Upsert registro de próxima cobrança
-        const { data: existingSub } = await supabase
-          .from('financial_transactions')
-          .select('id')
-          .eq('asaas_subscription_id', subscription.id)
-          .is('asaas_payment_id', null)
-          .maybeSingle();
-
-        if (existingSub) {
-          await supabase
-            .from('financial_transactions')
-            .update({
-              due_date: subscription.nextDueDate,
-              amount: subscription.value,
-              status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
-            })
-            .eq('id', existingSub.id);
-          updated++;
-        } else {
-          await supabase.from('financial_transactions').insert({
-            company_id,
-            amount: subscription.value,
-            type: 'income',
-            category: subscription.description || 'Assinatura Importada',
-            due_date: subscription.nextDueDate,
-            subscription_cycle: mapCycle(subscription.cycle),
-            asaas_subscription_id: subscription.id,
-            asaas_payment_url: null,
-            status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
-          });
-          imported++;
-        }
-
-        // Importa todos os pagamentos da assinatura (incluindo pendentes)
-        const payments = await fetchPaymentsForSubscription(subscription.id, ASAAS_API_KEY);
-        for (const payment of payments) {
-          // Pula apenas se for o mesmo vencimento do registro principal da assinatura
-          // (evita duplicata do "próxima cobrança")
-          if (payment.status === 'PENDING' && payment.dueDate === subscription.nextDueDate) continue;
-
-          const { data: existingPayment } = await supabase
-            .from('financial_transactions')
-            .select('id, status, asaas_payment_url')
-            .eq('asaas_payment_id', payment.id)
-            .maybeSingle();
-
-          if (existingPayment) {
-            // Atualiza status e link se mudou
-            const newStatus = mapPaymentStatus(payment.status);
-            if (existingPayment.status !== newStatus || (!existingPayment.asaas_payment_url && payment.invoiceUrl)) {
-              await supabase.from('financial_transactions').update({
-                status: newStatus,
-                asaas_payment_url: payment.invoiceUrl || null,
-              }).eq('asaas_payment_id', payment.id);
-            }
-            continue;
-          }
-
-          const { error: insertError } = await supabase.from('financial_transactions').insert({
-            company_id,
-            amount: payment.value,
-            type: 'income',
-            category: subscription.description || 'Assinatura Importada',
-            due_date: payment.dueDate,
-            subscription_cycle: mapCycle(subscription.cycle),
-            asaas_subscription_id: subscription.id,
-            asaas_payment_id: payment.id,
-            asaas_payment_url: payment.invoiceUrl || null,
-            status: mapPaymentStatus(payment.status),
-          });
-
-          if (insertError) {
-            errors.push(`Pagamento ${payment.id}: ${insertError.message}`);
-          } else {
-            imported++;
-          }
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro desconhecido';
-        errors.push(`Assinatura ${subscription.id}: ${message}`);
-      }
-    }
+    const result = await importCompany(company, ASAAS_API_KEY, supabase);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        imported,
-        updated,
-        total_found: subscriptions.length,
-        customer_id: customerId,
-        errors: errors.length > 0 ? errors : undefined,
-      }),
+      JSON.stringify({ success: true, ...result }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

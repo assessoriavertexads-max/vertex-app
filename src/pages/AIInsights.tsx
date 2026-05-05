@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, ArrowRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
@@ -17,7 +18,21 @@ interface Insight {
 const impactColors = { alto: "destructive" as const, medio: "default" as const, baixo: "secondary" as const };
 const impactLabels = { alto: "Alta prioridade", medio: "Média prioridade", baixo: "Baixa prioridade" };
 
+const insightRoutes: Record<string, string> = {
+  "overdue-payments": "/finance",
+  "stale-leads": "/crm",
+  "high-value-negotiation": "/crm",
+  "overdue-tasks": "/tasks",
+  "upcoming-income": "/finance",
+  "leads-no-company": "/crm",
+  "stale-negotiation": "/crm",
+  "concentration-risk": "/crm",
+  "low-conversion": "/crm",
+  "mom-revenue-drop": "/finance",
+};
+
 export default function AIInsights() {
+  const navigate = useNavigate();
   const { data: transactions = [], isLoading: loadingTx } = useQuery({
     queryKey: ["insights-transactions"],
     queryFn: async () => {
@@ -54,7 +69,18 @@ export default function AIInsights() {
     },
   });
 
-  const isLoading = loadingTx || loadingLeads || loadingTasks;
+  const { data: companies = [], isLoading: loadingCompanies } = useQuery({
+    queryKey: ["insights-companies"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, name, status");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const isLoading = loadingTx || loadingLeads || loadingTasks || loadingCompanies;
 
   const insights = useMemo<Insight[]>(() => {
     const result: Insight[] = [];
@@ -167,6 +193,90 @@ export default function AIInsights() {
       });
     }
 
+    // ── Insights de Agência ───────────────────────────────────────────────
+
+    // Leads parados em negociação por mais de 30 dias
+    const staleNegotiations = leads.filter((l: { funnel_stage: string; created_at: string }) => {
+      if (l.funnel_stage !== "negotiation") return false;
+      const diffDays = Math.floor((today.getTime() - new Date(l.created_at).getTime()) / (1000 * 60 * 60 * 24));
+      return diffDays > 30;
+    });
+    if (staleNegotiations.length > 0) {
+      const total = staleNegotiations.reduce((acc: number, l: { estimated_value: number | null }) => acc + Number(l.estimated_value ?? 0), 0);
+      result.push({
+        id: "stale-negotiation",
+        type: "alerta",
+        title: `${staleNegotiations.length} negociação${staleNegotiations.length > 1 ? "ões" : ""} parada${staleNegotiations.length > 1 ? "s" : ""} há 30+ dias`,
+        description: `R$ ${total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} em risco. Leads em Negociação sem avançar por mais de 30 dias tendem a esfriar. Faça follow-up urgente ou qualifique a saída.`,
+        impact: "alto",
+        icon: AlertTriangle,
+        color: "text-destructive",
+      });
+    }
+
+    // Concentração de receita — um cliente domina >40% do pipeline
+    type LeadWithCompany = { company_id: string | null; estimated_value: number | null; companies?: { name: string } | null };
+    const pipelineTotal = leads.reduce((acc: number, l: LeadWithCompany) => acc + Number(l.estimated_value ?? 0), 0);
+    if (pipelineTotal > 0) {
+      const byCompany: Record<string, { name: string; value: number }> = {};
+      (leads as LeadWithCompany[]).forEach(l => {
+        if (!l.company_id) return;
+        const name = (l.companies as { name: string } | null)?.name ?? l.company_id;
+        if (!byCompany[l.company_id]) byCompany[l.company_id] = { name, value: 0 };
+        byCompany[l.company_id].value += Number(l.estimated_value ?? 0);
+      });
+      const topEntry = Object.values(byCompany).sort((a, b) => b.value - a.value)[0];
+      if (topEntry && (topEntry.value / pipelineTotal) > 0.4) {
+        const pct = Math.round((topEntry.value / pipelineTotal) * 100);
+        result.push({
+          id: "concentration-risk",
+          type: "alerta",
+          title: `Concentração: ${topEntry.name} representa ${pct}% do pipeline`,
+          description: `Alto risco de dependência de um único cliente. Se esse lead não fechar, o impacto na receita será significativo. Diversifique a prospecção.`,
+          impact: "medio",
+          icon: AlertTriangle,
+          color: "text-warning",
+        });
+      }
+    }
+
+    // Taxa de conversão baixa (<15%)
+    const totalLeads = leads.length;
+    const closedLeads = leads.filter((l: { funnel_stage: string }) => l.funnel_stage === "closed").length;
+    const conversionRate = totalLeads > 5 ? Math.round((closedLeads / totalLeads) * 100) : null;
+    if (conversionRate !== null && conversionRate < 15) {
+      result.push({
+        id: "low-conversion",
+        type: "sugestão",
+        title: `Taxa de conversão baixa: ${conversionRate}%`,
+        description: `Apenas ${closedLeads} de ${totalLeads} leads foram fechados. Benchmark saudável para agências: 20–30%. Revise o processo de qualificação e follow-up.`,
+        impact: "medio",
+        icon: Lightbulb,
+        color: "text-primary",
+      });
+    }
+
+    // Queda de receita mês a mês (>20%)
+    const nowDate = new Date();
+    const thisMonthKey = nowDate.toISOString().substring(0, 7);
+    const lastMonthKey = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).toISOString().substring(0, 7);
+    type TxRecord = { type: string; status: string; due_date?: string; created_at?: string; amount: number };
+    const paidIncome = (transactions as TxRecord[]).filter(t => t.type === "income" && t.status === "paid");
+    const thisMonthRev = paidIncome.filter(t => (t.due_date ?? t.created_at ?? "").substring(0, 7) === thisMonthKey).reduce((a, t) => a + Number(t.amount), 0);
+    const lastMonthRev = paidIncome.filter(t => (t.due_date ?? t.created_at ?? "").substring(0, 7) === lastMonthKey).reduce((a, t) => a + Number(t.amount), 0);
+    if (lastMonthRev > 0 && thisMonthRev < lastMonthRev * 0.8) {
+      const drop = Math.round(((lastMonthRev - thisMonthRev) / lastMonthRev) * 100);
+      result.push({
+        id: "mom-revenue-drop",
+        type: "alerta",
+        title: `Receita deste mês caiu ${drop}% vs mês anterior`,
+        description: `Mês passado: R$ ${lastMonthRev.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Este mês: R$ ${thisMonthRev.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}. Identifique quais clientes não pagaram ou cancelaram.`,
+        impact: "alto",
+        icon: TrendingUp,
+        color: "text-destructive",
+      });
+    }
+
     if (result.length === 0) {
       result.push({
         id: "all-good",
@@ -180,7 +290,7 @@ export default function AIInsights() {
     }
 
     return result;
-  }, [transactions, leads, tasks]);
+  }, [transactions, leads, tasks, companies]);
 
   const countByType = useMemo(() => ({
     oportunidades: insights.filter((i) => i.type === "oportunidade").length,
@@ -227,7 +337,11 @@ export default function AIInsights() {
         {insights.map((insight) => {
           const Icon = insight.icon;
           return (
-            <div key={insight.id} className="stat-card !p-5 group cursor-pointer">
+            <div
+              key={insight.id}
+              className={`stat-card !p-5 group ${insightRoutes[insight.id] ? 'cursor-pointer hover:border-primary/40 transition-colors' : ''}`}
+              onClick={() => insightRoutes[insight.id] && navigate(insightRoutes[insight.id])}
+            >
               <div className="flex items-start gap-4">
                 <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                   <Icon className={`h-5 w-5 ${insight.color}`} />

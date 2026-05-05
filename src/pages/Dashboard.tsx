@@ -1,6 +1,6 @@
 import {
   DollarSign, Target, Activity,
-  ArrowUpRight, TrendingUp, Briefcase
+  ArrowUpRight, TrendingUp
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -46,7 +46,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('financial_transactions')
-        .select('id, type, amount, status, created_at');
+        .select('id, type, amount, status, created_at, due_date');
       if (error) throw error;
       return data || [];
     },
@@ -57,27 +57,54 @@ export default function Dashboard() {
 
   // Memoized calculations
   const metrics = useMemo(() => {
+    const now = new Date();
+    const thisMonth = now.toISOString().substring(0, 7);
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonth = lastMonthDate.toISOString().substring(0, 7);
+
     const activeCompanies = companies.filter((c: { status: string }) => c.status === 'ativo' || c.status === 'active').length;
     const pipelineTotal = leads.reduce((acc: number, l: { estimated_value: number | null }) => acc + Number(l.estimated_value ?? 0), 0);
     const activeLeads = leads.filter((l: { funnel_stage: string }) => l.funnel_stage !== 'closed').length;
+    const closedLeads = leads.filter((l: { funnel_stage: string }) => l.funnel_stage === 'closed').length;
+    const closeRate = leads.length > 0 ? Math.round((closedLeads / leads.length) * 100) : 0;
     const pendingTasks = tasks.filter((t: { status: string }) => t.status !== 'concluido').length;
-    const today = new Date().toISOString().split('T')[0];
+    const today = now.toISOString().split('T')[0];
     const overdueTasks = tasks.filter((t: { status: string; due_date: string | null }) => t.status !== 'concluido' && t.due_date && t.due_date < today).length;
-    const monthlyRevenue = transactions
-      .filter((t: { type: string; status: string }) => t.type === 'income' && t.status === 'paid')
+
+    const paidIncome = transactions.filter((t: { type: string; status: string }) => t.type === 'income' && t.status === 'paid');
+    const paidExpense = transactions.filter((t: { type: string; status: string }) => t.type === 'expense' && t.status === 'paid');
+
+    const monthlyRevenue = paidIncome.reduce((acc: number, t: { amount: number }) => acc + Number(t.amount), 0);
+    const monthlyExpense = paidExpense.reduce((acc: number, t: { amount: number }) => acc + Number(t.amount), 0);
+    const grossProfit = monthlyRevenue - monthlyExpense;
+
+    const thisMonthRevenue = paidIncome
+      .filter((t: { due_date?: string; created_at?: string }) => (t.due_date ?? t.created_at ?? '').substring(0, 7) === thisMonth)
       .reduce((acc: number, t: { amount: number }) => acc + Number(t.amount), 0);
+
+    const lastMonthRevenue = paidIncome
+      .filter((t: { due_date?: string; created_at?: string }) => (t.due_date ?? t.created_at ?? '').substring(0, 7) === lastMonth)
+      .reduce((acc: number, t: { amount: number }) => acc + Number(t.amount), 0);
+
+    const momGrowth = lastMonthRevenue > 0
+      ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : null;
 
     return {
       activeCompanies,
       pipelineTotal,
       activeLeads,
+      closedLeads,
+      closeRate,
       pendingTasks,
       overdueTasks,
       monthlyRevenue,
+      grossProfit,
+      momGrowth,
     };
   }, [companies, leads, tasks, transactions]);
 
-  const { activeCompanies, pipelineTotal, activeLeads, pendingTasks, overdueTasks, monthlyRevenue } = metrics;
+  const { activeCompanies, pipelineTotal, activeLeads, closeRate, pendingTasks, overdueTasks, monthlyRevenue, grossProfit, momGrowth } = metrics;
 
   // Memoized funnel data
   const funnelData = useMemo(() => [
@@ -137,7 +164,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-medium text-muted-foreground">Receita Recebida</h3>
+            <h3 className="font-medium text-muted-foreground">Receita Total</h3>
             <div className="p-2 bg-primary/10 text-primary rounded-lg"><DollarSign className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
@@ -145,21 +172,30 @@ export default function Dashboard() {
               R$ {monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </h2>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Total de entradas pagas</p>
+          <p className="text-xs mt-1 flex items-center gap-1">
+            {momGrowth !== null ? (
+              <span className={momGrowth >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
+                {momGrowth >= 0 ? '▲' : '▼'} {Math.abs(momGrowth)}% vs mês anterior
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Entradas pagas acumuladas</span>
+            )}
+          </p>
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-medium text-muted-foreground">Clientes Ativos</h3>
-            <div className="p-2 bg-green-500/10 text-green-500 rounded-lg"><Briefcase className="w-5 h-5" /></div>
+            <h3 className="font-medium text-muted-foreground">Lucro Bruto</h3>
+            <div className="p-2 bg-green-500/10 text-green-500 rounded-lg"><TrendingUp className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-3xl font-bold text-foreground">{activeCompanies}</h2>
-            <span className="flex items-center text-sm font-medium text-green-500">
-              <ArrowUpRight className="w-4 h-4" /> {companies.length} total
-            </span>
+            <h2 className={`text-3xl font-bold ${grossProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              R$ {Math.abs(grossProfit).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </h2>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Demandas em andamento</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {grossProfit >= 0 ? 'Receita − despesas pagas' : 'Despesas excedem receita'}
+          </p>
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
@@ -172,21 +208,26 @@ export default function Dashboard() {
               R$ {pipelineTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </h2>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{activeLeads} leads em aberto</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {activeLeads} abertos · taxa de fechamento {closeRate}%
+          </p>
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-medium text-muted-foreground">Tarefas Pendentes</h3>
+            <h3 className="font-medium text-muted-foreground">Clientes / Tarefas</h3>
             <div className="p-2 bg-purple-500/10 text-purple-500 rounded-lg"><Activity className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-3xl font-bold text-foreground">{pendingTasks}</h2>
-            {overdueTasks > 0 && (
-              <span className="text-sm font-medium text-red-500">{overdueTasks} atrasadas</span>
-            )}
+            <h2 className="text-3xl font-bold text-foreground">{activeCompanies}</h2>
+            <span className="flex items-center text-sm font-medium text-green-500">
+              <ArrowUpRight className="w-4 h-4" /> {companies.length} total
+            </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Requerem atenção da equipe</p>
+          <p className="text-xs mt-1">
+            <span className="text-muted-foreground">{pendingTasks} tarefas</span>
+            {overdueTasks > 0 && <span className="text-red-500 font-medium ml-1">· {overdueTasks} atrasadas</span>}
+          </p>
         </div>
       </div>
 

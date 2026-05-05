@@ -116,13 +116,26 @@ serve(async (req) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.errors?.[0]?.description || 'Erro ao criar assinatura no Asaas');
 
+      // Busca o primeiro pagamento da assinatura para obter o invoiceUrl
+      let invoiceUrl: string | null = null;
+      try {
+        const paymentsRes = await fetch(
+          `${ASAAS_BASE_URL}/payments?subscription=${data.id}&limit=1`,
+          { headers: asaasHeaders }
+        );
+        const paymentsData = await paymentsRes.json();
+        invoiceUrl = paymentsData.data?.[0]?.invoiceUrl ?? null;
+      } catch {
+        // URL opcional — não bloqueia o fluxo
+      }
+
       await supabase.from('financial_transactions').update({
         asaas_subscription_id: data.id,
-        asaas_payment_url: data.invoiceUrl ?? null,
+        asaas_payment_url: invoiceUrl,
       }).eq('id', transaction_id);
 
       return new Response(
-        JSON.stringify({ subscription_id: data.id, url: data.invoiceUrl ?? null }),
+        JSON.stringify({ subscription_id: data.id, url: invoiceUrl }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 

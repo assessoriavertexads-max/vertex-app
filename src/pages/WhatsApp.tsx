@@ -26,7 +26,21 @@ function PinLock({ onUnlock }: { onUnlock: () => void }) {
       const { data, error: fnError } = await supabase.functions.invoke('verify-pin', {
         body: { pin },
       });
-      if (fnError || !data?.valid) {
+      if (fnError) {
+        const msg = (fnError as { message?: string })?.message ?? '';
+        if (msg.toLowerCase().includes('não configurado') || msg.includes('503')) {
+          toast.error('PIN não configurado. Defina o secret WHATSAPP_PIN no Supabase.');
+        } else if (msg.includes('401') || msg.toLowerCase().includes('autorizado')) {
+          toast.error('Sessão expirada. Faça login novamente.');
+        } else {
+          toast.error('Erro ao verificar PIN. Tente novamente.');
+        }
+        setPin('');
+      } else if (data?.not_configured) {
+        toast.warning('PIN não configurado — acesso liberado. Defina WHATSAPP_PIN nos secrets do Supabase.');
+        sessionStorage.setItem(SESSION_KEY, '1');
+        onUnlock();
+      } else if (!data?.valid) {
         setError(true);
         setPin('');
         setTimeout(() => setError(false), 1500);
@@ -35,9 +49,8 @@ function PinLock({ onUnlock }: { onUnlock: () => void }) {
         onUnlock();
       }
     } catch {
-      setError(true);
+      toast.error('Erro de conexão. Verifique sua internet.');
       setPin('');
-      setTimeout(() => setError(false), 1500);
     } finally {
       setLoading(false);
     }
