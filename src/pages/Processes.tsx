@@ -53,19 +53,19 @@ function dueDateInfo(dateStr: string | null, status: string): {
   return { label: due.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), color: "text-muted-foreground bg-muted border-border", urgent: false };
 }
 
-function getOrCreateDefaultList() {
-  return supabase
-    .from("lists").select("id").limit(1).maybeSingle()
-    .then(async ({ data }) => {
-      if (data?.id) return data.id as string;
-      const { data: space, error: spaceErr } = await supabase
-        .from("spaces").insert({ name: "Operacional" }).select("id").single();
-      if (spaceErr) throw spaceErr;
-      const { data: list, error: listErr } = await supabase
-        .from("lists").insert({ name: "Geral", space_id: space.id }).select("id").single();
-      if (listErr) throw listErr;
-      return list.id as string;
-    });
+async function getOrCreateDefaultList(): Promise<string | null> {
+  try {
+    const { data } = await supabase.from("lists").select("id").limit(1).maybeSingle();
+    if (data?.id) return data.id as string;
+    const { data: space } = await supabase
+      .from("spaces").insert({ name: "Operacional" }).select("id").single();
+    if (!space) return null;
+    const { data: list } = await supabase
+      .from("lists").insert({ name: "Geral", space_id: space.id }).select("id").single();
+    return list?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function getRecurringDates(baseDate: string, frequency: string, count: number): string[] {
@@ -462,13 +462,14 @@ export default function Processes() {
   const createTask = useMutation({
     mutationFn: async (form: TaskFormData) => {
       const listId = await getOrCreateDefaultList();
+      const base = {
+        name: form.name, description: form.description || null,
+        priority: form.priority, company_id: form.company_id || null, status: "a_receber",
+        ...(listId ? { list_id: listId } : {}),
+      };
       const tasksToInsert = form.recurrence !== "none" && form.due_date
-        ? getRecurringDates(form.due_date, form.recurrence, form.occurrences).map(d => ({
-            name: form.name, description: form.description || null, priority: form.priority,
-            due_date: d, company_id: form.company_id || null, list_id: listId, status: "a_receber",
-          }))
-        : [{ name: form.name, description: form.description || null, priority: form.priority,
-            due_date: form.due_date || null, company_id: form.company_id || null, list_id: listId, status: "a_receber" }];
+        ? getRecurringDates(form.due_date, form.recurrence, form.occurrences).map(d => ({ ...base, due_date: d }))
+        : [{ ...base, due_date: form.due_date || null }];
 
       const { error } = await supabase.from("tasks").insert(tasksToInsert);
       if (error) throw error;

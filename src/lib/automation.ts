@@ -21,17 +21,19 @@ export async function runAutomations(
 
   if (!rules?.length) return { executed: 0 };
 
-  // Resolve default list for task creation
+  // Resolve default list for task creation (optional — tasks work without list_id)
   let listId: string | null = null;
-  const { data: existingList } = await supabase.from('lists').select('id').limit(1).maybeSingle();
-  listId = existingList?.id ?? null;
-  if (!listId) {
-    const { data: space } = await supabase.from('spaces').insert({ name: 'Operacional' }).select('id').single();
-    if (space) {
-      const { data: list } = await supabase.from('lists').insert({ name: 'Geral', space_id: space.id }).select('id').single();
-      listId = list?.id ?? null;
+  try {
+    const { data: existingList } = await supabase.from('lists').select('id').limit(1).maybeSingle();
+    listId = existingList?.id ?? null;
+    if (!listId) {
+      const { data: space } = await supabase.from('spaces').insert({ name: 'Operacional' }).select('id').single();
+      if (space) {
+        const { data: list } = await supabase.from('lists').insert({ name: 'Geral', space_id: space.id }).select('id').single();
+        listId = list?.id ?? null;
+      }
     }
-  }
+  } catch { /* lists table may not exist; tasks will be created without list_id */ }
 
   // Resolve company phone/name if not provided
   let phone = context.companyPhone ?? null;
@@ -62,7 +64,7 @@ export async function runAutomations(
       message_template?: string;
     };
 
-    if (rule.action_type === 'create_task' && listId && ad.task_name) {
+    if (rule.action_type === 'create_task' && ad.task_name) {
       const taskName = replaceVars(ad.task_name);
       const dueDate = ad.due_in_days
         ? new Date(Date.now() + ad.due_in_days * 86400000).toISOString().slice(0, 10)
@@ -73,7 +75,7 @@ export async function runAutomations(
         priority: ad.task_priority || 'normal',
         due_date: dueDate,
         company_id: context.companyId || null,
-        list_id: listId,
+        ...(listId ? { list_id: listId } : {}),
         status: 'a_receber',
       });
       executed++;

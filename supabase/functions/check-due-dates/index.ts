@@ -59,14 +59,12 @@ serve(async (req) => {
     });
   }
 
-  // Get a default task list for create_task actions
+  // Get a default task list for create_task actions (optional)
   let listId: string | null = null;
-  const { data: existingList } = await supabase
-    .from("lists")
-    .select("id")
-    .limit(1)
-    .maybeSingle();
-  listId = existingList?.id ?? null;
+  try {
+    const { data: existingList } = await supabase.from("lists").select("id").limit(1).maybeSingle();
+    listId = existingList?.id ?? null;
+  } catch { /* lists may not exist; tasks work without list_id */ }
 
   let totalExecuted = 0;
 
@@ -133,7 +131,7 @@ serve(async (req) => {
         message_template?: string;
       };
 
-      if (rule.action_type === "create_task" && listId && ad.task_name) {
+      if (rule.action_type === "create_task" && ad.task_name) {
         const taskName = replaceVars(ad.task_name);
         const dueDate = ad.due_in_days
           ? dateAddDays(today, ad.due_in_days)
@@ -146,7 +144,7 @@ serve(async (req) => {
           priority: ad.task_priority || "normal",
           due_date: dueDate,
           company_id: item.company_id || null,
-          list_id: listId,
+          ...(listId ? { list_id: listId } : {}),
           status: "a_receber",
         });
         totalExecuted++;
