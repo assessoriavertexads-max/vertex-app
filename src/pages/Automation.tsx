@@ -14,18 +14,23 @@ import { toast } from 'sonner';
 
 const TRIGGER_EVENTS: { value: string; label: string; description: string; group: string }[] = [
   // CRM
-  { value: 'lead_stage_change',    label: 'Lead muda de estágio',      description: 'Dispara quando um lead é movido para um estágio específico no funil.',        group: 'CRM' },
-  { value: 'new_lead_created',     label: 'Novo lead criado',           description: 'Dispara toda vez que um novo lead é cadastrado no CRM.',                      group: 'CRM' },
-  { value: 'lead_closed',          label: 'Lead fechado (ganho)',        description: 'Dispara especificamente quando um lead é marcado como Fechado (Ganho).',      group: 'CRM' },
+  { value: 'lead_stage_change',       label: 'Lead muda de estágio',          description: 'Dispara quando um lead é movido para um estágio específico no funil.',                      group: 'CRM' },
+  { value: 'new_lead_created',        label: 'Novo lead criado',               description: 'Dispara toda vez que um novo lead é cadastrado no CRM.',                                   group: 'CRM' },
+  { value: 'lead_closed',             label: 'Lead fechado (ganho)',            description: 'Dispara especificamente quando um lead é marcado como Fechado (Ganho).',                   group: 'CRM' },
   // Tarefas
-  { value: 'task_completed',       label: 'Tarefa concluída',           description: 'Dispara quando qualquer tarefa é marcada como concluída.',                    group: 'Tarefas' },
-  { value: 'task_created',         label: 'Nova tarefa criada',         description: 'Dispara quando uma nova tarefa é adicionada ao sistema.',                     group: 'Tarefas' },
+  { value: 'task_completed',          label: 'Tarefa concluída',               description: 'Dispara quando qualquer tarefa é marcada como concluída.',                                 group: 'Tarefas' },
+  { value: 'task_created',            label: 'Nova tarefa criada',             description: 'Dispara quando uma nova tarefa é adicionada ao sistema.',                                  group: 'Tarefas' },
   // Empresas
-  { value: 'new_company_created',  label: 'Nova empresa cadastrada',    description: 'Dispara quando uma nova empresa é registrada.',                               group: 'Empresas' },
-  { value: 'company_status_change',label: 'Status da empresa muda',     description: 'Dispara quando o status de uma empresa é alterado para um valor específico.', group: 'Empresas' },
+  { value: 'new_company_created',     label: 'Nova empresa cadastrada',        description: 'Dispara quando uma nova empresa é registrada.',                                            group: 'Empresas' },
+  { value: 'company_status_change',   label: 'Status da empresa muda',         description: 'Dispara quando o status de uma empresa é alterado para um valor específico.',             group: 'Empresas' },
   // Financeiro
-  { value: 'transaction_paid',     label: 'Pagamento recebido',         description: 'Dispara quando uma transação financeira é marcada como paga.',                group: 'Financeiro' },
-  { value: 'new_transaction_created', label: 'Nova transação criada',   description: 'Dispara quando uma nova transação financeira é registrada.',                  group: 'Financeiro' },
+  { value: 'transaction_paid',        label: 'Pagamento recebido',             description: 'Dispara quando uma transação financeira é marcada como paga.',                            group: 'Financeiro' },
+  { value: 'new_transaction_created', label: 'Nova transação criada',          description: 'Dispara quando uma nova transação financeira é registrada.',                              group: 'Financeiro' },
+  // Agendado (via cron diário)
+  { value: 'task_due_soon',           label: 'Tarefa prestes a vencer',        description: 'Executa automaticamente X dias antes do vencimento de tarefas em aberto.',                group: 'Agendado' },
+  { value: 'task_due_today',          label: 'Tarefa vence hoje',              description: 'Executa automaticamente no dia do vencimento de tarefas em aberto.',                      group: 'Agendado' },
+  { value: 'transaction_due_soon',    label: 'Cobrança prestes a vencer',      description: 'Executa automaticamente X dias antes do vencimento de cobranças pendentes.',             group: 'Agendado' },
+  { value: 'transaction_due_today',   label: 'Cobrança vence hoje',            description: 'Executa automaticamente no dia do vencimento de cobranças pendentes.',                   group: 'Agendado' },
 ];
 
 const STAGE_LABELS: Record<string, string> = {
@@ -105,15 +110,19 @@ function RuleModal({ isOpen, onClose, onSave }: {
 
   // Variables available per trigger for the template hint
   const templateVars: Record<string, string[]> = {
-    lead_stage_change:     ['{lead_name}', '{company_name}'],
-    new_lead_created:      ['{lead_name}', '{company_name}'],
-    lead_closed:           ['{lead_name}', '{company_name}'],
-    task_completed:        ['{task_name}', '{company_name}'],
-    task_created:          ['{task_name}', '{company_name}'],
-    new_company_created:   ['{company_name}'],
-    company_status_change: ['{company_name}'],
-    transaction_paid:      ['{entity_name}', '{company_name}'],
-    new_transaction_created:['{entity_name}', '{company_name}'],
+    lead_stage_change:        ['{lead_name}', '{company_name}'],
+    new_lead_created:         ['{lead_name}', '{company_name}'],
+    lead_closed:              ['{lead_name}', '{company_name}'],
+    task_completed:           ['{task_name}', '{company_name}'],
+    task_created:             ['{task_name}', '{company_name}'],
+    new_company_created:      ['{company_name}'],
+    company_status_change:    ['{company_name}'],
+    transaction_paid:         ['{entity_name}', '{company_name}'],
+    new_transaction_created:  ['{entity_name}', '{company_name}'],
+    task_due_soon:            ['{task_name}', '{company_name}', '{due_date}'],
+    task_due_today:           ['{task_name}', '{company_name}'],
+    transaction_due_soon:     ['{entity_name}', '{company_name}', '{due_date}'],
+    transaction_due_today:    ['{entity_name}', '{company_name}'],
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -125,9 +134,13 @@ function RuleModal({ isOpen, onClose, onSave }: {
     if (actionType === 'send_whatsapp' && !messageTemplate.trim()) { toast.error('Informe o template da mensagem.'); return; }
 
     const resolvedTriggerValue =
-      triggerEvent === 'lead_stage_change'     ? triggerValue :
-      triggerEvent === 'lead_closed'           ? 'closed' :
-      triggerEvent === 'company_status_change' ? triggerValue :
+      triggerEvent === 'lead_stage_change'       ? triggerValue :
+      triggerEvent === 'lead_closed'             ? 'closed' :
+      triggerEvent === 'company_status_change'   ? triggerValue :
+      triggerEvent === 'task_due_soon'           ? triggerValue :
+      triggerEvent === 'transaction_due_soon'    ? triggerValue :
+      triggerEvent === 'task_due_today'          ? 'today' :
+      triggerEvent === 'transaction_due_today'   ? 'today' :
       'any';
 
     const resolvedEvent = triggerEvent === 'lead_closed' ? 'lead_stage_change' : triggerEvent;
@@ -173,9 +186,16 @@ function RuleModal({ isOpen, onClose, onSave }: {
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={triggerEvent}
-                onChange={e => { setTriggerEvent(e.target.value); setTriggerValue('negotiation'); }}
+                onChange={e => {
+                  const ev = e.target.value;
+                  setTriggerEvent(ev);
+                  if (ev === 'lead_stage_change') setTriggerValue('negotiation');
+                  else if (ev === 'company_status_change') setTriggerValue('ativo');
+                  else if (ev === 'task_due_soon' || ev === 'transaction_due_soon') setTriggerValue('5');
+                  else setTriggerValue('any');
+                }}
               >
-                {['CRM', 'Tarefas', 'Empresas', 'Financeiro'].map(group => (
+                {['CRM', 'Tarefas', 'Empresas', 'Financeiro', 'Agendado'].map(group => (
                   <optgroup key={group} label={group}>
                     {TRIGGER_EVENTS.filter(t => t.group === group).map(t => (
                       <option key={t.value} value={t.value}>{t.label}</option>
@@ -215,6 +235,24 @@ function RuleModal({ isOpen, onClose, onSave }: {
                     <option key={val} value={val}>{label}</option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {(triggerEvent === 'task_due_soon' || triggerEvent === 'transaction_due_soon') && (
+              <div className="grid gap-2">
+                <Label>Quantos dias antes do vencimento</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={triggerValue}
+                  onChange={e => setTriggerValue(e.target.value)}
+                >
+                  {[1, 2, 3, 5, 7, 10, 15].map(d => (
+                    <option key={d} value={String(d)}>{d} dia{d > 1 ? 's' : ''} antes</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  O sistema verifica diariamente às 08h e dispara a ação para os itens que vencem exatamente nessa data.
+                </p>
               </div>
             )}
           </div>
@@ -327,8 +365,12 @@ function triggerSummary(rule: AutomationRule): string {
     case 'task_created':          return 'Quando uma nova tarefa for criada';
     case 'new_company_created':   return 'Quando uma nova empresa for cadastrada';
     case 'company_status_change': return `Quando status da empresa mudar para "${COMPANY_STATUS_LABELS[rule.trigger_value] ?? rule.trigger_value}"`;
-    case 'transaction_paid':      return 'Quando um pagamento for recebido';
+    case 'transaction_paid':        return 'Quando um pagamento for recebido';
     case 'new_transaction_created': return 'Quando uma nova transação for criada';
+    case 'task_due_soon':           return `${rule.trigger_value} dia(s) antes do vencimento de tarefas`;
+    case 'task_due_today':          return 'No dia do vencimento de tarefas';
+    case 'transaction_due_soon':    return `${rule.trigger_value} dia(s) antes do vencimento de cobranças`;
+    case 'transaction_due_today':   return 'No dia do vencimento de cobranças';
     default: return ev?.label ?? rule.trigger_event;
   }
 }
@@ -406,15 +448,18 @@ export default function Automation() {
       <div className="rounded-xl border border-border bg-card p-4">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Gatilhos disponíveis</p>
         <div className="space-y-3">
-          {['CRM', 'Tarefas', 'Empresas', 'Financeiro'].map(group => (
+          {['CRM', 'Tarefas', 'Empresas', 'Financeiro', 'Agendado'].map(group => (
             <div key={group}>
               <p className="text-xs text-muted-foreground font-medium mb-1.5">{group}</p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {TRIGGER_EVENTS.filter(t => t.group === group).map(t => (
                   <div key={t.value} className="flex items-start gap-2 rounded-lg bg-muted/40 p-2.5">
-                    <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <Zap className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${group === 'Agendado' ? 'text-blue-500' : 'text-amber-500'}`} />
                     <div>
                       <p className="text-xs font-medium text-foreground">{t.label}</p>
+                      {group === 'Agendado' && (
+                        <p className="text-xs text-muted-foreground mt-0.5">via cron diário 08h</p>
+                      )}
                     </div>
                   </div>
                 ))}
