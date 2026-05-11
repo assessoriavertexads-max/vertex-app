@@ -2,14 +2,26 @@ import { useMemo, useState } from "react";
 import {
   CheckCircle2, Circle, Clock, Plus, Trash2, Pencil, Search,
   LayoutList, Columns3, AlertCircle, CalendarClock, CalendarCheck,
-  ChevronDown, ChevronRight, Building2, Flag, X,
+  ChevronDown, ChevronRight, Building2, Flag, X, RefreshCw,
 } from "lucide-react";
+import {
+  DndContext, DragStartEvent, DragEndEvent, DragOverlay,
+  PointerSensor, KeyboardSensor, useSensor, useSensors,
+  useDroppable, closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext, useSortable, sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -25,11 +37,13 @@ interface TaskItem {
   priority: string;
   due_date: string | null;
   company_id: string | null;
+  recurrence_pattern: string | null;
+  parent_task_id: string | null;
 }
 
 interface CompanyItem { id: string; name: string; }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────
 
 const PRIORITY_CONFIG = {
   alta:   { label: "Alta",   dot: "bg-red-500",    badge: "bg-red-100 text-red-700 border-red-200" },
@@ -38,6 +52,16 @@ const PRIORITY_CONFIG = {
   normal: { label: "Normal", dot: "bg-slate-400",  badge: "bg-slate-100 text-slate-600 border-slate-200" },
 };
 
+const RECURRENCE_LABELS: Record<string, string> = {
+  daily:     "Diária",
+  weekly:    "Semanal",
+  biweekly:  "Quinzenal",
+  monthly:   "Mensal",
+  quarterly: "Trimestral",
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 function dueDateInfo(dateStr: string | null, status: string): {
   label: string; color: string; urgent: boolean;
 } {
@@ -45,10 +69,9 @@ function dueDateInfo(dateStr: string | null, status: string): {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const due = new Date(dateStr + "T00:00:00");
   const diff = Math.round((due.getTime() - today.getTime()) / 86400000);
-
-  if (diff < 0)  return { label: `Venceu há ${Math.abs(diff)} dia${Math.abs(diff) > 1 ? "s" : ""}`, color: "text-red-600 bg-red-50 border-red-200",     urgent: true };
-  if (diff === 0) return { label: "Vence hoje",    color: "text-orange-600 bg-orange-50 border-orange-200", urgent: true };
-  if (diff === 1) return { label: "Amanhã",        color: "text-amber-600 bg-amber-50 border-amber-200",    urgent: false };
+  if (diff < 0)  return { label: `Venceu há ${Math.abs(diff)}d`,    color: "text-red-600 bg-red-50 border-red-200",        urgent: true  };
+  if (diff === 0) return { label: "Vence hoje",                      color: "text-orange-600 bg-orange-50 border-orange-200", urgent: true  };
+  if (diff === 1) return { label: "Amanhã",                          color: "text-amber-600 bg-amber-50 border-amber-200",   urgent: false };
   if (diff <= 7)  return { label: due.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" }), color: "text-amber-600 bg-amber-50 border-amber-200", urgent: false };
   return { label: due.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), color: "text-muted-foreground bg-muted border-border", urgent: false };
 }
@@ -57,36 +80,22 @@ async function getOrCreateDefaultList(): Promise<string | null> {
   try {
     const { data } = await supabase.from("lists").select("id").limit(1).maybeSingle();
     if (data?.id) return data.id as string;
-    const { data: space } = await supabase
-      .from("spaces").insert({ name: "Operacional" }).select("id").single();
+    const { data: space } = await supabase.from("spaces").insert({ name: "Operacional" }).select("id").single();
     if (!space) return null;
-    const { data: list } = await supabase
-      .from("lists").insert({ name: "Geral", space_id: space.id }).select("id").single();
+    const { data: list } = await supabase.from("lists").insert({ name: "Geral", space_id: space.id }).select("id").single();
     return list?.id ?? null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-function getRecurringDates(baseDate: string, frequency: string, count: number): string[] {
-  const base = new Date(baseDate + "T00:00:00");
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(base);
-    if (frequency === "daily")     d.setDate(d.getDate() + i);
-    else if (frequency === "weekly")    d.setDate(d.getDate() + i * 7);
-    else if (frequency === "biweekly")  d.setDate(d.getDate() + i * 14);
-    else if (frequency === "monthly")   d.setMonth(d.getMonth() + i);
-    else if (frequency === "quarterly") d.setMonth(d.getMonth() + i * 3);
-    return d.toISOString().slice(0, 10); // FIX: DATE format only
-  });
-}
-
-// ── TaskForm (shared by New + Edit) ────────────────────────────────────────
+// ── Form types ─────────────────────────────────────────────────────────────
 
 interface TaskFormData {
-  name: string; description: string; priority: string;
-  due_date: string; company_id: string;
-  recurrence: string; occurrences: number;
+  name: string;
+  description: string;
+  priority: string;
+  due_date: string;
+  company_id: string;
+  recurrence: string;
 }
 
 function TaskFormFields({
@@ -134,24 +143,22 @@ function TaskFormFields({
         <Input type="date" value={data.due_date} onChange={e => onChange({ due_date: e.target.value })} />
       </div>
       {showRecurrence && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label>Recorrência</Label>
-            <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={data.recurrence} onChange={e => onChange({ recurrence: e.target.value })}>
-              <option value="none">Nenhuma</option>
-              <option value="daily">Diária</option>
-              <option value="weekly">Semanal</option>
-              <option value="biweekly">Quinzenal</option>
-              <option value="monthly">Mensal</option>
-              <option value="quarterly">Trimestral</option>
-            </select>
-          </div>
+        <div className="grid gap-2">
+          <Label>Recorrência</Label>
+          <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={data.recurrence} onChange={e => onChange({ recurrence: e.target.value })}>
+            <option value="none">Nenhuma</option>
+            <option value="daily">Diária</option>
+            <option value="weekly">Semanal</option>
+            <option value="biweekly">Quinzenal</option>
+            <option value="monthly">Mensal</option>
+            <option value="quarterly">Trimestral</option>
+          </select>
           {data.recurrence !== "none" && (
-            <div className="grid gap-2">
-              <Label>Ocorrências</Label>
-              <Input type="number" min={2} max={12} value={data.occurrences}
-                onChange={e => onChange({ occurrences: Number(e.target.value) })} />
+            <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
+              <RefreshCw className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              A próxima ocorrência é criada automaticamente quando esta for concluída.
+              {!data.due_date && <span className="font-semibold ml-1">Informe uma data de vencimento.</span>}
             </div>
           )}
         </div>
@@ -167,7 +174,7 @@ function NewTaskModal({ isOpen, onClose, onSave, companies }: {
   onSave: (t: TaskFormData) => void;
   companies: CompanyItem[];
 }) {
-  const empty: TaskFormData = { name: "", description: "", priority: "normal", due_date: "", company_id: "", recurrence: "none", occurrences: 3 };
+  const empty: TaskFormData = { name: "", description: "", priority: "normal", due_date: "", company_id: "", recurrence: "none" };
   const [data, setData] = useState<TaskFormData>(empty);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -208,15 +215,14 @@ function EditTaskModal({ task, companies, onClose, onSave }: {
   onSave: (id: string, updates: Partial<TaskItem>) => void;
 }) {
   const [data, setData] = useState<TaskFormData>({
-    name: "", description: "", priority: "normal", due_date: "", company_id: "", recurrence: "none", occurrences: 3,
+    name: "", description: "", priority: "normal", due_date: "", company_id: "", recurrence: "none",
   });
 
-  // Sync with task prop
   useMemo(() => {
     if (task) setData({
       name: task.name, description: task.description ?? "",
       priority: task.priority, due_date: task.due_date ?? "",
-      company_id: task.company_id ?? "", recurrence: "none", occurrences: 3,
+      company_id: task.company_id ?? "", recurrence: "none",
     });
   }, [task]);
 
@@ -269,7 +275,6 @@ function TaskRow({ task, companies, onToggle, onEdit, onDelete }: {
 
   return (
     <div className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/40 transition-colors ${isDone ? "opacity-60" : ""}`}>
-      {/* Completion toggle */}
       <button
         onClick={() => onToggle(task)}
         className="shrink-0 text-muted-foreground hover:text-emerald-500 transition-colors"
@@ -278,55 +283,46 @@ function TaskRow({ task, companies, onToggle, onEdit, onDelete }: {
           ? <CheckCircle2 className="w-5 h-5 text-emerald-500" />
           : inProgress
             ? <Clock className="w-5 h-5 text-amber-500" />
-            : <Circle className="w-5 h-5" />
-        }
+            : <Circle className="w-5 h-5" />}
       </button>
 
-      {/* Priority dot */}
       <div className={`w-2 h-2 rounded-full shrink-0 ${pCfg.dot}`} title={pCfg.label} />
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex items-center gap-2">
         <span className={`text-sm font-medium ${isDone ? "line-through text-muted-foreground" : "text-foreground"}`}>
           {task.name}
         </span>
+        {task.recurrence_pattern && (
+          <span title={`Recorrente: ${RECURRENCE_LABELS[task.recurrence_pattern] ?? task.recurrence_pattern}`}>
+            <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+          </span>
+        )}
         {task.description && (
-          <span className="text-xs text-muted-foreground ml-2 hidden sm:inline truncate">{task.description}</span>
+          <span className="text-xs text-muted-foreground ml-1 hidden sm:inline truncate">{task.description}</span>
         )}
       </div>
 
-      {/* Company */}
       {companyName && (
         <span className="hidden md:flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
-          <Building2 className="w-3 h-3" />
-          {companyName}
+          <Building2 className="w-3 h-3" />{companyName}
         </span>
       )}
 
-      {/* Priority badge */}
       <span className={`hidden sm:inline-block text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${pCfg.badge}`}>
         {pCfg.label}
       </span>
 
-      {/* Due date */}
       {dd.label && (
         <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 ${dd.color}`}>
           {dd.label}
         </span>
       )}
 
-      {/* Actions (hidden until hover) */}
       <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 shrink-0">
-        <button
-          onClick={() => onEdit(task)}
-          className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
-        >
+        <button onClick={() => onEdit(task)} className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors">
           <Pencil className="w-3.5 h-3.5" />
         </button>
-        <button
-          onClick={() => onDelete(task.id)}
-          className="p-1 text-muted-foreground hover:text-red-600 rounded transition-colors"
-        >
+        <button onClick={() => onDelete(task.id)} className="p-1 text-muted-foreground hover:text-red-600 rounded transition-colors">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -352,12 +348,26 @@ function TaskCard({ task, companies, onToggle, onEdit, onDelete }: {
         <div className="flex items-start gap-2 min-w-0">
           <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${pCfg.dot}`} />
           <span className="text-sm font-medium text-foreground leading-snug">{task.name}</span>
+          {task.recurrence_pattern && (
+            <RefreshCw
+              className="w-3 h-3 text-blue-500 shrink-0 mt-1"
+              title={`Recorrente: ${RECURRENCE_LABELS[task.recurrence_pattern] ?? task.recurrence_pattern}`}
+            />
+          )}
         </div>
         <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 shrink-0 transition-opacity">
-          <button onClick={() => onEdit(task)} className="p-1 text-muted-foreground hover:text-foreground rounded">
+          <button
+            onPointerDown={e => e.stopPropagation()}
+            onClick={() => onEdit(task)}
+            className="p-1 text-muted-foreground hover:text-foreground rounded"
+          >
             <Pencil className="w-3 h-3" />
           </button>
-          <button onClick={() => onDelete(task.id)} className="p-1 text-muted-foreground hover:text-red-600 rounded">
+          <button
+            onPointerDown={e => e.stopPropagation()}
+            onClick={() => onDelete(task.id)}
+            className="p-1 text-muted-foreground hover:text-red-600 rounded"
+          >
             <Trash2 className="w-3 h-3" />
           </button>
         </div>
@@ -380,6 +390,7 @@ function TaskCard({ task, companies, onToggle, onEdit, onDelete }: {
             <span className={`text-xs px-1.5 py-0.5 rounded border ${dd.color}`}>{dd.label}</span>
           )}
           <button
+            onPointerDown={e => e.stopPropagation()}
             onClick={() => onToggle(task)}
             className="text-muted-foreground hover:text-emerald-500 transition-colors"
           >
@@ -393,6 +404,73 @@ function TaskCard({ task, companies, onToggle, onEdit, onDelete }: {
   );
 }
 
+// ── Sortable Task Card wrapper (Board DnD) ─────────────────────────────────
+
+function SortableTaskCard(props: React.ComponentProps<typeof TaskCard>) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.task.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? "opacity-0" : undefined}
+      {...attributes}
+      {...listeners}
+    >
+      <TaskCard {...props} />
+    </div>
+  );
+}
+
+// ── Board Column (with Droppable + SortableContext) ────────────────────────
+
+function BoardColumn({ status, group, companies, onToggle, onEdit, onDelete }: {
+  status: string;
+  group: { label: string; color: string; headerColor: string; items: TaskItem[] };
+  companies: CompanyItem[];
+  onToggle: (t: TaskItem) => void;
+  onEdit: (t: TaskItem) => void;
+  onDelete: (id: string) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+
+  return (
+    <div className="space-y-2">
+      <div className={`flex items-center justify-between px-1 py-2 rounded-lg border-b-2 ${group.color.split(" ")[0]}`}>
+        <span className={`text-sm font-semibold ${group.headerColor}`}>{group.label}</span>
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{group.items.length}</span>
+      </div>
+      <SortableContext items={group.items.map(t => t.id)} strategy={verticalListSortingStrategy}>
+        <div
+          ref={setNodeRef}
+          className={`rounded-xl border-2 border-dashed p-2 space-y-2 min-h-[400px] transition-colors ${
+            isOver ? "border-primary/60 bg-primary/5" : group.color
+          }`}
+        >
+          {group.items.map(task => (
+            <SortableTaskCard
+              key={task.id}
+              task={task}
+              companies={companies}
+              onToggle={onToggle}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))}
+          {group.items.length === 0 && !isOver && (
+            <p className="text-center text-xs text-muted-foreground pt-6">Nenhuma tarefa</p>
+          )}
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
+
 // ── Section Header ─────────────────────────────────────────────────────────
 
 function SectionHeader({ label, count, color, icon: Icon, open, onToggle }: {
@@ -400,10 +478,7 @@ function SectionHeader({ label, count, color, icon: Icon, open, onToggle }: {
   icon: React.ElementType; open: boolean; onToggle: () => void;
 }) {
   return (
-    <button
-      onClick={onToggle}
-      className="w-full flex items-center gap-2 py-1.5 px-1 text-left group"
-    >
+    <button onClick={onToggle} className="w-full flex items-center gap-2 py-1.5 px-1 text-left group">
       {open ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
       <Icon className={`w-4 h-4 ${color}`} />
       <span className={`text-sm font-semibold ${color}`}>{label}</span>
@@ -422,9 +497,16 @@ export default function Processes() {
   const [search, setSearch] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
   const [filterCompany, setFilterCompany] = useState("");
+  const [activeDragTask, setActiveDragTask] = useState<TaskItem | null>(null);
   const [openSections, setOpenSections] = useState({
     overdue: true, today: true, week: true, later: true, noDate: true, done: false,
   });
+
+  // DnD sensors: pointer with 8px threshold prevents accidental drags on click
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const { data: companies = [] } = useQuery<CompanyItem[]>({
     queryKey: ["companies-dropdown"],
@@ -446,32 +528,36 @@ export default function Processes() {
       return ((data || []) as unknown[]).map((row) => {
         const r = row as Record<string, unknown>;
         return {
-          id: String(r.id ?? ""),
-          name: String(r.name ?? ""),
-          description: r.description ? String(r.description) : null,
-          status: String(r.status ?? "a_receber"),
-          priority: String(r.priority ?? "normal"),
-          due_date: r.due_date ? String(r.due_date) : null,
-          company_id: r.company_id ? String(r.company_id) : null,
+          id:                 String(r.id ?? ""),
+          name:               String(r.name ?? ""),
+          description:        r.description ? String(r.description) : null,
+          status:             String(r.status ?? "a_receber"),
+          priority:           String(r.priority ?? "normal"),
+          due_date:           r.due_date ? String(r.due_date) : null,
+          company_id:         r.company_id ? String(r.company_id) : null,
+          recurrence_pattern: r.recurrence_pattern ? String(r.recurrence_pattern) : null,
+          parent_task_id:     r.parent_task_id ? String(r.parent_task_id) : null,
         } satisfies TaskItem;
       });
     },
     retry: 1,
   });
 
+  // Create: single task with recurrence_pattern — trigger generates next on completion
   const createTask = useMutation({
     mutationFn: async (form: TaskFormData) => {
       const listId = await getOrCreateDefaultList();
-      const base = {
-        name: form.name, description: form.description || null,
-        priority: form.priority, company_id: form.company_id || null, status: "a_receber",
+      const payload = {
+        name:        form.name,
+        description: form.description || null,
+        priority:    form.priority,
+        company_id:  form.company_id || null,
+        status:      "a_receber",
+        due_date:    form.due_date || null,
         ...(listId ? { list_id: listId } : {}),
+        ...(form.recurrence !== "none" ? { recurrence_pattern: form.recurrence } : {}),
       };
-      const tasksToInsert = form.recurrence !== "none" && form.due_date
-        ? getRecurringDates(form.due_date, form.recurrence, form.occurrences).map(d => ({ ...base, due_date: d }))
-        : [{ ...base, due_date: form.due_date || null }];
-
-      const { error } = await supabase.from("tasks").insert(tasksToInsert);
+      const { error } = await supabase.from("tasks").insert(payload);
       if (error) throw error;
       return { name: form.name, company_id: form.company_id || null };
     },
@@ -483,22 +569,39 @@ export default function Processes() {
     onError: (err: Error) => toast.error(`Erro ao criar tarefa: ${err.message}`),
   });
 
+  // Update: optimistic update before server confirmation — UI never waits
   const updateTask = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<TaskItem> }) => {
       const { error } = await supabase.from("tasks").update(updates).eq("id", id);
       if (error) throw error;
       return { id, updates };
     },
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ["all-tasks"] });
+      const previousTasks = queryClient.getQueryData<TaskItem[]>(["all-tasks"]);
+      queryClient.setQueryData(["all-tasks"], (old: TaskItem[] | undefined) =>
+        old?.map(t => t.id === id ? { ...t, ...updates } : t) ?? []
+      );
+      return { previousTasks };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousTasks) queryClient.setQueryData(["all-tasks"], context.previousTasks);
+      toast.error("Erro ao atualizar tarefa.");
+    },
     onSuccess: async ({ updates, id }) => {
-      queryClient.invalidateQueries({ queryKey: ["all-tasks"] });
       if (updates.status === "concluido") {
         const task = tasks.find(t => t.id === id);
+        if (task?.recurrence_pattern) {
+          toast.success(`Concluída! Próxima ocorrência (${RECURRENCE_LABELS[task.recurrence_pattern]}) criada automaticamente.`);
+        }
         if (task) {
           runAutomations("task_completed", "any", { entityTitle: task.name, companyId: task.company_id }).catch(() => {});
         }
       }
     },
-    onError: (err: Error) => toast.error(`Erro: ${err.message}`),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-tasks"] });
+    },
   });
 
   const deleteTask = useMutation({
@@ -506,7 +609,10 @@ export default function Processes() {
       const { error } = await supabase.from("tasks").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["all-tasks"] }); toast.success("Tarefa removida."); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-tasks"] });
+      toast.success("Tarefa removida.");
+    },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
 
@@ -515,20 +621,39 @@ export default function Processes() {
     updateTask.mutate({ id: task.id, updates: { status: nextStatus } });
   };
 
+  // Board DnD handlers
+  const handleBoardDragStart = ({ active }: DragStartEvent) => {
+    const task = tasks.find(t => t.id === String(active.id));
+    setActiveDragTask(task ?? null);
+  };
+
+  const handleBoardDragEnd = ({ active, over }: DragEndEvent) => {
+    setActiveDragTask(null);
+    if (!over || active.id === over.id) return;
+    const draggedTask = tasks.find(t => t.id === String(active.id));
+    if (!draggedTask) return;
+    const overId = String(over.id);
+    const overTask = tasks.find(t => t.id === overId);
+    const targetStatus = overTask ? overTask.status : overId;
+    if (draggedTask.status !== targetStatus) {
+      updateTask.mutate({ id: draggedTask.id, updates: { status: targetStatus } });
+    }
+  };
+
   // Filtered tasks
   const filtered = useMemo(() => {
     let list = tasks;
-    if (search)          list = list.filter(t => t.name.toLowerCase().includes(search.toLowerCase()) || (t.description ?? "").toLowerCase().includes(search.toLowerCase()));
-    if (filterPriority)  list = list.filter(t => t.priority === filterPriority);
-    if (filterCompany)   list = list.filter(t => t.company_id === filterCompany);
+    if (search)         list = list.filter(t => t.name.toLowerCase().includes(search.toLowerCase()) || (t.description ?? "").toLowerCase().includes(search.toLowerCase()));
+    if (filterPriority) list = list.filter(t => t.priority === filterPriority);
+    if (filterCompany)  list = list.filter(t => t.company_id === filterCompany);
     return list;
   }, [tasks, search, filterPriority, filterCompany]);
 
-  // Smart sections (list view)
+  // List view sections
   const sections = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().slice(0, 10);
-    const next7Str = new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+    const todayStr  = today.toISOString().slice(0, 10);
+    const next7Str  = new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10);
     const active = filtered.filter(t => t.status !== "concluido");
     return {
       overdue: active.filter(t => t.due_date && t.due_date < todayStr),
@@ -540,14 +665,13 @@ export default function Processes() {
     };
   }, [filtered]);
 
-  // Board groups
+  // Board groups (derives from filtered, so optimistic updates reflect instantly)
   const boardGroups = useMemo(() => ({
-    a_receber:   { label: "A Fazer",      color: "border-slate-300  bg-slate-50/60",  headerColor: "text-slate-600",  items: filtered.filter(t => t.status === "a_receber")  },
-    em_progresso:{ label: "Em Progresso", color: "border-amber-200  bg-amber-50/60",  headerColor: "text-amber-600",  items: filtered.filter(t => t.status === "em_progresso") },
-    concluido:   { label: "Concluído",    color: "border-emerald-200 bg-emerald-50/60", headerColor: "text-emerald-600", items: filtered.filter(t => t.status === "concluido") },
+    a_receber:    { label: "A Fazer",       color: "border-slate-300 bg-slate-50/60",    headerColor: "text-slate-600",   items: filtered.filter(t => t.status === "a_receber")    },
+    em_progresso: { label: "Em Progresso",  color: "border-amber-200 bg-amber-50/60",    headerColor: "text-amber-600",   items: filtered.filter(t => t.status === "em_progresso") },
+    concluido:    { label: "Concluído",     color: "border-emerald-200 bg-emerald-50/60", headerColor: "text-emerald-600", items: filtered.filter(t => t.status === "concluido")    },
   }), [filtered]);
 
-  // Stats
   const stats = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
     const weekAgo  = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -564,14 +688,12 @@ export default function Processes() {
 
   const hasFilters = search || filterPriority || filterCompany;
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Carregando tarefas...</div>;
-  }
+  if (isLoading) return <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Carregando tarefas...</div>;
 
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-red-500 text-sm font-medium">Erro ao carregar tarefas. Verifique a conexão e tente novamente.</p>
+        <p className="text-red-500 text-sm font-medium">Erro ao carregar tarefas.</p>
         <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["all-tasks"] })}>
           Tentar novamente
         </Button>
@@ -637,7 +759,6 @@ export default function Processes() {
           <option value="">Todos os clientes</option>
           {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        {/* View toggle */}
         <div className="flex border border-input rounded-md overflow-hidden h-10 shrink-0">
           <button
             onClick={() => setView("list")}
@@ -669,12 +790,12 @@ export default function Processes() {
       {view === "list" && (
         <div className="space-y-4">
           {[
-            { key: "overdue" as const, label: "Atrasadas", icon: AlertCircle,    color: "text-red-600"    },
-            { key: "today"   as const, label: "Hoje",      icon: CalendarClock,  color: "text-orange-600" },
-            { key: "week"    as const, label: "Esta semana",icon: CalendarCheck, color: "text-amber-600"  },
-            { key: "later"   as const, label: "Mais tarde", icon: Clock,         color: "text-blue-500"   },
-            { key: "noDate"  as const, label: "Sem data",   icon: Circle,        color: "text-muted-foreground" },
-            { key: "done"    as const, label: "Concluídas", icon: CheckCircle2,  color: "text-emerald-500" },
+            { key: "overdue" as const, label: "Atrasadas",    icon: AlertCircle,   color: "text-red-600"          },
+            { key: "today"   as const, label: "Hoje",         icon: CalendarClock, color: "text-orange-600"       },
+            { key: "week"    as const, label: "Esta semana",  icon: CalendarCheck, color: "text-amber-600"        },
+            { key: "later"   as const, label: "Mais tarde",   icon: Clock,         color: "text-blue-500"         },
+            { key: "noDate"  as const, label: "Sem data",     icon: Circle,        color: "text-muted-foreground" },
+            { key: "done"    as const, label: "Concluídas",   icon: CheckCircle2,  color: "text-emerald-500"      },
           ].map(sec => {
             const items = sections[sec.key];
             if (items.length === 0 && sec.key !== "noDate") return null;
@@ -705,28 +826,44 @@ export default function Processes() {
         </div>
       )}
 
-      {/* ── BOARD VIEW ── */}
+      {/* ── BOARD VIEW (DnD) ── */}
       {view === "board" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {Object.entries(boardGroups).map(([status, group]) => (
-            <div key={status} className="space-y-2">
-              <div className={`flex items-center justify-between px-1 py-2 rounded-lg border-b-2 ${group.color.split(" ")[0]}`}>
-                <span className={`text-sm font-semibold ${group.headerColor}`}>{group.label}</span>
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{group.items.length}</span>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleBoardDragStart}
+          onDragEnd={handleBoardDragEnd}
+          onDragCancel={() => setActiveDragTask(null)}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Object.entries(boardGroups).map(([status, group]) => (
+              <BoardColumn
+                key={status}
+                status={status}
+                group={group}
+                companies={companies}
+                onToggle={handleToggle}
+                onEdit={setEditingTask}
+                onDelete={id => deleteTask.mutate(id)}
+              />
+            ))}
+          </div>
+
+          {/* Ghost card rendered outside columns to avoid layout shift */}
+          <DragOverlay dropAnimation={{ duration: 150, easing: "ease" }}>
+            {activeDragTask ? (
+              <div className="rotate-1 shadow-2xl ring-2 ring-primary/40 rounded-xl pointer-events-none opacity-95">
+                <TaskCard
+                  task={activeDragTask}
+                  companies={companies}
+                  onToggle={() => {}}
+                  onEdit={() => {}}
+                  onDelete={() => {}}
+                />
               </div>
-              <div className={`rounded-xl border-2 border-dashed p-2 space-y-2 min-h-[400px] ${group.color}`}>
-                {group.items.map(task => (
-                  <TaskCard key={task.id} task={task} companies={companies}
-                    onToggle={handleToggle} onEdit={setEditingTask}
-                    onDelete={id => deleteTask.mutate(id)} />
-                ))}
-                {group.items.length === 0 && (
-                  <p className="text-center text-xs text-muted-foreground pt-6">Nenhuma tarefa</p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {/* Empty state */}

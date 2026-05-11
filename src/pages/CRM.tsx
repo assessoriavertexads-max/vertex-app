@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { DndContext, DragEndEvent, closestCorners, useDraggable, useDroppable } from '@dnd-kit/core';
+import {
+  DndContext, DragStartEvent, DragEndEvent, DragOverlay,
+  closestCorners, PointerSensor, useSensor, useSensors,
+  useDraggable, useDroppable,
+} from '@dnd-kit/core';
 import { Plus, Building2, DollarSign, Clock, Pencil, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -98,7 +102,12 @@ const KanbanColumn = ({ column, leads, onEdit }: { column: typeof COLUMNS[0]; le
 export const CRM = () => {
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<LeadWithCompany | null>(null);
+  const [activeLeadId, setActiveLeadId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
 
   const { data: leads = [], isLoading, isError } = useQuery<LeadWithCompany[]>({
     queryKey: ['leads'],
@@ -408,8 +417,11 @@ export const CRM = () => {
     onError: (err: Error) => toast.error(`Erro ao excluir: ${err.message}`),
   });
 
+  const handleDragStart = ({ active }: DragStartEvent) => setActiveLeadId(String(active.id));
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveLeadId(null);
     if (!over) return;
 
     const leadId = String(active.id);
@@ -471,7 +483,13 @@ export const CRM = () => {
       />
 
       <div className="flex-1 overflow-x-auto pb-4">
-        <DndContext collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setActiveLeadId(null)}
+        >
           <div className="flex gap-6 h-full items-start">
             {COLUMNS.map((column) => (
               <KanbanColumn
@@ -482,6 +500,26 @@ export const CRM = () => {
               />
             ))}
           </div>
+
+          <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+            {activeLeadId ? (() => {
+              const al = leads.find(l => l.id === activeLeadId);
+              if (!al) return null;
+              return (
+                <div className="bg-white p-4 rounded-xl border border-blue-300 shadow-2xl ring-2 ring-blue-400/50 rotate-1 w-72 pointer-events-none">
+                  <h4 className="font-semibold text-slate-800 text-sm leading-tight">{al.title}</h4>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    {al.companies?.name || 'Empresa não vinculada'}
+                  </div>
+                  <div className="flex items-center gap-1 font-medium text-emerald-600 text-sm mt-3 pt-2 border-t border-slate-100">
+                    <DollarSign className="w-3.5 h-3.5" />
+                    {Number(al.estimated_value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+              );
+            })() : null}
+          </DragOverlay>
         </DndContext>
       </div>
     </div>
