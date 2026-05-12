@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ClientLayout } from "@/components/layout/ClientLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -20,6 +21,7 @@ function PageLoader() {
 const Login = lazy(() => import("./pages/Login"));
 const SignUp = lazy(() => import("./pages/SignUp"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const CRM = lazy(() => import("./pages/CRM"));
 const Finance = lazy(() => import("./pages/Finance"));
@@ -64,11 +66,23 @@ const App = () => (
             <Route path="/signup" element={<SignUp />} />
             <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* Rotas protegidas */}
+            {/* Portal do cliente */}
+            <Route
+              path="/client-portal"
+              element={
+                <ProtectedRoute allowedRoles={['cliente']}>
+                  <ClientLayout>
+                    <ClientPortal />
+                  </ClientLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Rotas protegidas da agência */}
             <Route
               path="*"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['agencia']}>
                   <AppLayout>
                     <Routes>
                       <Route path="/" element={<Dashboard />} />

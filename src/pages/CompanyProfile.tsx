@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Calendar, Pencil, Check, X, User, CreditCard, Megaphone, Phone, Mail } from 'lucide-react';
+import { ArrowLeft, Loader2, Calendar, Pencil, Check, X, User, CreditCard, Megaphone, Phone, Mail, UserPlus, Users, Send, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { COMPANY_STATUS_LABELS, COMPANY_STATUS_COLORS } from '@/lib/company-constants';
 import { Json } from '@/integrations/supabase/types';
+
+interface ClientUser {
+  id: string;
+  full_name: string | null;
+  agency_user_id: string | null;
+}
 
 interface Company {
   id: string;
@@ -94,27 +101,48 @@ function InlineField({
 export default function CompanyProfile() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [company, setCompany]         = useState<Company | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [clientUsers, setClientUsers] = useState<ClientUser[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting]       = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!companyId) return;
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('id', companyId)
-        .single();
-      if (error) {
-        toast.error('Erro ao carregar dados da empresa');
-      } else if (data) {
-        setCompany(data as Company);
-      }
-      setLoading(false);
-    };
-    fetchData();
+    if (!companyId) return;
+    setLoading(true);
+    Promise.all([
+      supabase.from('companies').select('*').eq('id', companyId).single(),
+      supabase.from('profiles').select('id, full_name, agency_user_id').eq('company_id', companyId).eq('role', 'cliente'),
+    ]).then(([companyRes, profilesRes]) => {
+      if (companyRes.error) toast.error('Erro ao carregar dados da empresa');
+      else if (companyRes.data) setCompany(companyRes.data as Company);
+      if (profilesRes.data) setClientUsers(profilesRes.data as ClientUser[]);
+    }).finally(() => setLoading(false));
   }, [companyId]);
+
+  const handleInviteClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim() || !companyId) return;
+    setInviting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('invite-client', {
+        body: { email: inviteEmail.trim(), company_id: companyId },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      toast.success(data?.message ?? 'Convite enviado!');
+      setInviteEmail('');
+      // Refresh client list
+      const { data: updated } = await supabase
+        .from('profiles').select('id, full_name, agency_user_id')
+        .eq('company_id', companyId).eq('role', 'cliente');
+      if (updated) setClientUsers(updated as ClientUser[]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao enviar convite');
+    } finally {
+      setInviting(false);
+    }
+  };
 
   const saveField = async (field: string, value: string | null) => {
     if (!companyId) return;
@@ -231,6 +259,44 @@ export default function CompanyProfile() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Portal do Cliente */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-5">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Users className="h-4 w-4 text-primary" /> Portal do Cliente
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Envie um convite por email. O cliente recebe um link para definir a senha e acessar um painel exclusivo com boletos e campanhas.
+        </p>
+
+        {clientUsers.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Acessos ativos</p>
+            {clientUsers.map(cu => (
+              <div key={cu.id} className="flex items-center gap-2 py-1.5 px-3 bg-muted/40 rounded-lg">
+                <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <span className="text-sm">{cu.full_name ?? cu.id}</span>
+                <Badge variant="secondary" className="ml-auto text-xs">cliente</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={handleInviteClient} className="flex gap-2">
+          <Input
+            type="email"
+            placeholder="email@cliente.com.br"
+            value={inviteEmail}
+            onChange={e => setInviteEmail(e.target.value)}
+            className="h-9 text-sm"
+            required
+          />
+          <Button type="submit" size="sm" disabled={inviting || !inviteEmail.trim()} className="shrink-0">
+            {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+            {inviting ? 'Enviando…' : 'Convidar'}
+          </Button>
+        </form>
       </div>
 
       {/* Mídias Pagas */}
