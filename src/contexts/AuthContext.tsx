@@ -21,13 +21,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Timeout de 8s para evitar loading eterno se o Supabase demorar/travar
+function withTimeout<T>(promise: Promise<T>, ms = 8000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), ms),
+    ),
+  ]);
+}
+
 async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase
-    .from('profiles')
-    .select('id, role, company_id, agency_user_id, full_name, whatsapp_phone')
-    .eq('id', userId)
-    .single();
-  return data as Profile | null;
+  try {
+    const { data } = await withTimeout(
+      supabase
+        .from('profiles')
+        .select('id, role, company_id, agency_user_id, full_name, whatsapp_phone')
+        .eq('id', userId)
+        .single(),
+    );
+    return data as Profile | null;
+  } catch {
+    return null;
+  }
 }
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -45,7 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const boot = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await withTimeout(supabase.auth.getSession());
         setSession(session);
         setUser(session?.user ?? null);
         await loadProfile(session?.user ?? null);
