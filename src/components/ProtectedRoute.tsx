@@ -5,7 +5,6 @@ import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  /** If set, only users with these roles can access this route. */
   allowedRoles?: ('agencia' | 'cliente')[];
 }
 
@@ -22,18 +21,12 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (!user) return <Navigate to="/login" replace />;
 
-  // Profile not loaded yet — keep spinner (brief gap after signup trigger)
-  if (user && !profile) {
-    return (
-      <div className="flex h-full items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  // Se profile ainda não carregou (null), trata como agência para não bloquear
+  // usuários existentes que ainda não têm linha na tabela profiles.
+  const role = profile?.role ?? 'agencia';
 
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    // Send clients to the portal, agencies to the main dashboard
-    return <Navigate to={profile.role === 'cliente' ? '/client-portal' : '/'} replace />;
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    return <Navigate to={role === 'cliente' ? '/client-portal' : '/'} replace />;
   }
 
   return <>{children}</>;
