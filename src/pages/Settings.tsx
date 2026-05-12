@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { User, Bell, Shield, Loader2, MessageSquare, Mail, KeyRound } from "lucide-react";
+import { useState, useEffect } from "react";
+import { User, Bell, Shield, Loader2, MessageSquare, Mail, KeyRound, Phone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -31,14 +31,36 @@ function getNotifications() {
 }
 
 export default function Settings() {
-  const { user } = useAuth();
-  const [newPassword, setNewPassword] = useState('');
+  const { user, profile } = useAuth();
+  const [newPassword, setNewPassword]       = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSavingPassword, setIsSavingPassword] = useState(false);
-  const [sendChannels, setSendChannels] = useState(getSendChannels);
-  const [notifications, setNotifications] = useState(getNotifications);
-  const [newPin, setNewPin] = useState('');
-  const [isSavingPin, setIsSavingPin] = useState(false);
+  const [sendChannels, setSendChannels]     = useState(getSendChannels);
+  const [notifications, setNotifications]   = useState(getNotifications);
+  const [newPin, setNewPin]                 = useState('');
+  const [isSavingPin, setIsSavingPin]       = useState(false);
+  const [whatsappPhone, setWhatsappPhone]   = useState('');
+  const [isSavingPhone, setIsSavingPhone]   = useState(false);
+
+  useEffect(() => {
+    if (profile?.whatsapp_phone) setWhatsappPhone(profile.whatsapp_phone);
+  }, [profile]);
+
+  const handleSaveWhatsapp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setIsSavingPhone(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ whatsapp_phone: whatsappPhone.trim() || null })
+      .eq('id', user.id);
+    setIsSavingPhone(false);
+    if (error) {
+      toast.error('Erro ao salvar número: ' + error.message);
+    } else {
+      toast.success('Número WhatsApp salvo!');
+    }
+  };
 
   const toggleChannel = (channel: 'whatsapp' | 'email') => {
     const updated = { ...sendChannels, [channel]: !sendChannels[channel] };
@@ -123,6 +145,31 @@ export default function Settings() {
             <Input value={user?.id ? `${user.id.slice(0, 8)}...` : ''} disabled className="bg-muted/50 text-muted-foreground font-mono text-xs" />
           </div>
         </div>
+
+        <Separator />
+
+        <form onSubmit={handleSaveWhatsapp} className="space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <Phone className="h-4 w-4 text-green-600" />
+            <Label htmlFor="whatsapp-phone">WhatsApp da Agência (exibido no Portal do Cliente)</Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Número com DDD e código do país. Ex: <code className="bg-muted px-1 rounded">5511999999999</code>
+          </p>
+          <div className="flex gap-2 max-w-sm">
+            <Input
+              id="whatsapp-phone"
+              type="tel"
+              placeholder="5511999999999"
+              value={whatsappPhone}
+              onChange={e => setWhatsappPhone(e.target.value)}
+              className="font-mono"
+            />
+            <Button type="submit" disabled={isSavingPhone}>
+              {isSavingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+            </Button>
+          </div>
+        </form>
       </div>
 
       <Separator />
