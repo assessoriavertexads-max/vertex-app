@@ -127,16 +127,21 @@ export default function Dashboard() {
     const paidIncome  = transactions.filter(t => t.type === 'income'  && t.status === 'paid');
     const paidExpense = transactions.filter(t => t.type === 'expense' && t.status === 'paid');
 
-    const monthlyRevenue = paidIncome.reduce((a, t)  => a + Number(t.amount), 0);
-    const monthlyExpense = paidExpense.reduce((a, t) => a + Number(t.amount), 0);
-    const grossProfit    = monthlyRevenue - monthlyExpense;
-
+    // Agrupa pelo due_date (competência) — não pelo created_at (data de importação)
     const thisMonthRevenue = paidIncome
-      .filter(t => (t.due_date ?? t.created_at ?? '').substring(0, 7) === thisMonth)
+      .filter(t => (t.due_date ?? '').substring(0, 7) === thisMonth)
       .reduce((a, t) => a + Number(t.amount), 0);
     const lastMonthRevenue = paidIncome
-      .filter(t => (t.due_date ?? t.created_at ?? '').substring(0, 7) === lastMonth)
+      .filter(t => (t.due_date ?? '').substring(0, 7) === lastMonth)
       .reduce((a, t) => a + Number(t.amount), 0);
+
+    const thisMonthExpense = paidExpense
+      .filter(t => (t.due_date ?? '').substring(0, 7) === thisMonth)
+      .reduce((a, t) => a + Number(t.amount), 0);
+
+    const monthlyRevenue = thisMonthRevenue;
+    const monthlyExpense = thisMonthExpense;
+    const grossProfit    = monthlyRevenue - monthlyExpense;
     const momGrowth = lastMonthRevenue > 0
       ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
       : null;
@@ -170,7 +175,7 @@ export default function Dashboard() {
     return Array.from({ length: 6 }, (_, i) => {
       const d  = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
       const mk = d.toISOString().substring(0, 7);
-      const mt = transactions.filter(t => (t.created_at ?? '').substring(0, 7) === mk);
+      const mt = transactions.filter(t => (t.due_date ?? '').substring(0, 7) === mk);
       return {
         name:    MONTHS[d.getMonth()],
         receita: mt.filter(t => t.type === 'income'  && t.status === 'paid').reduce((a, t) => a + Number(t.amount), 0),
