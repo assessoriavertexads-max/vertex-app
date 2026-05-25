@@ -12,9 +12,10 @@ function cleanDocument(doc: string): string {
   return doc.replace(/\D/g, '');
 }
 
-async function findCustomerByCnpj(cnpj: string, apiKey: string): Promise<string | null> {
+// Busca cliente no Asaas por CPF ou CNPJ (ambos suportados pelo parâmetro cpfCnpj)
+async function findCustomerByDocument(document: string, apiKey: string): Promise<string | null> {
   const headers = { 'Content-Type': 'application/json', 'access_token': apiKey };
-  const res = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${cnpj}&limit=1`, { headers });
+  const res = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${document}&limit=1`, { headers });
   const data = await res.json();
   if (data.data?.length > 0) return data.data[0].id;
   return null;
@@ -69,6 +70,33 @@ async function fetchPaymentsForSubscription(subscriptionId: string, apiKey: stri
   return payments;
 }
 
+// Cobranças avulsas (PIX, boleto manual, etc.) — sem vínculo com assinatura
+async function fetchIndividualPayments(customerId: string, apiKey: string) {
+  const payments = [];
+  let offset = 0;
+  const limit = 100;
+  let hasMore = true;
+  const headers = { 'Content-Type': 'application/json', 'access_token': apiKey };
+
+  while (hasMore) {
+    const res = await fetch(
+      `${ASAAS_BASE_URL}/payments?customer=${customerId}&limit=${limit}&offset=${offset}`,
+      { headers }
+    );
+    const data = await res.json();
+    if (data.data?.length > 0) {
+      // Filtra apenas os sem assinatura (cobranças avulsas)
+      const individual = data.data.filter((p: { subscription: string | null }) => !p.subscription);
+      payments.push(...individual);
+      offset += data.data.length;
+      hasMore = data.hasMore ?? false;
+    } else {
+      hasMore = false;
+    }
+  }
+  return payments;
+}
+
 function mapCycle(cycle: string): string {
   const map: Record<string, string> = {
     'MONTHLY': 'MONTHLY', 'WEEKLY': 'WEEKLY', 'BIWEEKLY': 'BIWEEKLY',
@@ -84,11 +112,24 @@ function mapPaymentStatus(status: string): string {
   return 'pending';
 }
 
+function billingTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    'PIX': 'PIX', 'BOLETO': 'Boleto', 'CREDIT_CARD': 'Cartão de Crédito',
+    'DEBIT_CARD': 'Cartão de Débito', 'TRANSFER': 'Transferência',
+  };
+  return map[type] || type;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function importCompany(company: { id: string; name: string; document: string; asaas_customer_id: string | null }, apiKey: string, supabase: any) {
-  const cnpj = cleanDocument(company.document);
-  const customerId = await findCustomerByCnpj(cnpj, apiKey);
-  if (!customerId) return { imported: 0, updated: 0, errors: [`${company.name}: nenhum cliente Asaas com CNPJ ${company.document}`] };
+  const document = cleanDocument(company.document);
+  const customerId = await findCustomerByDocument(document, apiKey);
+  if (!customerId) {
+    return {
+      imported: 0, updated: 0,
+      errors: [`${company.name}: nenhum cliente Asaas com CPF/CNPJ ${company.document}`],
+    };
+  }
 
   if (company.asaas_customer_id !== customerId) {
     await supabase.from('companies').update({ asaas_customer_id: customerId }).eq('id', company.id);
@@ -98,6 +139,7 @@ async function importCompany(company: { id: string; name: string; document: stri
   let imported = 0, updated = 0;
   const errors: string[] = [];
 
+  // ── Assinaturas e seus pagamentos ─────────────────────────────────────────
   for (const subscription of subscriptions) {
     try {
       const { data: existingSub } = await supabase
@@ -134,7 +176,6 @@ async function importCompany(company: { id: string; name: string; document: stri
 
       const payments = await fetchPaymentsForSubscription(subscription.id, apiKey);
       for (const payment of payments) {
-        // Pagamento pendente do mês atual: atualiza URL no registro principal e pula (evita duplicata)
         if (payment.status === 'PENDING' && payment.dueDate === subscription.nextDueDate) {
           if (existingSub && payment.invoiceUrl) {
             await supabase.from('financial_transactions')
@@ -157,6 +198,7 @@ async function importCompany(company: { id: string; name: string; document: stri
               status: newStatus,
               asaas_payment_url: payment.invoiceUrl || null,
             }).eq('asaas_payment_id', payment.id);
+            updated++;
           }
           continue;
         }
@@ -174,15 +216,59 @@ async function importCompany(company: { id: string; name: string; document: stri
           status: mapPaymentStatus(payment.status),
         });
 
-        if (insertError) {
-          errors.push(`Pagamento ${payment.id}: ${insertError.message}`);
-        } else {
-          imported++;
-        }
+        if (insertError) errors.push(`Pagamento ${payment.id}: ${insertError.message}`);
+        else imported++;
       }
     } catch (err) {
       errors.push(`Assinatura ${subscription.id}: ${err instanceof Error ? err.message : 'Erro'}`);
     }
+  }
+
+  // ── Cobranças avulsas (PIX, boleto avulso, etc.) ──────────────────────────
+  try {
+    const individualPayments = await fetchIndividualPayments(customerId, apiKey);
+    for (const payment of individualPayments) {
+      try {
+        const { data: existing } = await supabase
+          .from('financial_transactions')
+          .select('id, status')
+          .eq('asaas_payment_id', payment.id)
+          .maybeSingle();
+
+        const newStatus = mapPaymentStatus(payment.status);
+        const billing   = billingTypeLabel(payment.billingType ?? '');
+        const category  = payment.description
+          ? `${payment.description}${billing ? ` (${billing})` : ''}`
+          : billing || 'Cobrança Avulsa';
+
+        if (existing) {
+          if (existing.status !== newStatus) {
+            await supabase.from('financial_transactions')
+              .update({ status: newStatus, asaas_payment_url: payment.invoiceUrl || null })
+              .eq('id', existing.id);
+            updated++;
+          }
+        } else {
+          const { error: insertError } = await supabase.from('financial_transactions').insert({
+            company_id:        company.id,
+            amount:            payment.value,
+            type:              'income',
+            category,
+            due_date:          payment.dueDate,
+            subscription_cycle: null,
+            asaas_payment_id:  payment.id,
+            asaas_payment_url: payment.invoiceUrl || null,
+            status:            newStatus,
+          });
+          if (insertError) errors.push(`Avulso ${payment.id}: ${insertError.message}`);
+          else imported++;
+        }
+      } catch (err) {
+        errors.push(`Avulso ${payment.id}: ${err instanceof Error ? err.message : 'Erro'}`);
+      }
+    }
+  } catch (err) {
+    errors.push(`Cobranças avulsas: ${err instanceof Error ? err.message : 'Erro'}`);
   }
 
   return { imported, updated, errors };
@@ -223,7 +309,7 @@ serve(async (req) => {
         if (!company.document) continue;
         const result = await importCompany(company, ASAAS_API_KEY, supabase);
         totalImported += result.imported;
-        totalUpdated += result.updated;
+        totalUpdated  += result.updated;
         allErrors.push(...result.errors);
       }
 
@@ -241,7 +327,7 @@ serve(async (req) => {
       .single();
 
     if (companyError || !company) throw new Error('Empresa não encontrada');
-    if (!company.document) throw new Error('Empresa não possui CNPJ/CPF cadastrado');
+    if (!company.document) throw new Error('Empresa não possui CPF/CNPJ cadastrado');
 
     const result = await importCompany(company, ASAAS_API_KEY, supabase);
 

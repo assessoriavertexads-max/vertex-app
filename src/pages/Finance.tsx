@@ -311,6 +311,22 @@ export const Finance = () => {
   const [sendingWhatsAppId, setSendingWhatsAppId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
+  // Realtime: qualquer INSERT/UPDATE em financial_transactions recarrega a lista
+  useEffect(() => {
+    const channel = supabase
+      .channel('finance-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'financial_transactions' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
   const { data: transactions = [], isLoading } = useQuery<TransactionWithCompany[]>({
     queryKey: ['financial_transactions'],
     queryFn: async () => {
