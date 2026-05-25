@@ -23,6 +23,8 @@ import {
   ChevronDown,
   RefreshCcw,
   ReceiptText,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -309,6 +311,10 @@ export const Finance = () => {
   const [selectedCompanyForImport, setSelectedCompanyForImport] = useState<string | null>(null);
   const [importingAll, setImportingAll] = useState(false);
   const [importMode, setImportMode] = useState<'all' | 'subscriptions' | 'charges'>('all');
+  const [hideValues, setHideValues] = useState(false);
+
+  const fmtVal = (value: number) =>
+    hideValues ? '••••' : `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCompany | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [generatingChargeId, setGeneratingChargeId] = useState<string | null>(null);
@@ -669,6 +675,17 @@ export const Finance = () => {
           <p className="text-muted-foreground mt-1">Gestão de caixa da Vertex.</p>
         </div>
         <div className="flex flex-wrap gap-2 relative">
+          {/* Ocultar/exibir valores */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setHideValues(v => !v)}
+            title={hideValues ? 'Exibir valores' : 'Ocultar valores'}
+            className="text-slate-500"
+          >
+            {hideValues ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </Button>
+
           {/* Export CSV */}
           <Button variant="outline" onClick={exportCSV} className="gap-2 text-slate-600">
             <FileDown className="w-4 h-4" /> Exportar CSV
@@ -781,9 +798,7 @@ export const Finance = () => {
             <span className="text-muted-foreground text-sm font-medium">Receita Recebida</span>
             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-600"><ArrowUpRight className="w-4 h-4" /></div>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mt-3">
-            R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </h2>
+          <h2 className="text-2xl font-bold text-foreground mt-3">{fmtVal(totalIncome)}</h2>
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
@@ -791,9 +806,7 @@ export const Finance = () => {
             <span className="text-muted-foreground text-sm font-medium">A Receber</span>
             <div className="p-2 bg-amber-500/10 rounded-lg text-amber-600"><Clock className="w-4 h-4" /></div>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mt-3">
-            R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </h2>
+          <h2 className="text-2xl font-bold text-foreground mt-3">{fmtVal(totalPending)}</h2>
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
@@ -801,9 +814,7 @@ export const Finance = () => {
             <span className="text-muted-foreground text-sm font-medium">Saídas / Custos</span>
             <div className="p-2 bg-red-500/10 rounded-lg text-red-600"><ArrowDownRight className="w-4 h-4" /></div>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mt-3">
-            R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </h2>
+          <h2 className="text-2xl font-bold text-foreground mt-3">{fmtVal(totalExpense)}</h2>
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
@@ -811,9 +822,7 @@ export const Finance = () => {
             <span className="text-muted-foreground text-sm font-medium">MRR</span>
             <div className="p-2 bg-violet-500/10 rounded-lg text-violet-600"><TrendingUp className="w-4 h-4" /></div>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mt-3">
-            R$ {mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </h2>
+          <h2 className="text-2xl font-bold text-foreground mt-3">{fmtVal(mrr)}</h2>
           <p className="text-xs text-muted-foreground mt-1">Receita Mensal Recorrente</p>
         </div>
       </div>
@@ -915,7 +924,7 @@ export const Finance = () => {
                     <td className="px-5 py-4">{getStatusBadge(t.status)}</td>
 
                     <td className={`px-5 py-4 text-right font-medium whitespace-nowrap ${t.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {t.type === 'income' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      {hideValues ? '••••' : `${t.type === 'income' ? '+' : '-'} R$ ${Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                     </td>
 
                     <td className="px-5 py-4">
