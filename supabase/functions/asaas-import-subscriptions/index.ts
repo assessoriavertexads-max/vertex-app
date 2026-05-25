@@ -12,11 +12,15 @@ function cleanDocument(doc: string): string {
   return doc.replace(/\D/g, '');
 }
 
-// Busca cliente no Asaas por CPF ou CNPJ (ambos suportados pelo parâmetro cpfCnpj)
+// Busca cliente no Asaas por CPF ou CNPJ
 async function findCustomerByDocument(document: string, apiKey: string): Promise<string | null> {
   const headers = { 'Content-Type': 'application/json', 'access_token': apiKey };
   const res = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${document}&limit=1`, { headers });
   const data = await res.json();
+  if (!res.ok) {
+    const msg = data.errors?.[0]?.description ?? data.message ?? `HTTP ${res.status}`;
+    throw new Error(`Asaas API: ${msg}`);
+  }
   if (data.data?.length > 0) return data.data[0].id;
   return null;
 }

@@ -18,6 +18,10 @@ async function findOrCreateAsaasCustomer(
   if (cpfCnpj) {
     const res = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${cpfCnpj}&limit=1`, { headers });
     const data = await res.json();
+    if (!res.ok) {
+      const msg = data.errors?.[0]?.description ?? data.message ?? `HTTP ${res.status}`;
+      throw new Error(`Asaas API: ${msg}`);
+    }
     if (data.data?.length > 0) return data.data[0].id;
   }
 
