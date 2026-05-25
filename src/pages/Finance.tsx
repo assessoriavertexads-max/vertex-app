@@ -20,6 +20,9 @@ import {
   MessageSquare,
   Mail,
   XCircle,
+  ChevronDown,
+  RefreshCcw,
+  ReceiptText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -305,6 +308,7 @@ export const Finance = () => {
   const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [selectedCompanyForImport, setSelectedCompanyForImport] = useState<string | null>(null);
   const [importingAll, setImportingAll] = useState(false);
+  const [importMode, setImportMode] = useState<'all' | 'subscriptions' | 'charges'>('all');
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCompany | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [generatingChargeId, setGeneratingChargeId] = useState<string | null>(null);
@@ -513,8 +517,8 @@ export const Finance = () => {
   });
 
   const importAsaasSubscriptions = useMutation({
-    mutationFn: async (company_id: string | '__all__') => {
-      const body = company_id === '__all__' ? { all: true } : { company_id };
+    mutationFn: async ({ companyId, mode }: { companyId: string | '__all__'; mode: 'all' | 'subscriptions' | 'charges' }) => {
+      const body = companyId === '__all__' ? { all: true, mode } : { company_id: companyId, mode };
       const { data, error } = await supabase.functions.invoke('asaas-import-subscriptions', { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -526,11 +530,11 @@ export const Finance = () => {
       setSelectedCompanyForImport(null);
       setImportingAll(false);
       const imported = data.imported || 0;
-      const updated = data.updated || 0;
+      const updated  = data.updated  || 0;
       if (imported > 0 || updated > 0) {
-        toast.success(`${imported} importada${imported !== 1 ? 's' : ''}, ${updated} atualizada${updated !== 1 ? 's' : ''}.`);
+        toast.success(`${imported} importado${imported !== 1 ? 's' : ''}, ${updated} atualizado${updated !== 1 ? 's' : ''}.`);
       } else {
-        toast.info('Nenhuma assinatura nova encontrada.');
+        toast.info('Nenhum registro novo encontrado.');
       }
       if (data.errors?.length > 0) toast.error(`Alguns erros: ${data.errors[0]}`);
     },
@@ -670,30 +674,56 @@ export const Finance = () => {
             <FileDown className="w-4 h-4" /> Exportar CSV
           </Button>
 
-          {/* Importar Assinaturas */}
+          {/* Importar do Asaas */}
           <div className="relative">
             <Button
               variant="outline"
               onClick={() => setShowImportDropdown(!showImportDropdown)}
               className="gap-2 border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
             >
-              <Download className="w-4 h-4" /> Importar Assinaturas
+              <Download className="w-4 h-4" /> Importar <ChevronDown className="w-3 h-3" />
             </Button>
             {showImportDropdown && (
-              <div className="absolute right-0 mt-2 w-72 bg-popover border border-border rounded-lg shadow-lg z-10">
+              <div className="absolute right-0 mt-2 w-80 bg-popover border border-border rounded-lg shadow-lg z-10">
+                {/* Seletor de tipo */}
+                <div className="p-3 border-b border-border">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">O que importar:</p>
+                  <div className="flex gap-1">
+                    {([
+                      { value: 'subscriptions', label: 'Assinaturas', icon: RefreshCcw },
+                      { value: 'charges',       label: 'Cobranças',   icon: ReceiptText },
+                      { value: 'all',           label: 'Tudo',        icon: Download },
+                    ] as const).map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={() => setImportMode(value)}
+                        className={`flex-1 flex flex-col items-center gap-1 px-2 py-2 rounded-md text-xs font-medium transition-colors border ${
+                          importMode === value
+                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                            : 'border-transparent text-muted-foreground hover:bg-accent'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Todas as empresas */}
                 <div className="p-2 border-b border-border">
                   <button
-                    onClick={() => { setImportingAll(true); importAsaasSubscriptions.mutate('__all__'); }}
+                    onClick={() => { setImportingAll(true); importAsaasSubscriptions.mutate({ companyId: '__all__', mode: importMode }); }}
                     disabled={importAsaasSubscriptions.isPending}
                     className="w-full flex items-center justify-between px-2 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
                   >
-                    <span>Importar Todas as Empresas</span>
+                    <span>Todas as Empresas</span>
                     {importAsaasSubscriptions.isPending && importingAll
                       ? <Loader2 className="w-4 h-4 animate-spin" />
                       : <Download className="w-4 h-4" />}
                   </button>
-                  <p className="text-xs text-muted-foreground px-2 pt-1 pb-0">ou selecione uma empresa:</p>
+                  <p className="text-xs text-muted-foreground px-2 pt-1">ou selecione uma empresa:</p>
                 </div>
+                {/* Lista de empresas */}
                 <div className="max-h-48 overflow-y-auto">
                   {companies.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground">Nenhuma empresa cadastrada.</div>
@@ -701,7 +731,7 @@ export const Finance = () => {
                     companies.map(company => (
                       <button
                         key={company.id}
-                        onClick={() => { setSelectedCompanyForImport(company.id); importAsaasSubscriptions.mutate(company.id); }}
+                        onClick={() => { setSelectedCompanyForImport(company.id); importAsaasSubscriptions.mutate({ companyId: company.id, mode: importMode }); }}
                         disabled={importAsaasSubscriptions.isPending}
                         className="w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-between text-foreground"
                       >

@@ -120,8 +120,10 @@ function billingTypeLabel(type: string): string {
   return map[type] || type;
 }
 
+type ImportMode = 'all' | 'subscriptions' | 'charges';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function importCompany(company: { id: string; name: string; document: string; asaas_customer_id: string | null }, apiKey: string, supabase: any) {
+async function importCompany(company: { id: string; name: string; document: string; asaas_customer_id: string | null }, apiKey: string, supabase: any, mode: ImportMode = 'all') {
   const document = cleanDocument(company.document);
   const customerId = await findCustomerByDocument(document, apiKey);
   if (!customerId) {
@@ -135,140 +137,144 @@ async function importCompany(company: { id: string; name: string; document: stri
     await supabase.from('companies').update({ asaas_customer_id: customerId }).eq('id', company.id);
   }
 
-  const subscriptions = await fetchAllSubscriptions(customerId, apiKey);
   let imported = 0, updated = 0;
   const errors: string[] = [];
 
   // ── Assinaturas e seus pagamentos ─────────────────────────────────────────
-  for (const subscription of subscriptions) {
-    try {
-      const { data: existingSub } = await supabase
-        .from('financial_transactions')
-        .select('id')
-        .eq('asaas_subscription_id', subscription.id)
-        .is('asaas_payment_id', null)
-        .maybeSingle();
-
-      if (existingSub) {
-        await supabase
+  if (mode === 'all' || mode === 'subscriptions') {
+    const subscriptions = await fetchAllSubscriptions(customerId, apiKey);
+    for (const subscription of subscriptions) {
+      try {
+        const { data: existingSub } = await supabase
           .from('financial_transactions')
-          .update({
-            due_date: subscription.nextDueDate,
-            amount: subscription.value,
-            status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
-          })
-          .eq('id', existingSub.id);
-        updated++;
-      } else {
-        await supabase.from('financial_transactions').insert({
-          company_id: company.id,
-          amount: subscription.value,
-          type: 'income',
-          category: subscription.description || 'Assinatura Importada',
-          due_date: subscription.nextDueDate,
-          subscription_cycle: mapCycle(subscription.cycle),
-          asaas_subscription_id: subscription.id,
-          asaas_payment_url: null,
-          status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
-        });
-        imported++;
-      }
-
-      const payments = await fetchPaymentsForSubscription(subscription.id, apiKey);
-      for (const payment of payments) {
-        if (payment.status === 'PENDING' && payment.dueDate === subscription.nextDueDate) {
-          if (existingSub && payment.invoiceUrl) {
-            await supabase.from('financial_transactions')
-              .update({ asaas_payment_url: payment.invoiceUrl })
-              .eq('id', existingSub.id);
-          }
-          continue;
-        }
-
-        const { data: existingPayment } = await supabase
-          .from('financial_transactions')
-          .select('id, status, asaas_payment_url')
-          .eq('asaas_payment_id', payment.id)
+          .select('id')
+          .eq('asaas_subscription_id', subscription.id)
+          .is('asaas_payment_id', null)
           .maybeSingle();
 
-        if (existingPayment) {
-          const newStatus = mapPaymentStatus(payment.status);
-          if (existingPayment.status !== newStatus || (!existingPayment.asaas_payment_url && payment.invoiceUrl)) {
-            await supabase.from('financial_transactions').update({
-              status: newStatus,
-              asaas_payment_url: payment.invoiceUrl || null,
-            }).eq('asaas_payment_id', payment.id);
-            updated++;
-          }
-          continue;
+        if (existingSub) {
+          await supabase
+            .from('financial_transactions')
+            .update({
+              due_date: subscription.nextDueDate,
+              amount: subscription.value,
+              status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
+            })
+            .eq('id', existingSub.id);
+          updated++;
+        } else {
+          await supabase.from('financial_transactions').insert({
+            company_id: company.id,
+            amount: subscription.value,
+            type: 'income',
+            category: subscription.description || 'Assinatura Importada',
+            due_date: subscription.nextDueDate,
+            subscription_cycle: mapCycle(subscription.cycle),
+            asaas_subscription_id: subscription.id,
+            asaas_payment_url: null,
+            status: subscription.status === 'ACTIVE' ? 'pending' : 'cancelled',
+          });
+          imported++;
         }
 
-        const { error: insertError } = await supabase.from('financial_transactions').insert({
-          company_id: company.id,
-          amount: payment.value,
-          type: 'income',
-          category: subscription.description || 'Assinatura Importada',
-          due_date: payment.dueDate,
-          subscription_cycle: mapCycle(subscription.cycle),
-          asaas_subscription_id: subscription.id,
-          asaas_payment_id: payment.id,
-          asaas_payment_url: payment.invoiceUrl || null,
-          status: mapPaymentStatus(payment.status),
-        });
+        const payments = await fetchPaymentsForSubscription(subscription.id, apiKey);
+        for (const payment of payments) {
+          if (payment.status === 'PENDING' && payment.dueDate === subscription.nextDueDate) {
+            if (existingSub && payment.invoiceUrl) {
+              await supabase.from('financial_transactions')
+                .update({ asaas_payment_url: payment.invoiceUrl })
+                .eq('id', existingSub.id);
+            }
+            continue;
+          }
 
-        if (insertError) errors.push(`Pagamento ${payment.id}: ${insertError.message}`);
-        else imported++;
+          const { data: existingPayment } = await supabase
+            .from('financial_transactions')
+            .select('id, status, asaas_payment_url')
+            .eq('asaas_payment_id', payment.id)
+            .maybeSingle();
+
+          if (existingPayment) {
+            const newStatus = mapPaymentStatus(payment.status);
+            if (existingPayment.status !== newStatus || (!existingPayment.asaas_payment_url && payment.invoiceUrl)) {
+              await supabase.from('financial_transactions').update({
+                status: newStatus,
+                asaas_payment_url: payment.invoiceUrl || null,
+              }).eq('asaas_payment_id', payment.id);
+              updated++;
+            }
+            continue;
+          }
+
+          const { error: insertError } = await supabase.from('financial_transactions').insert({
+            company_id: company.id,
+            amount: payment.value,
+            type: 'income',
+            category: subscription.description || 'Assinatura Importada',
+            due_date: payment.dueDate,
+            subscription_cycle: mapCycle(subscription.cycle),
+            asaas_subscription_id: subscription.id,
+            asaas_payment_id: payment.id,
+            asaas_payment_url: payment.invoiceUrl || null,
+            status: mapPaymentStatus(payment.status),
+          });
+
+          if (insertError) errors.push(`Pagamento ${payment.id}: ${insertError.message}`);
+          else imported++;
+        }
+      } catch (err) {
+        errors.push(`Assinatura ${subscription.id}: ${err instanceof Error ? err.message : 'Erro'}`);
       }
-    } catch (err) {
-      errors.push(`Assinatura ${subscription.id}: ${err instanceof Error ? err.message : 'Erro'}`);
     }
   }
 
   // ── Cobranças avulsas (PIX, boleto avulso, etc.) ──────────────────────────
-  try {
-    const individualPayments = await fetchIndividualPayments(customerId, apiKey);
-    for (const payment of individualPayments) {
-      try {
-        const { data: existing } = await supabase
-          .from('financial_transactions')
-          .select('id, status')
-          .eq('asaas_payment_id', payment.id)
-          .maybeSingle();
+  if (mode === 'all' || mode === 'charges') {
+    try {
+      const individualPayments = await fetchIndividualPayments(customerId, apiKey);
+      for (const payment of individualPayments) {
+        try {
+          const { data: existing } = await supabase
+            .from('financial_transactions')
+            .select('id, status')
+            .eq('asaas_payment_id', payment.id)
+            .maybeSingle();
 
-        const newStatus = mapPaymentStatus(payment.status);
-        const billing   = billingTypeLabel(payment.billingType ?? '');
-        const category  = payment.description
-          ? `${payment.description}${billing ? ` (${billing})` : ''}`
-          : billing || 'Cobrança Avulsa';
+          const newStatus = mapPaymentStatus(payment.status);
+          const billing   = billingTypeLabel(payment.billingType ?? '');
+          const category  = payment.description
+            ? `${payment.description}${billing ? ` (${billing})` : ''}`
+            : billing || 'Cobrança Avulsa';
 
-        if (existing) {
-          if (existing.status !== newStatus) {
-            await supabase.from('financial_transactions')
-              .update({ status: newStatus, asaas_payment_url: payment.invoiceUrl || null })
-              .eq('id', existing.id);
-            updated++;
+          if (existing) {
+            if (existing.status !== newStatus) {
+              await supabase.from('financial_transactions')
+                .update({ status: newStatus, asaas_payment_url: payment.invoiceUrl || null })
+                .eq('id', existing.id);
+              updated++;
+            }
+          } else {
+            const { error: insertError } = await supabase.from('financial_transactions').insert({
+              company_id:        company.id,
+              amount:            payment.value,
+              type:              'income',
+              category,
+              due_date:          payment.dueDate,
+              subscription_cycle: null,
+              asaas_payment_id:  payment.id,
+              asaas_payment_url: payment.invoiceUrl || null,
+              status:            newStatus,
+            });
+            if (insertError) errors.push(`Avulso ${payment.id}: ${insertError.message}`);
+            else imported++;
           }
-        } else {
-          const { error: insertError } = await supabase.from('financial_transactions').insert({
-            company_id:        company.id,
-            amount:            payment.value,
-            type:              'income',
-            category,
-            due_date:          payment.dueDate,
-            subscription_cycle: null,
-            asaas_payment_id:  payment.id,
-            asaas_payment_url: payment.invoiceUrl || null,
-            status:            newStatus,
-          });
-          if (insertError) errors.push(`Avulso ${payment.id}: ${insertError.message}`);
-          else imported++;
+        } catch (err) {
+          errors.push(`Avulso ${payment.id}: ${err instanceof Error ? err.message : 'Erro'}`);
         }
-      } catch (err) {
-        errors.push(`Avulso ${payment.id}: ${err instanceof Error ? err.message : 'Erro'}`);
       }
+    } catch (err) {
+      errors.push(`Cobranças avulsas: ${err instanceof Error ? err.message : 'Erro'}`);
     }
-  } catch (err) {
-    errors.push(`Cobranças avulsas: ${err instanceof Error ? err.message : 'Erro'}`);
   }
 
   return { imported, updated, errors };
@@ -288,10 +294,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    let body: { company_id?: string; all?: boolean } = {};
+    let body: { company_id?: string; all?: boolean; mode?: ImportMode } = {};
     try { body = await req.json(); } catch { /* cron pode chamar sem body */ }
 
-    const { company_id, all: importAll } = body;
+    const { company_id, all: importAll, mode = 'all' } = body;
 
     // ── Modo: importar TODAS as empresas (botão "Importar Todas" ou cron) ────
     if (importAll || !company_id) {
@@ -307,7 +313,7 @@ serve(async (req) => {
 
       for (const company of (allCompanies || [])) {
         if (!company.document) continue;
-        const result = await importCompany(company, ASAAS_API_KEY, supabase);
+        const result = await importCompany(company, ASAAS_API_KEY, supabase, mode);
         totalImported += result.imported;
         totalUpdated  += result.updated;
         allErrors.push(...result.errors);
@@ -329,7 +335,7 @@ serve(async (req) => {
     if (companyError || !company) throw new Error('Empresa não encontrada');
     if (!company.document) throw new Error('Empresa não possui CPF/CNPJ cadastrado');
 
-    const result = await importCompany(company, ASAAS_API_KEY, supabase);
+    const result = await importCompany(company, ASAAS_API_KEY, supabase, mode);
 
     return new Response(
       JSON.stringify({ success: true, ...result }),
