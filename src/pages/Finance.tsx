@@ -526,7 +526,19 @@ export const Finance = () => {
     mutationFn: async ({ companyId, mode }: { companyId: string | '__all__'; mode: 'all' | 'subscriptions' | 'charges' }) => {
       const body = companyId === '__all__' ? { all: true, mode } : { company_id: companyId, mode };
       const { data, error } = await supabase.functions.invoke('asaas-import-subscriptions', { body });
-      if (error) throw error;
+      if (error) {
+        // Tenta extrair mensagem real do corpo da resposta HTTP
+        const ctx = (error as { context?: Response }).context;
+        if (ctx) {
+          try {
+            const errBody = await ctx.clone().json();
+            if (errBody?.error) throw new Error(errBody.error);
+          } catch (e) {
+            if (e instanceof Error && e !== error) throw e;
+          }
+        }
+        throw new Error((error as Error).message ?? 'Erro desconhecido');
+      }
       if (data?.error) throw new Error(data.error);
       return data;
     },
@@ -537,14 +549,21 @@ export const Finance = () => {
       setImportingAll(false);
       const imported = data.imported || 0;
       const updated  = data.updated  || 0;
+      const skipped  = data.skipped  || 0;
       if (imported > 0 || updated > 0) {
-        toast.success(`${imported} importado${imported !== 1 ? 's' : ''}, ${updated} atualizado${updated !== 1 ? 's' : ''}.`);
+        const parts = [];
+        if (imported > 0) parts.push(`${imported} importado${imported !== 1 ? 's' : ''}`);
+        if (updated  > 0) parts.push(`${updated} atualizado${updated !== 1 ? 's' : ''}`);
+        if (skipped  > 0) parts.push(`${skipped} não encontrado${skipped !== 1 ? 's' : ''} no Asaas`);
+        toast.success(parts.join(', ') + '.');
+      } else if (skipped > 0) {
+        toast.info(`Nenhum dado novo. ${skipped} empresa${skipped !== 1 ? 's' : ''} não cadastrada${skipped !== 1 ? 's' : ''} no Asaas.`);
       } else {
         toast.info('Nenhum registro novo encontrado.');
       }
       if (data.errors?.length > 0) toast.error(`Alguns erros: ${data.errors[0]}`);
     },
-    onError: (err: Error) => { setImportingAll(false); toast.error(`Erro ao importar: ${err.message}`); },
+    onError: (err: Error) => { setImportingAll(false); toast.error(err.message); },
   });
 
   const generateAsaasCharge = useMutation({
@@ -740,12 +759,12 @@ export const Finance = () => {
                   </button>
                   <p className="text-xs text-muted-foreground px-2 pt-1">ou selecione uma empresa:</p>
                 </div>
-                {/* Lista de empresas */}
+                {/* Lista de empresas com CPF/CNPJ */}
                 <div className="max-h-48 overflow-y-auto">
-                  {companies.length === 0 ? (
-                    <div className="p-4 text-sm text-muted-foreground">Nenhuma empresa cadastrada.</div>
+                  {companies.filter(c => c.document).length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground">Nenhuma empresa com CPF/CNPJ cadastrado.</div>
                   ) : (
-                    companies.map(company => (
+                    companies.filter(c => c.document).map(company => (
                       <button
                         key={company.id}
                         onClick={() => { setSelectedCompanyForImport(company.id); importAsaasSubscriptions.mutate({ companyId: company.id, mode: importMode }); }}

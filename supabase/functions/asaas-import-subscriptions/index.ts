@@ -127,17 +127,15 @@ async function importCompany(company: { id: string; name: string; document: stri
   const document = cleanDocument(company.document);
   const customerId = await findCustomerByDocument(document, apiKey);
   if (!customerId) {
-    return {
-      imported: 0, updated: 0,
-      errors: [`${company.name}: nenhum cliente Asaas com CPF/CNPJ ${company.document}`],
-    };
+    // Empresa não cadastrada no Asaas — conta como skipped, não como erro
+    return { imported: 0, updated: 0, skipped: 1, errors: [] };
   }
 
   if (company.asaas_customer_id !== customerId) {
     await supabase.from('companies').update({ asaas_customer_id: customerId }).eq('id', company.id);
   }
 
-  let imported = 0, updated = 0;
+  let imported = 0, updated = 0, skipped = 0;
   const errors: string[] = [];
 
   // ── Assinaturas e seus pagamentos ─────────────────────────────────────────
@@ -277,7 +275,7 @@ async function importCompany(company: { id: string; name: string; document: stri
     }
   }
 
-  return { imported, updated, errors };
+  return { imported, updated, skipped, errors };
 }
 
 serve(async (req) => {
@@ -308,19 +306,20 @@ serve(async (req) => {
 
       if (allErr) throw new Error('Erro ao listar empresas');
 
-      let totalImported = 0, totalUpdated = 0;
+      let totalImported = 0, totalUpdated = 0, totalSkipped = 0;
       const allErrors: string[] = [];
 
       for (const company of (allCompanies || [])) {
-        if (!company.document) continue;
+        if (!company.document) { totalSkipped++; continue; }
         const result = await importCompany(company, ASAAS_API_KEY, supabase, mode);
         totalImported += result.imported;
         totalUpdated  += result.updated;
+        totalSkipped  += result.skipped ?? 0;
         allErrors.push(...result.errors);
       }
 
       return new Response(
-        JSON.stringify({ success: true, imported: totalImported, updated: totalUpdated, errors: allErrors.length ? allErrors : undefined }),
+        JSON.stringify({ success: true, imported: totalImported, updated: totalUpdated, skipped: totalSkipped, errors: allErrors.length ? allErrors : undefined }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -332,8 +331,18 @@ serve(async (req) => {
       .eq('id', company_id)
       .single();
 
-    if (companyError || !company) throw new Error('Empresa não encontrada');
-    if (!company.document) throw new Error('Empresa não possui CPF/CNPJ cadastrado');
+    if (companyError || !company) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Empresa não encontrada' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!company.document) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Empresa não possui CPF/CNPJ cadastrado. Cadastre o documento na ficha da empresa.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const result = await importCompany(company, ASAAS_API_KEY, supabase, mode);
 
