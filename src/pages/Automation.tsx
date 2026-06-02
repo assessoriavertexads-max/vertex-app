@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Plus, Zap, Trash2, Loader2, MessageSquare, ClipboardList, Mail, Share2,
+  Plus, Zap, Trash2, Loader2, MessageSquare, ClipboardList, Mail, Share2, Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -133,25 +133,51 @@ function VarHints({ event }: { event: string }) {
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 
-function RuleModal({ isOpen, onClose, onSave }: {
-  isOpen:  boolean;
-  onClose: () => void;
-  onSave:  (rule: Omit<AutomationRule, 'id' | 'created_at' | 'run_count' | 'last_run_at' | 'last_error'>) => void;
+function RuleModal({ isOpen, onClose, onSave, editingRule }: {
+  isOpen:       boolean;
+  onClose:      () => void;
+  onSave:       (rule: Omit<AutomationRule, 'id' | 'created_at' | 'run_count' | 'last_run_at' | 'last_error'>) => void;
+  editingRule?: AutomationRule | null;
 }) {
-  const [name,            setName]            = useState('');
-  const [triggerEvent,    setTriggerEvent]    = useState('lead_stage_change');
-  const [triggerValue,    setTriggerValue]    = useState('negotiation');
-  const [actionType,      setActionType]      = useState('create_task');
-  // create_task
-  const [taskName,        setTaskName]        = useState('');
-  const [taskPriority,    setTaskPriority]    = useState('normal');
-  const [taskDesc,        setTaskDesc]        = useState('');
-  const [dueInDays,       setDueInDays]       = useState(3);
-  // send_whatsapp
-  const [msgTemplate,     setMsgTemplate]     = useState('');
-  // send_email
-  const [emailSubject,    setEmailSubject]    = useState('');
-  const [emailBody,       setEmailBody]       = useState('');
+  // Resolve initial values from editingRule (or defaults)
+  const initTriggerEvent = () => {
+    if (!editingRule) return 'lead_stage_change';
+    if (editingRule.trigger_event === 'lead_stage_change' && editingRule.trigger_value === 'closed') return 'lead_closed';
+    return editingRule.trigger_event;
+  };
+
+  const [name,         setName]         = useState(editingRule?.name ?? '');
+  const [triggerEvent, setTriggerEvent] = useState(initTriggerEvent);
+  const [triggerValue, setTriggerValue] = useState(() => {
+    if (!editingRule) return 'negotiation';
+    if (editingRule.trigger_value === 'closed') return 'negotiation';
+    return editingRule.trigger_value ?? 'any';
+  });
+  const [actionType,   setActionType]   = useState(editingRule?.action_type ?? 'create_task');
+  const [taskName,     setTaskName]     = useState(editingRule?.action_data?.task_name ?? '');
+  const [taskPriority, setTaskPriority] = useState(editingRule?.action_data?.task_priority ?? 'normal');
+  const [taskDesc,     setTaskDesc]     = useState(editingRule?.action_data?.task_description ?? '');
+  const [dueInDays,    setDueInDays]    = useState(editingRule?.action_data?.due_in_days ?? 3);
+  const [msgTemplate,  setMsgTemplate]  = useState(editingRule?.action_data?.message_template ?? '');
+  const [emailSubject, setEmailSubject] = useState(editingRule?.email_subject ?? '');
+  const [emailBody,    setEmailBody]    = useState(editingRule?.action_data?.email_body ?? '');
+
+  // Preenche o formulário quando uma regra for passada para edição
+  useEffect(() => {
+    if (!editingRule) return;
+    setName(editingRule.name ?? '');
+    setTriggerEvent(initTriggerEvent());
+    setTriggerValue(editingRule.trigger_value ?? 'any');
+    setActionType(editingRule.action_type ?? 'create_task');
+    setTaskName(editingRule.action_data?.task_name ?? '');
+    setTaskPriority(editingRule.action_data?.task_priority ?? 'normal');
+    setTaskDesc(editingRule.action_data?.task_description ?? '');
+    setDueInDays(editingRule.action_data?.due_in_days ?? 3);
+    setMsgTemplate(editingRule.action_data?.message_template ?? '');
+    setEmailSubject(editingRule.email_subject ?? '');
+    setEmailBody(editingRule.action_data?.email_body ?? '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingRule?.id]);
 
   const reset = () => {
     setName(''); setTriggerEvent('lead_stage_change'); setTriggerValue('negotiation');
@@ -207,7 +233,8 @@ function RuleModal({ isOpen, onClose, onSave }: {
       <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-500" /> Nova Regra de Automação
+            <Zap className="h-4 w-4 text-amber-500" />
+            {editingRule ? 'Editar Regra de Automação' : 'Nova Regra de Automação'}
           </DialogTitle>
           <DialogDescription>Configure um gatilho e a ação que será executada automaticamente.</DialogDescription>
         </DialogHeader>
@@ -433,7 +460,7 @@ function RuleModal({ isOpen, onClose, onSave }: {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>Cancelar</Button>
-            <Button type="submit">Criar Regra</Button>
+            <Button type="submit">{editingRule ? 'Salvar Alterações' : 'Criar Regra'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -484,7 +511,8 @@ function actionSummary(rule: AutomationRule): string {
 
 export default function Automation() {
   const queryClient = useQueryClient();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen,   setIsModalOpen]   = useState(false);
+  const [editingRule,   setEditingRule]   = useState<AutomationRule | null>(null);
 
   const { data: rules = [], isLoading } = useQuery<AutomationRule[]>({
     queryKey: ['automation-rules'],
@@ -506,6 +534,19 @@ export default function Automation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
       toast.success('Regra criada!');
+    },
+    onError: (err: Error) => toast.error(`Erro: ${err.message}`),
+  });
+
+  const updateRule = useMutation({
+    mutationFn: async ({ id, rule }: { id: string; rule: Omit<AutomationRule, 'id' | 'created_at' | 'run_count' | 'last_run_at' | 'last_error'> }) => {
+      const { error } = await supabase.from('automation_rules').update(rule).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
+      setEditingRule(null);
+      toast.success('Regra atualizada!');
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
@@ -561,7 +602,7 @@ export default function Automation() {
                     <div>
                       <p className="text-xs font-medium text-foreground">{t.label}</p>
                       {group === 'Agendado' && (
-                        <p className="text-xs text-muted-foreground mt-0.5">via cron diário 08h</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">via cron diário 12h</p>
                       )}
                     </div>
                   </div>
@@ -600,8 +641,16 @@ export default function Automation() {
 
       <RuleModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={(rule) => createRule.mutate(rule)}
+        editingRule={editingRule}
+        onClose={() => { setIsModalOpen(false); setEditingRule(null); }}
+        onSave={(rule) => {
+          if (editingRule) {
+            updateRule.mutate({ id: editingRule.id, rule });
+            setIsModalOpen(false);
+          } else {
+            createRule.mutate(rule);
+          }
+        }}
       />
 
       {isLoading ? (
@@ -672,6 +721,14 @@ export default function Automation() {
                       checked={rule.enabled}
                       onCheckedChange={(enabled) => toggleRule.mutate({ id: rule.id, enabled })}
                     />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-blue-600"
+                      onClick={() => { setEditingRule(rule); setIsModalOpen(true); }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
