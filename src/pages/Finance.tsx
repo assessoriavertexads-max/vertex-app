@@ -455,6 +455,9 @@ export const Finance = () => {
       runAutomations('new_transaction_created', 'any', {
         entityTitle: data.category || 'Transação',
         companyId: data.company_id || null,
+        amount: data.amount ?? null,
+        dueDate: data.due_date ?? null,
+        paymentLink: null,
       }).catch(() => {});
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
@@ -506,10 +509,10 @@ export const Finance = () => {
       if (error) throw error;
       const { data: tx } = await supabase
         .from('financial_transactions')
-        .select('category, company_id')
+        .select('category, company_id, amount, due_date, asaas_payment_url')
         .eq('id', id)
         .single();
-      return tx as { category: string | null; company_id: string | null } | null;
+      return tx as { category: string | null; company_id: string | null; amount: number | null; due_date: string | null; asaas_payment_url: string | null } | null;
     },
     onSuccess: (tx) => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
@@ -517,6 +520,9 @@ export const Finance = () => {
       runAutomations('transaction_paid', 'any', {
         entityTitle: tx?.category || 'Pagamento',
         companyId: tx?.company_id ?? null,
+        amount: tx?.amount ?? null,
+        dueDate: tx?.due_date ?? null,
+        paymentLink: tx?.asaas_payment_url ?? null,
       }).catch(() => {});
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),

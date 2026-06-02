@@ -5,6 +5,10 @@ export interface AutomationContext {
   companyId?: string | null;
   companyName?: string | null;
   companyPhone?: string | null;
+  // Campos de cobrança
+  amount?: number | null;
+  dueDate?: string | null;
+  paymentLink?: string | null;
 }
 
 export async function runAutomations(
@@ -45,13 +49,27 @@ export async function runAutomations(
   }
 
   const entityTitle = context.entityTitle ?? '';
+  const amountFormatted = context.amount != null
+    ? `R$ ${Number(context.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    : '';
+  const dueDateFormatted = context.dueDate
+    ? new Date(context.dueDate + 'T00:00:00').toLocaleDateString('pt-BR')
+    : '';
+  const paymentLink = context.paymentLink ?? '';
 
   const replaceVars = (template: string) =>
     template
       .replace(/\{lead_name\}/g, entityTitle)
       .replace(/\{task_name\}/g, entityTitle)
       .replace(/\{entity_name\}/g, entityTitle)
-      .replace(/\{company_name\}/g, companyName ?? '');
+      .replace(/\{description\}/g, entityTitle)
+      .replace(/\{company_name\}/g, companyName ?? '')
+      .replace(/\{amount\}/g, amountFormatted)
+      .replace(/\{valor\}/g, amountFormatted)
+      .replace(/\{due_date\}/g, dueDateFormatted)
+      .replace(/\{vencimento\}/g, dueDateFormatted)
+      .replace(/\{payment_link\}/g, paymentLink)
+      .replace(/\{link_pagamento\}/g, paymentLink);
 
   let executed = 0;
 

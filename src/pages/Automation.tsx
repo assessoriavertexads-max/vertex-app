@@ -110,12 +110,12 @@ const templateVars: Record<string, string[]> = {
   task_created:             ['{task_name}', '{company_name}'],
   new_company_created:      ['{company_name}'],
   company_status_change:    ['{company_name}'],
-  transaction_paid:         ['{entity_name}', '{company_name}'],
-  new_transaction_created:  ['{entity_name}', '{company_name}'],
+  transaction_paid:         ['{company_name}', '{description}', '{amount}', '{due_date}', '{payment_link}'],
+  new_transaction_created:  ['{company_name}', '{description}', '{amount}', '{due_date}', '{payment_link}'],
   task_due_soon:            ['{task_name}', '{company_name}', '{due_date}'],
   task_due_today:           ['{task_name}', '{company_name}'],
-  transaction_due_soon:     ['{entity_name}', '{company_name}', '{due_date}'],
-  transaction_due_today:    ['{entity_name}', '{company_name}'],
+  transaction_due_soon:     ['{company_name}', '{description}', '{amount}', '{due_date}', '{payment_link}'],
+  transaction_due_today:    ['{company_name}', '{description}', '{amount}', '{due_date}', '{payment_link}'],
 };
 
 function VarHints({ event }: { event: string }) {
