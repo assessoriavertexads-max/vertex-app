@@ -89,7 +89,7 @@ serve(async (req) => {
         : 0;
     const targetDate = daysAhead > 0 ? dateAddDays(today, daysAhead) : today;
 
-    type ItemRow = { id: string; name: string; company_id: string | null };
+    type ItemRow = { id: string; name: string; company_id: string | null; amount?: number | null; paymentLink?: string | null };
     let items: ItemRow[] = [];
 
     if (rule.trigger_event === "task_due_soon" || rule.trigger_event === "task_due_today") {
@@ -102,11 +102,11 @@ serve(async (req) => {
     } else {
       const { data } = await supabase
         .from("financial_transactions")
-        .select("id, category, company_id")
+        .select("id, category, company_id, amount, asaas_payment_url")
         .eq("due_date", targetDate)
         .neq("status", "paid");
-      items = ((data ?? []) as Array<{ id: string; category: string; company_id: string | null }>)
-        .map((t) => ({ id: t.id, name: t.category, company_id: t.company_id }));
+      items = ((data ?? []) as Array<{ id: string; category: string; company_id: string | null; amount: number | null; asaas_payment_url: string | null }>)
+        .map((t) => ({ id: t.id, name: t.category, company_id: t.company_id, amount: t.amount, paymentLink: t.asaas_payment_url }));
     }
 
     for (const item of items) {
@@ -128,12 +128,26 @@ serve(async (req) => {
         }
 
         const entityTitle = item.name ?? "";
+        const amountFmt   = item.amount != null
+          ? `R$ ${Number(item.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+          : "";
+        const dueDateFmt  = targetDate
+          ? new Date(targetDate + "T00:00:00").toLocaleDateString("pt-BR")
+          : "";
+        const paymentLink = item.paymentLink ?? "";
+
         const replaceVars = (tpl: string) =>
           tpl
-            .replace(/\{task_name\}/g,    entityTitle)
-            .replace(/\{entity_name\}/g,  entityTitle)
-            .replace(/\{company_name\}/g, companyName ?? "")
-            .replace(/\{due_date\}/g,     targetDate);
+            .replace(/\{task_name\}/g,       entityTitle)
+            .replace(/\{entity_name\}/g,     entityTitle)
+            .replace(/\{description\}/g,     entityTitle)
+            .replace(/\{company_name\}/g,    companyName ?? "")
+            .replace(/\{amount\}/g,          amountFmt)
+            .replace(/\{valor\}/g,           amountFmt)
+            .replace(/\{due_date\}/g,        dueDateFmt)
+            .replace(/\{vencimento\}/g,      dueDateFmt)
+            .replace(/\{payment_link\}/g,    paymentLink)
+            .replace(/\{link_pagamento\}/g,  paymentLink);
 
         const ad = rule.action_data as {
           task_name?:        string;
