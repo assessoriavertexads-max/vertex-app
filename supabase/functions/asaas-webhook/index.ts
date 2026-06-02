@@ -88,10 +88,10 @@ serve(async (req) => {
     .eq("asaas_payment_id", paymentId)
     .select("id");
 
-  // ── 2. Se não encontrou por payment_id mas tem subscription_id,
-  //       vincula o pagamento pendente da assinatura ────────────────────────
+  // ── 2. Pagamento de assinatura ───────────────────────────────────────────
   if (!byId?.length && subId) {
-    await supabase
+    // Tenta vincular a linha pendente (asaas_payment_id ainda NULL = primeiro ciclo)
+    const { data: linked } = await supabase
       .from("financial_transactions")
       .update({
         status:             newStatus,
@@ -101,10 +101,42 @@ serve(async (req) => {
         ...(value   ? { amount:   value }   : {}),
       })
       .eq("asaas_subscription_id", subId)
-      .is("asaas_payment_id", null);
+      .is("asaas_payment_id", null)
+      .select("id");
+
+    if (linked?.length) {
+      return new Response(
+        JSON.stringify({ ok: true, event, action: "linked_subscription_payment", status: newStatus }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // Nenhuma linha pendente encontrada = novo ciclo de cobrança (mês seguinte)
+    // Busca dados base da assinatura para criar nova linha
+    const { data: baseSub } = await supabase
+      .from("financial_transactions")
+      .select("company_id, category, subscription_cycle")
+      .eq("asaas_subscription_id", subId)
+      .limit(1)
+      .maybeSingle();
+
+    if (baseSub) {
+      await supabase.from("financial_transactions").insert({
+        company_id:            baseSub.company_id,
+        amount:                value ?? 0,
+        type:                  "income",
+        category:              baseSub.category,
+        due_date:              dueDate,
+        subscription_cycle:    baseSub.subscription_cycle,
+        asaas_subscription_id: subId,
+        asaas_payment_id:      paymentId,
+        asaas_payment_url:     invoiceUrl,
+        status:                newStatus,
+      });
+    }
 
     return new Response(
-      JSON.stringify({ ok: true, event, action: "linked_subscription_payment", status: newStatus }),
+      JSON.stringify({ ok: true, event, action: "new_subscription_cycle", status: newStatus }),
       { headers: { "Content-Type": "application/json" } },
     );
   }
