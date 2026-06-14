@@ -13,7 +13,7 @@ import { AdsTable } from '@/components/ads/AdsTable';
 import { useGoogleAds } from '@/hooks/useGoogleAds';
 import { useMetaAds } from '@/hooks/useMetaAds';
 import { DATE_PERIODS } from '@/types/ads';
-import type { GoogleDateRange, MetaDatePreset, NormalizedCampaign, NormalizedAccountTotals } from '@/types/ads';
+import type { NormalizedCampaign, NormalizedAccountTotals } from '@/types/ads';
 import {
   BarChart2, DollarSign, MousePointerClick, Eye, TrendingUp,
   AlertCircle, Settings2, RefreshCw,
@@ -73,18 +73,18 @@ const fmtInt = (v: number) =>
 const fmtPct = (v: number) => `${v.toFixed(2)}%`;
 const fmtRoas = (v: number) => (v > 0 ? `${v.toFixed(2)}×` : '—');
 
-// ── Account selector ─────────────────────────────────────────────────────────
-function useCompaniesWithMeta() {
+// ── Account selectors ─────────────────────────────────────────────────────────
+function useCompaniesWithAds() {
   return useQuery({
-    queryKey: ['companies-with-meta'],
+    queryKey: ['companies-with-ads'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('companies')
-        .select('id, name, meta_ad_account')
-        .not('meta_ad_account', 'is', null)
+        .select('id, name, meta_ad_account_id, google_ad_account_id')
+        .or('meta_ad_account_id.not.is.null,google_ad_account_id.not.is.null')
         .order('name');
       if (error) throw error;
-      return (data ?? []) as { id: string; name: string; meta_ad_account: string }[];
+      return (data ?? []) as { id: string; name: string; meta_ad_account_id: string | null; google_ad_account_id: string | null }[];
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -125,32 +125,38 @@ export default function AdsManager() {
   const [googleCustomerId, setGoogleCustomerId] = useState<string>(
     () => localStorage.getItem(GOOGLE_ID_KEY) ?? '',
   );
-  const [googleInput, setGoogleInput] = useState(googleCustomerId);
   const [metaAccountId, setMetaAccountId] = useState<string>(
     () => localStorage.getItem(META_ACCOUNT_KEY) ?? '',
   );
   const [showConfig, setShowConfig] = useState(false);
 
-  const { data: metaCompanies = [], isLoading: loadingCompanies } = useCompaniesWithMeta();
+  const { data: adsCompanies = [], isLoading: loadingCompanies } = useCompaniesWithAds();
+  const metaCompanies   = adsCompanies.filter((c): c is typeof c & { meta_ad_account_id: string } => !!c.meta_ad_account_id);
+  const googleCompanies = adsCompanies.filter((c): c is typeof c & { google_ad_account_id: string } => !!c.google_ad_account_id);
 
-  // When companies load and no Meta account is saved, pre-select the first one
+  // Auto-seleciona primeira conta Meta e Google quando carrega
   useEffect(() => {
     if (!metaAccountId && metaCompanies.length > 0) {
-      const first = metaCompanies[0].meta_ad_account;
+      const first = metaCompanies[0].meta_ad_account_id!;
       setMetaAccountId(first);
       localStorage.setItem(META_ACCOUNT_KEY, first);
     }
-  }, [metaCompanies, metaAccountId]);
-
-  const handleGoogleSave = () => {
-    const trimmed = googleInput.trim();
-    setGoogleCustomerId(trimmed);
-    localStorage.setItem(GOOGLE_ID_KEY, trimmed);
-  };
+    if (!googleCustomerId && googleCompanies.length > 0) {
+      const first = googleCompanies[0].google_ad_account_id!;
+      setGoogleCustomerId(first);
+      localStorage.setItem(GOOGLE_ID_KEY, first);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adsCompanies]);
 
   const handleMetaChange = (accountId: string) => {
     setMetaAccountId(accountId);
     localStorage.setItem(META_ACCOUNT_KEY, accountId);
+  };
+
+  const handleGoogleChange = (accountId: string) => {
+    setGoogleCustomerId(accountId);
+    localStorage.setItem(GOOGLE_ID_KEY, accountId);
   };
 
   const {
@@ -250,22 +256,31 @@ export default function AdsManager() {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Google Ads — Customer ID</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Ex: 123-456-7890"
-                  value={googleInput}
-                  onChange={(e) => setGoogleInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleGoogleSave()}
-                  className="text-sm h-9"
-                />
-                <Button size="sm" onClick={handleGoogleSave} variant="secondary">
-                  Salvar
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Encontre em: Google Ads → Configurações → ID da conta
-              </p>
+              <Label className="text-xs font-medium">Google Ads — Empresa</Label>
+              {loadingCompanies ? (
+                <Skeleton className="h-9 w-full" />
+              ) : googleCompanies.length === 0 ? (
+                <p className="text-xs text-muted-foreground pt-2">
+                  Nenhuma empresa com Google Ad Account configurada.{' '}
+                  Adicione em Empresas → Perfil.
+                </p>
+              ) : (
+                <Select value={googleCustomerId} onValueChange={handleGoogleChange}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Selecionar empresa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {googleCompanies.map((c) => (
+                      <SelectItem key={c.id} value={c.google_ad_account_id}>
+                        {c.name}
+                        <span className="text-muted-foreground ml-1 text-xs">
+                          ({c.google_ad_account_id})
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Meta — Conta de Anúncio</Label>
@@ -283,10 +298,10 @@ export default function AdsManager() {
                   </SelectTrigger>
                   <SelectContent>
                     {metaCompanies.map((c) => (
-                      <SelectItem key={c.id} value={c.meta_ad_account}>
+                      <SelectItem key={c.id} value={c.meta_ad_account_id}>
                         {c.name}
                         <span className="text-muted-foreground ml-1 text-xs">
-                          ({c.meta_ad_account})
+                          ({c.meta_ad_account_id})
                         </span>
                       </SelectItem>
                     ))}
