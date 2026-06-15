@@ -11,17 +11,25 @@ import { toast } from 'sonner';
 import {
   Plus, Trash2, GripVertical, ExternalLink, Copy, Check,
   ClipboardList, ArrowLeft, Settings, Eye, ChevronDown, ChevronUp,
+  Calendar,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+interface ScheduleSettings {
+  available_days: number[];   // 0=Dom, 1=Seg...6=Sáb
+  time_slots: string[];       // ["09:00", "10:00", ...]
+  duration_minutes: number;
+}
+
 interface Question {
   id: string;
-  type: 'short_text' | 'email' | 'tel' | 'long_text' | 'choice';
+  type: 'short_text' | 'email' | 'tel' | 'long_text' | 'choice' | 'schedule';
   label: string;
   placeholder?: string;
   required: boolean;
   choices?: string[];
   maps_to?: 'name' | 'email' | 'phone' | 'notes' | '';
+  schedule_settings?: ScheduleSettings;
 }
 
 interface FormSettings {
@@ -54,12 +62,14 @@ function slugify(text: string) {
 }
 
 function newQuestion(): Question {
+  return { id: crypto.randomUUID(), type: 'short_text', label: '', required: false, maps_to: '' };
+}
+
+function defaultScheduleSettings(): ScheduleSettings {
   return {
-    id: crypto.randomUUID(),
-    type: 'short_text',
-    label: '',
-    required: false,
-    maps_to: '',
+    available_days: [1, 2, 3, 4, 5],
+    time_slots: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'],
+    duration_minutes: 30,
   };
 }
 
@@ -69,6 +79,7 @@ const QUESTION_TYPES = [
   { value: 'tel',        label: 'Telefone' },
   { value: 'long_text',  label: 'Texto longo' },
   { value: 'choice',     label: 'Múltipla escolha' },
+  { value: 'schedule',   label: 'Agendamento (Calendly)' },
 ] as const;
 
 const MAPS_TO_OPTIONS = [
@@ -78,6 +89,105 @@ const MAPS_TO_OPTIONS = [
   { value: 'phone', label: 'Telefone do lead' },
   { value: 'notes', label: 'Observações' },
 ];
+
+const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const DURATIONS  = [15, 30, 45, 60, 90];
+
+// ── Schedule Settings Editor ──────────────────────────────────────────────────
+function ScheduleSettingsEditor({
+  settings, onChange,
+}: { settings: ScheduleSettings; onChange: (s: ScheduleSettings) => void }) {
+  const toggleDay = (day: number) => {
+    const days = settings.available_days.includes(day)
+      ? settings.available_days.filter((d) => d !== day)
+      : [...settings.available_days, day].sort();
+    onChange({ ...settings, available_days: days });
+  };
+
+  const addSlot = () => {
+    onChange({ ...settings, time_slots: [...settings.time_slots, '09:00'] });
+  };
+
+  const updateSlot = (i: number, val: string) => {
+    const slots = [...settings.time_slots];
+    slots[i] = val;
+    onChange({ ...settings, time_slots: slots });
+  };
+
+  const removeSlot = (i: number) => {
+    onChange({ ...settings, time_slots: settings.time_slots.filter((_, j) => j !== i) });
+  };
+
+  return (
+    <div className="space-y-4 p-3 bg-muted/30 rounded-lg border border-border/50">
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <Calendar className="h-3.5 w-3.5" /> Configurações de Agendamento
+      </div>
+
+      {/* Available days */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Dias disponíveis</Label>
+        <div className="flex gap-1.5 flex-wrap">
+          {DAY_LABELS.map((label, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => toggleDay(idx)}
+              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                settings.available_days.includes(idx)
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Duration */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Duração da reunião</Label>
+        <select
+          value={settings.duration_minutes}
+          onChange={(e) => onChange({ ...settings, duration_minutes: Number(e.target.value) })}
+          className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          {DURATIONS.map((d) => (
+            <option key={d} value={d}>{d} minutos</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Time slots */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Horários disponíveis</Label>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {settings.time_slots.map((slot, i) => (
+            <div key={i} className="flex gap-1">
+              <input
+                type="time"
+                value={slot}
+                onChange={(e) => updateSlot(i, e.target.value)}
+                className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+              />
+              <Button
+                size="icon" variant="ghost"
+                className="h-8 w-8 shrink-0 text-destructive"
+                onClick={() => removeSlot(i)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs mt-1" onClick={addSlot}>
+          <Plus className="h-3 w-3 mr-1" /> Adicionar horário
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 // ── Question Editor ───────────────────────────────────────────────────────────
 function QuestionEditor({
@@ -91,6 +201,16 @@ function QuestionEditor({
 }) {
   const [open, setOpen] = useState(true);
 
+  const handleTypeChange = (type: Question['type']) => {
+    if (type === 'choice') {
+      onChange({ ...q, type, choices: q.choices ?? ['Opção 1', 'Opção 2'], schedule_settings: undefined });
+    } else if (type === 'schedule') {
+      onChange({ ...q, type, choices: undefined, maps_to: '', schedule_settings: q.schedule_settings ?? defaultScheduleSettings() });
+    } else {
+      onChange({ ...q, type, choices: undefined, schedule_settings: undefined });
+    }
+  };
+
   return (
     <div className="border border-border rounded-xl bg-card overflow-hidden">
       <div
@@ -101,10 +221,13 @@ function QuestionEditor({
         <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
           {index + 1}
         </span>
+        {q.type === 'schedule' && <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />}
         <span className="flex-1 text-sm font-medium text-foreground truncate">
           {q.label || <span className="text-muted-foreground italic">Pergunta sem título</span>}
         </span>
-        <Badge variant="outline" className="text-[10px] shrink-0">{QUESTION_TYPES.find(t => t.value === q.type)?.label}</Badge>
+        <Badge variant="outline" className="text-[10px] shrink-0">
+          {QUESTION_TYPES.find((t) => t.value === q.type)?.label}
+        </Badge>
         {q.required && <Badge className="text-[10px] shrink-0">obrigatório</Badge>}
         {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
       </div>
@@ -117,7 +240,7 @@ function QuestionEditor({
               <Input
                 value={q.label}
                 onChange={(e) => onChange({ ...q, label: e.target.value })}
-                placeholder="Ex: Qual é o seu nome?"
+                placeholder={q.type === 'schedule' ? 'Ex: Escolha uma data para a reunião' : 'Ex: Qual é o seu nome?'}
                 className="h-9"
               />
             </div>
@@ -126,7 +249,7 @@ function QuestionEditor({
               <Label className="text-xs">Tipo</Label>
               <select
                 value={q.type}
-                onChange={(e) => onChange({ ...q, type: e.target.value as Question['type'], choices: e.target.value === 'choice' ? ['Opção 1', 'Opção 2'] : undefined })}
+                onChange={(e) => handleTypeChange(e.target.value as Question['type'])}
                 className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
               >
                 {QUESTION_TYPES.map((t) => (
@@ -135,28 +258,32 @@ function QuestionEditor({
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Mapear para campo de lead</Label>
-              <select
-                value={q.maps_to ?? ''}
-                onChange={(e) => onChange({ ...q, maps_to: e.target.value as Question['maps_to'] })}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-              >
-                {MAPS_TO_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
+            {q.type !== 'schedule' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Mapear para campo de lead</Label>
+                <select
+                  value={q.maps_to ?? ''}
+                  onChange={(e) => onChange({ ...q, maps_to: e.target.value as Question['maps_to'] })}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  {MAPS_TO_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Placeholder (opcional)</Label>
-              <Input
-                value={q.placeholder ?? ''}
-                onChange={(e) => onChange({ ...q, placeholder: e.target.value })}
-                placeholder="Digite aqui..."
-                className="h-9"
-              />
-            </div>
+            {q.type !== 'schedule' && q.type !== 'choice' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Placeholder (opcional)</Label>
+                <Input
+                  value={q.placeholder ?? ''}
+                  onChange={(e) => onChange({ ...q, placeholder: e.target.value })}
+                  placeholder="Digite aqui..."
+                  className="h-9"
+                />
+              </div>
+            )}
 
             <div className="flex items-center gap-3 pt-4">
               <Switch
@@ -177,8 +304,7 @@ function QuestionEditor({
                   <Input
                     value={c}
                     onChange={(e) => {
-                      const ch = [...(q.choices ?? [])];
-                      ch[i] = e.target.value;
+                      const ch = [...(q.choices ?? [])]; ch[i] = e.target.value;
                       onChange({ ...q, choices: ch });
                     }}
                     className="h-8 text-sm"
@@ -194,6 +320,14 @@ function QuestionEditor({
                 <Plus className="h-3 w-3 mr-1" /> Adicionar opção
               </Button>
             </div>
+          )}
+
+          {/* Schedule settings */}
+          {q.type === 'schedule' && (
+            <ScheduleSettingsEditor
+              settings={q.schedule_settings ?? defaultScheduleSettings()}
+              onChange={(s) => onChange({ ...q, schedule_settings: s })}
+            />
           )}
 
           {/* Actions */}
@@ -225,41 +359,38 @@ function FormBuilder({
   onCancel: () => void;
   isSaving: boolean;
 }) {
-  const [title, setTitle]           = useState(initial?.title ?? '');
-  const [slug, setSlug]             = useState(initial?.slug ?? '');
+  const [title, setTitle]             = useState(initial?.title ?? '');
+  const [slug, setSlug]               = useState(initial?.slug ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
-  const [questions, setQuestions]   = useState<Question[]>(initial?.questions ?? [newQuestion()]);
-  const [settings, setSettings]     = useState<FormSettings>(initial?.settings ?? {
+  const [questions, setQuestions]     = useState<Question[]>(initial?.questions ?? [newQuestion()]);
+  const [settings, setSettings]       = useState<FormSettings>(initial?.settings ?? {
     accent_color: '#3b82f6',
     bg_color: '#0f172a',
     thank_you_title: 'Recebemos suas respostas!',
     thank_you_message: 'Obrigado pelo contato. Entraremos em breve!',
   });
-  const [isActive, setIsActive]     = useState(initial?.is_active ?? true);
-  const [tab, setTab]               = useState<'questions' | 'settings'>('questions');
-  const [slugEdited, setSlugEdited] = useState(!!initial?.slug);
+  const [isActive, setIsActive]       = useState(initial?.is_active ?? true);
+  const [tab, setTab]                 = useState<'questions' | 'settings'>('questions');
+  const [slugEdited, setSlugEdited]   = useState(!!initial?.slug);
 
   const handleTitleChange = (v: string) => {
     setTitle(v);
     if (!slugEdited) setSlug(slugify(v));
   };
 
-  const updateQuestion = (i: number, q: Question) => {
+  const updateQuestion = (i: number, q: Question) =>
     setQuestions((qs) => qs.map((x, j) => (j === i ? q : x)));
-  };
-  const removeQuestion = (i: number) => {
+  const removeQuestion = (i: number) =>
     setQuestions((qs) => qs.filter((_, j) => j !== i));
-  };
   const moveUp = (i: number) => {
     if (i === 0) return;
     setQuestions((qs) => { const a = [...qs]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; });
   };
-  const moveDown = (i: number) => {
+  const moveDown = (i: number) =>
     setQuestions((qs) => {
       if (i === qs.length - 1) return qs;
       const a = [...qs]; [a[i], a[i + 1]] = [a[i + 1], a[i]]; return a;
     });
-  };
 
   const handleSave = () => {
     if (!title.trim()) { toast.error('Dê um título ao formulário'); return; }
@@ -326,6 +457,31 @@ function FormBuilder({
       {/* Questions */}
       {tab === 'questions' && (
         <div className="space-y-3">
+          {/* Variáveis de piping — referência sempre visível */}
+          <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs space-y-2">
+            <p className="font-semibold text-primary flex items-center gap-1.5">
+              <span>💡</span> Insira respostas anteriores no texto das perguntas:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { code: '{{primeiro_nome}}', desc: 'Primeiro nome' },
+                { code: '{{nome}}',          desc: 'Nome completo' },
+                { code: '{{email}}',         desc: 'E-mail' },
+                { code: '{{telefone}}',      desc: 'Telefone' },
+                { code: '{{q1}}',            desc: 'Resposta da pergunta 1' },
+                { code: '{{q2}}',            desc: 'Resposta da pergunta 2' },
+              ].map(({ code, desc }) => (
+                <span key={code} className="inline-flex items-center gap-1 bg-background border border-border rounded-md px-2 py-0.5 text-[11px]">
+                  <code className="text-primary font-mono">{code}</code>
+                  <span className="text-muted-foreground">→ {desc}</span>
+                </span>
+              ))}
+            </div>
+            <p className="text-muted-foreground/70 italic">
+              Ex: <span className="text-foreground/60 not-italic">{"{{primeiro_nome}}"}</span>, qual o seu melhor e-mail?
+            </p>
+          </div>
+
           {questions.map((q, i) => (
             <QuestionEditor
               key={q.id} q={q} index={i} total={questions.length}
@@ -504,6 +660,11 @@ export default function Forms() {
                   <Badge variant="outline" className="text-[10px] h-4">
                     {f.questions?.length ?? 0} perguntas
                   </Badge>
+                  {f.questions?.some((q) => q.type === 'schedule') && (
+                    <Badge variant="outline" className="text-[10px] h-4 text-primary border-primary/30">
+                      <Calendar className="h-2.5 w-2.5 mr-1" /> agendamento
+                    </Badge>
+                  )}
                   <Badge variant="outline" className="text-[10px] h-4">
                     {f.response_count ?? 0} respostas
                   </Badge>
@@ -524,8 +685,7 @@ export default function Forms() {
                   onClick={() => window.open(formUrl(f.slug), '_blank')}>
                   <Eye className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs"
-                  onClick={() => setEditing(f)}>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditing(f)}>
                   Editar
                 </Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive"

@@ -22,6 +22,11 @@ export interface LeadWithCompany {
   funnel_stage?: string | null;
   legal_status?: string | null;
   status?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+  scheduled_at?: string | null;
+  source?: string | null;
   created_at?: string;
   updated_at?: string;
   companies?: { name: string } | null;

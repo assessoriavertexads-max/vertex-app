@@ -1,6 +1,7 @@
 /**
  * submit-form
- * Recebe respostas de formulários públicos (sem autenticação) e cria leads.
+ * GET  ?slug=xxx  → retorna dados do formulário (sem autenticação, usa SERVICE_ROLE)
+ * POST { slug, answers } → cria lead no CRM
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -10,8 +11,8 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "content-type, authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 function json(data: unknown, status = 200) {
@@ -22,7 +23,29 @@ function json(data: unknown, status = 200) {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (req.method !== "POST") return json({ error: "Apenas POST" }, 405);
+
+  const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // ── GET: busca formulário pelo slug ────────────────────────────────────────
+  if (req.method === "GET") {
+    const url  = new URL(req.url);
+    const slug = url.searchParams.get("slug");
+    if (!slug) return json({ error: "slug é obrigatório" }, 400);
+
+    const { data: form, error } = await sb
+      .from("lead_forms")
+      .select("id, title, description, questions, settings")
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (error)  return json({ error: error.message }, 500);
+    if (!form)  return json({ error: "Formulário não encontrado" }, 404);
+    return json(form);
+  }
+
+  // ── POST: submete respostas ────────────────────────────────────────────────
+  if (req.method !== "POST") return json({ error: "Método não permitido" }, 405);
 
   let body: { slug: string; answers: Record<string, string> };
   try { body = await req.json(); }
@@ -31,9 +54,6 @@ serve(async (req) => {
   const { slug, answers } = body;
   if (!slug || !answers) return json({ error: "slug e answers são obrigatórios" }, 400);
 
-  const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-
-  // Busca o formulário
   const { data: form, error: formErr } = await sb
     .from("lead_forms")
     .select("id, auth_user_id, title, questions, settings")
@@ -46,58 +66,75 @@ serve(async (req) => {
   interface Question {
     id: string;
     label: string;
-    maps_to?: string;
     type: string;
+    maps_to?: string;
+    schedule_settings?: { duration_minutes?: number };
   }
 
   const questions: Question[] = form.questions ?? [];
 
-  // Mapeia respostas para colunas de leads
-  let leadName:  string | null = null;
+  let leadTitle: string | null = null;
   let leadEmail: string | null = null;
   let leadPhone: string | null = null;
-  const extraLines: string[]   = [];
+  let scheduledAt: string | null = null;
+  const extraLines: string[] = [];
 
   for (const q of questions) {
     const val = answers[q.id]?.trim();
     if (!val) continue;
-    if (q.maps_to === "name")  { leadName  = val; continue; }
-    if (q.maps_to === "email") { leadEmail = val; continue; }
-    if (q.maps_to === "phone") { leadPhone = val; continue; }
-    extraLines.push(`${q.label}: ${val}`);
+    if (q.type === "schedule") { scheduledAt = val; continue; }
+    switch (q.maps_to) {
+      case "name":  leadTitle = val; break;
+      case "email": leadEmail = val; break;
+      case "phone": leadPhone = val; break;
+      case "notes": extraLines.push(val); break;
+      default:      extraLines.push(`${q.label}: ${val}`);
+    }
   }
 
   const notes = extraLines.join("\n") || null;
+  const scheduledAtIso = scheduledAt ? new Date(scheduledAt).toISOString() : null;
 
-  // Cria o lead
   const { data: lead, error: leadErr } = await sb
     .from("leads")
     .insert({
       auth_user_id: form.auth_user_id,
-      name:         leadName ?? "Lead sem nome",
+      title:        leadTitle ?? "Lead sem nome",
       email:        leadEmail,
       phone:        leadPhone,
-      stage:        "novo",
       notes,
+      funnel_stage: "prospect",
+      scheduled_at: scheduledAtIso,
+      source:       "form",
     })
     .select("id")
     .single();
 
   if (leadErr) return json({ error: leadErr.message }, 500);
 
-  // Registra a resposta e incrementa contador
   await sb.from("lead_form_responses").insert({
-    form_id:  form.id,
-    lead_id:  lead.id,
+    form_id: form.id,
+    lead_id: lead.id,
     answers,
   });
 
+  const { data: current } = await sb
+    .from("lead_forms").select("response_count").eq("id", form.id).single();
   await sb.from("lead_forms")
-    .update({ response_count: sb.rpc("coalesce", {}) })
+    .update({ response_count: (current?.response_count ?? 0) + 1 })
     .eq("id", form.id);
 
-  // Incrementa response_count com RPC segura
-  await sb.rpc("increment_form_responses", { form_id: form.id }).catch(() => {});
+  if (scheduledAtIso) {
+    const schedQ = questions.find((q) => q.type === "schedule");
+    await sb.from("meetings").insert({
+      auth_user_id:     form.auth_user_id,
+      lead_id:          lead.id,
+      form_id:          form.id,
+      scheduled_at:     scheduledAtIso,
+      duration_minutes: schedQ?.schedule_settings?.duration_minutes ?? 30,
+      title:            `Reunião – ${leadTitle ?? "Lead"}`,
+    });
+  }
 
   return json({ ok: true, lead_id: lead.id });
 });

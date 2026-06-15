@@ -4,7 +4,7 @@ import {
   closestCorners, PointerSensor, useSensor, useSensors,
   useDraggable, useDroppable,
 } from '@dnd-kit/core';
-import { Plus, Building2, DollarSign, Clock, Pencil, Loader2 } from 'lucide-react';
+import { Plus, Building2, DollarSign, Clock, Pencil, Loader2, Mail, Phone, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -29,6 +29,12 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (lead: Lead
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   const companyName = lead.companies?.name || 'Empresa não vinculada';
 
+  const scheduledDate = lead.scheduled_at
+    ? new Date(lead.scheduled_at).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
   return (
     <div
       ref={setNodeRef}
@@ -49,17 +55,41 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (lead: Lead
           <Pencil className="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
-        <Building2 className="w-3.5 h-3.5" />
+
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+        <Building2 className="w-3.5 h-3.5 shrink-0" />
         {companyName}
       </div>
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+
+      {lead.email && (
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+          <Mail className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{lead.email}</span>
+        </div>
+      )}
+
+      {lead.phone && !lead.email && (
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+          <Phone className="w-3.5 h-3.5 shrink-0" />
+          {lead.phone}
+        </div>
+      )}
+
+      {scheduledDate && (
+        <div className="flex items-center gap-1.5 text-xs text-blue-500 mt-1.5 bg-blue-50 px-2 py-1 rounded-md">
+          <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+          Reunião: {scheduledDate}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
         <div className="flex items-center gap-1 font-medium text-emerald-600 text-sm">
           <DollarSign className="w-3.5 h-3.5" />
           {Number(lead.estimated_value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </div>
         <div className="flex items-center gap-1 text-xs text-slate-400">
-          <Clock className="w-3.5 h-3.5" /> Hoje
+          <Clock className="w-3.5 h-3.5" />
+          {lead.source === 'form' ? 'Formulário' : 'Manual'}
         </div>
       </div>
     </div>
@@ -114,7 +144,7 @@ export const CRM = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('leads')
-        .select('*, companies(name)')
+        .select('id, title, company_id, estimated_value, funnel_stage, legal_status, status, email, phone, scheduled_at, source, created_at, companies(name)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
