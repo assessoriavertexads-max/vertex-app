@@ -16,6 +16,11 @@ CREATE TABLE IF NOT EXISTS public.api_keys (
 
 ALTER TABLE public.api_keys ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "api_keys_select" ON public.api_keys;
+DROP POLICY IF EXISTS "api_keys_insert" ON public.api_keys;
+DROP POLICY IF EXISTS "api_keys_update" ON public.api_keys;
+DROP POLICY IF EXISTS "api_keys_delete" ON public.api_keys;
+
 CREATE POLICY "api_keys_select" ON public.api_keys
   FOR SELECT USING (auth.uid() = auth_user_id);
 CREATE POLICY "api_keys_insert" ON public.api_keys
