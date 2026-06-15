@@ -36,6 +36,8 @@ const AIInsights = lazy(() => import("./pages/AIInsights"));
 const Settings = lazy(() => import("./pages/Settings"));
 const WhatsApp = lazy(() => import("./pages/WhatsApp"));
 const AdsManager = lazy(() => import("./pages/AdsManager"));
+const Forms = lazy(() => import("./pages/Forms"));
+const PublicForm = lazy(() => import("./pages/PublicForm"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -65,6 +67,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/f/:slug" element={<PublicForm />} />
 
             {/* Portal do cliente */}
             <Route
@@ -95,6 +98,7 @@ const App = () => (
                       <Route path="/companies/:companyId/profile" element={<CompanyProfile />} />
                       <Route path="/companies/:companyId/contracts" element={<CompanyContracts />} />
                       <Route path="/ads-manager" element={<AdsManager />} />
+                      <Route path="/forms" element={<Forms />} />
                       <Route path="/whatsapp" element={<WhatsApp />} />
                       <Route path="/ai-insights" element={<AIInsights />} />
                       <Route path="/docs" element={<Docs />} />

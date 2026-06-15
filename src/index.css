@@ -113,3 +113,15 @@
     @apply bg-card rounded-xl border border-border/50 p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/20;
   }
 }
+
+/* Typeform-style animations */
+@keyframes tf-slide-in {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes tf-slide-out-up {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-40px); }
+}
+.tf-enter { animation: tf-slide-in 0.45s cubic-bezier(0.16,1,0.3,1) forwards; }
+.tf-exit  { animation: tf-slide-out-up 0.3s ease forwards; }

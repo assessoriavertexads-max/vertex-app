@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Briefcase, DollarSign,
   CheckSquare, BookOpen, BrainCircuit, Menu, LogOut, Settings as SettingsIcon,
-  MessageCircle, X, Zap, BarChart2
+  MessageCircle, X, Zap, BarChart2, ClipboardList
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -23,6 +23,7 @@ const menuItems = [
   { icon: Users, label: 'CRM (Comercial/Jurídico)', path: '/crm' },
   { icon: DollarSign, label: 'Financeiro (Vertex)', path: '/finance' },
   { icon: BarChart2, label: 'Ads Manager', path: '/ads-manager' },
+  { icon: ClipboardList, label: 'Formulários', path: '/forms' },
   { icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
   { icon: BrainCircuit, label: 'IA Insights', path: '/ai-insights' },
   { icon: BookOpen, label: 'Processos & Docs', path: '/docs' },
