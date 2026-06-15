@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, ArrowLeft, Check, Loader2, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -492,14 +492,13 @@ export default function PublicForm() {
   const { data: form, isLoading, isError, error: formError } = useQuery<LeadForm>({
     queryKey: ['public-form', slug],
     queryFn: async () => {
-      // Usa a Edge Function (SERVICE_ROLE) para evitar dependência de RLS anônimo
-      const { data, error } = await supabase.functions.invoke(
-        `submit-form?slug=${encodeURIComponent(slug!)}`,
-        { method: 'GET' } as Parameters<typeof supabase.functions.invoke>[1],
+      const resp = await fetch(
+        `${SUPABASE_URL}/functions/v1/submit-form?slug=${encodeURIComponent(slug!)}`,
+        { headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
       );
-      if (error) throw new Error(error.message ?? 'Erro ao carregar formulário');
-      if (!data || data.error) throw new Error(data?.error ?? 'Formulário não encontrado');
-      return data as LeadForm;
+      const payload = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(payload?.error ?? 'Formulário não encontrado');
+      return payload as LeadForm;
     },
     enabled: !!slug,
     retry: 1,
