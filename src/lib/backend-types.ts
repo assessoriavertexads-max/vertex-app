@@ -12,6 +12,9 @@ export interface LeadInsert {
   estimated_value?: number | null;
   funnel_stage?: string | null;
   legal_status?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
 }
 
 export interface LeadWithCompany {
@@ -27,6 +30,9 @@ export interface LeadWithCompany {
   notes?: string | null;
   scheduled_at?: string | null;
   source?: string | null;
+  loss_reason?: string | null;
+  won_at?: string | null;
+  lost_at?: string | null;
   created_at?: string;
   updated_at?: string;
   companies?: { name: string } | null;

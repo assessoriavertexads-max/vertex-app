@@ -15,16 +15,16 @@ interface NewLeadModalProps {
 }
 
 export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => {
-  const [title, setTitle] = useState('');
-  const [companyMode, setCompanyMode] = useState<'existing' | 'new' | 'none'>('existing');
-  const [companyId, setCompanyId] = useState('');
-  const [newCompanyName, setNewCompanyName] = useState('');
-  const [newCompanyPhone, setNewCompanyPhone] = useState('');
+  const [title,              setTitle]              = useState('');
+  const [companyMode,        setCompanyMode]        = useState<'existing' | 'new' | 'none'>('existing');
+  const [companyId,          setCompanyId]          = useState('');
+  const [newCompanyName,     setNewCompanyName]     = useState('');
+  const [newCompanyPhone,    setNewCompanyPhone]    = useState('');
   const [newCompanyDocument, setNewCompanyDocument] = useState('');
-  const [value, setValue] = useState('');
-  const [legalStatus, setLegalStatus] = useState('');
-  const [contractSigned, setContractSigned] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [value,              setValue]              = useState('');
+  const [email,              setEmail]              = useState('');
+  const [phone,              setPhone]              = useState('');
+  const [isSaving,           setIsSaving]           = useState(false);
 
   const { data: companies = [], isLoading } = useQuery<CompanyOption[]>({
     queryKey: ['companies-dropdown'],
@@ -39,7 +39,7 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
   const reset = () => {
     setTitle(''); setCompanyMode('existing'); setCompanyId('');
     setNewCompanyName(''); setNewCompanyPhone(''); setNewCompanyDocument('');
-    setValue(''); setLegalStatus(''); setContractSigned(false); setIsSaving(false);
+    setValue(''); setEmail(''); setPhone(''); setIsSaving(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -53,7 +53,8 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
         company_id: companyMode === 'existing' ? (companyId || null) : null,
         estimated_value: parseFloat(value) || 0,
         funnel_stage: 'prospect',
-        legal_status: contractSigned ? 'Assinado' : legalStatus || null,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
       };
 
       if (companyMode === 'new' && newCompanyName.trim()) {
@@ -176,24 +177,16 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
             )}
           </div>
 
-          {/* Status jurídico */}
-          <div className="grid gap-2">
-            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-              <input
-                type="checkbox"
-                checked={contractSigned}
-                onChange={(e) => setContractSigned(e.target.checked)}
-                className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
-              />
-              Contrato já assinado
-            </label>
-            {!contractSigned && (
-              <Input
-                placeholder="Status jurídico (ex: Em análise, Não assinado)"
-                value={legalStatus}
-                onChange={(e) => setLegalStatus(e.target.value)}
-              />
-            )}
+          {/* Email + Telefone */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Email</Label>
+              <Input type="email" placeholder="email@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Telefone / WhatsApp</Label>
+              <Input placeholder="(11) 99999-9999" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-1">
