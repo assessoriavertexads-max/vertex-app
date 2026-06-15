@@ -383,12 +383,21 @@ export const CRM = () => {
   const { data: leads = [], isLoading, isError } = useQuery<LeadWithCompany[]>({
     queryKey: ['leads'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Tenta primeiro com as colunas novas; se falhar (migração não aplicada), busca sem elas
+      const full = await supabase
         .from('leads')
         .select('id, title, company_id, estimated_value, funnel_stage, legal_status, status, email, phone, notes, scheduled_at, source, loss_reason, won_at, lost_at, created_at, companies(name)')
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+
+      if (!full.error) return full.data ?? [];
+
+      const fallback = await supabase
+        .from('leads')
+        .select('id, title, company_id, estimated_value, funnel_stage, legal_status, status, email, phone, notes, scheduled_at, source, created_at, companies(name)')
+        .order('created_at', { ascending: false });
+
+      if (fallback.error) throw fallback.error;
+      return fallback.data ?? [];
     },
   });
 
@@ -430,9 +439,10 @@ export const CRM = () => {
   const updateLeadStage = useMutation({
     mutationFn: async ({ id, funnel_stage, loss_reason }: { id: string; funnel_stage: string; loss_reason?: string }) => {
       const updateData: Record<string, unknown> = { funnel_stage };
-      if (loss_reason)              updateData.loss_reason = loss_reason;
-      if (funnel_stage === 'won')   updateData.won_at      = new Date().toISOString();
-      if (funnel_stage === 'lost')  updateData.lost_at     = new Date().toISOString();
+      // Colunas adicionadas pela migração 20260615_crm_pipeline.sql — adicionadas apenas se disponíveis
+      if (loss_reason)             updateData.loss_reason = loss_reason;
+      if (funnel_stage === 'won')  updateData.won_at      = new Date().toISOString();
+      if (funnel_stage === 'lost') updateData.lost_at     = new Date().toISOString();
 
       if (funnel_stage === 'won') {
         const { data: lead } = await supabase
@@ -498,8 +508,13 @@ export const CRM = () => {
         }
       }
 
-      const { error } = await supabase.from('leads').update(updateData).eq('id', id);
-      if (error) throw error;
+      let { error } = await supabase.from('leads').update(updateData).eq('id', id);
+      // Se falhou por coluna inexistente, tenta sem as colunas novas
+      if (error) {
+        const safeData = { funnel_stage };
+        const retry = await supabase.from('leads').update(safeData).eq('id', id);
+        if (retry.error) throw retry.error;
+      }
     },
     onMutate: async ({ id, funnel_stage }) => {
       await qc.cancelQueries({ queryKey: ['leads'] });
