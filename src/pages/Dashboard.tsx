@@ -1,15 +1,17 @@
 import {
   DollarSign, Target, Activity, ArrowUpRight, TrendingUp,
-  AlertTriangle, CalendarClock,
+  AlertTriangle, CalendarClock, Eye, EyeOff,
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend, Cell,
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const PRIVACY_KEY = 'vertex_privacy_mode';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Company     = { id: string; status: string };
@@ -72,6 +74,22 @@ function DashboardSkeleton() {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function Dashboard() {
+  const [privacy, setPrivacy] = useState<boolean>(() =>
+    localStorage.getItem(PRIVACY_KEY) === 'true'
+  );
+
+  const togglePrivacy = () => {
+    setPrivacy(p => {
+      localStorage.setItem(PRIVACY_KEY, String(!p));
+      return !p;
+    });
+  };
+
+  // Mascara valores sensíveis quando modo privacidade está ativo
+  const m = (value: string | number) => privacy ? '••••' : String(value);
+  const mR = (value: number, opts?: Intl.NumberFormatOptions) =>
+    privacy ? '••••' : value.toLocaleString('pt-BR', opts);
+
   const { data, isLoading, isError } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: async () => {
@@ -203,11 +221,23 @@ export default function Dashboard() {
     <div className="flex flex-col h-full gap-6 max-w-7xl mx-auto pb-8">
 
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Visão Geral</h1>
-        <p className="text-muted-foreground mt-1">
-          Bem-vindo ao Vertex Workspace. Aqui está o resumo da sua operação hoje.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Visão Geral</h1>
+          <p className="text-muted-foreground mt-1">
+            Bem-vindo ao Vertex Workspace. Aqui está o resumo da sua operação hoje.
+          </p>
+        </div>
+        <button
+          onClick={togglePrivacy}
+          title={privacy ? 'Mostrar valores' : 'Ocultar valores'}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border border-border rounded-lg px-3 py-2 bg-card hover:bg-muted/50 shrink-0 mt-1"
+        >
+          {privacy
+            ? <><Eye className="w-4 h-4" /> Mostrar</>
+            : <><EyeOff className="w-4 h-4" /> Ocultar</>
+          }
+        </button>
       </div>
 
       {isError && (
@@ -226,10 +256,10 @@ export default function Dashboard() {
             <div className="p-2 bg-primary/10 text-primary rounded-lg"><DollarSign className="w-5 h-5" /></div>
           </div>
           <h2 className="text-3xl font-bold text-foreground">
-            R$ {monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            R$ {mR(monthlyRevenue, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </h2>
           <p className="text-xs mt-1">
-            {momGrowth !== null ? (
+            {!privacy && momGrowth !== null ? (
               <span className={momGrowth >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
                 {momGrowth >= 0 ? '▲' : '▼'} {Math.abs(momGrowth)}% vs mês anterior
               </span>
@@ -246,7 +276,7 @@ export default function Dashboard() {
             <div className="p-2 bg-green-500/10 text-green-500 rounded-lg"><TrendingUp className="w-5 h-5" /></div>
           </div>
           <h2 className={`text-3xl font-bold ${grossProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-            R$ {Math.abs(grossProfit).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            R$ {mR(Math.abs(grossProfit), { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
             {grossProfit >= 0 ? 'Receita − despesas pagas' : 'Despesas excedem receita'}
@@ -260,10 +290,10 @@ export default function Dashboard() {
             <div className="p-2 bg-yellow-500/10 text-yellow-500 rounded-lg"><Target className="w-5 h-5" /></div>
           </div>
           <h2 className="text-3xl font-bold text-foreground">
-            R$ {pipelineTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            R$ {mR(pipelineTotal, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            {activeLeads} abertos · taxa de fechamento {closeRate}%
+            {m(activeLeads)} abertos · taxa {m(closeRate + '%')}
           </p>
         </div>
 
@@ -274,14 +304,14 @@ export default function Dashboard() {
             <div className="p-2 bg-purple-500/10 text-purple-500 rounded-lg"><Activity className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-3xl font-bold text-foreground">{activeCompanies}</h2>
+            <h2 className="text-3xl font-bold text-foreground">{m(activeCompanies)}</h2>
             <span className="flex items-center text-sm font-medium text-green-500">
-              <ArrowUpRight className="w-4 h-4" /> {companies.length} total
+              <ArrowUpRight className="w-4 h-4" /> {m(companies.length)} total
             </span>
           </div>
           <p className="text-xs mt-1">
-            <span className="text-muted-foreground">{pendingTasks} tarefas</span>
-            {overdueTasks > 0 && (
+            <span className="text-muted-foreground">{m(pendingTasks)} tarefas</span>
+            {!privacy && overdueTasks > 0 && (
               <span className="text-red-500 font-medium ml-1">· {overdueTasks} atrasadas</span>
             )}
           </p>
@@ -375,7 +405,7 @@ export default function Dashboard() {
                   />
                 </div>
                 <span className="text-xs font-semibold text-foreground w-5 text-right tabular-nums">
-                  {value}
+                  {m(value)}
                 </span>
               </div>
             ))}
@@ -391,7 +421,7 @@ export default function Dashboard() {
             </h3>
             {upcomingDue.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                R$ {upcomingTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} / 7 dias
+                R$ {mR(upcomingTotal, { minimumFractionDigits: 0 })} / 7 dias
               </span>
             )}
           </div>
@@ -422,7 +452,7 @@ export default function Dashboard() {
                         {label}
                       </span>
                       <span className="text-sm font-semibold text-foreground tabular-nums">
-                        R$ {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                        R$ {mR(Number(t.amount), { minimumFractionDigits: 0 })}
                       </span>
                     </div>
                   </div>
