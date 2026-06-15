@@ -383,21 +383,13 @@ export const CRM = () => {
   const { data: leads = [], isLoading, isError } = useQuery<LeadWithCompany[]>({
     queryKey: ['leads'],
     queryFn: async () => {
-      // Tenta primeiro com as colunas novas; se falhar (migração não aplicada), busca sem elas
-      const full = await supabase
+      const { data, error } = await supabase
         .from('leads')
-        .select('id, title, company_id, estimated_value, funnel_stage, legal_status, status, email, phone, notes, scheduled_at, source, loss_reason, won_at, lost_at, created_at, companies(name)')
+        .select('*, companies(name)')
         .order('created_at', { ascending: false });
 
-      if (!full.error) return full.data ?? [];
-
-      const fallback = await supabase
-        .from('leads')
-        .select('id, title, company_id, estimated_value, funnel_stage, legal_status, status, email, phone, notes, scheduled_at, source, created_at, companies(name)')
-        .order('created_at', { ascending: false });
-
-      if (fallback.error) throw fallback.error;
-      return fallback.data ?? [];
+      if (error) throw error;
+      return data ?? [];
     },
   });
 
