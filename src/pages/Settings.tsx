@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   User, Bell, Shield, Loader2, MessageSquare, Mail, KeyRound,
-  Phone, Plug, Plus, Trash2, Copy, Eye, EyeOff, Check,
+  Phone, Plug, Plus, Trash2, Copy, Eye, EyeOff, Check, Palette,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,30 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ImageUpload } from "@/components/ImageUpload";
+
+const BRANDING_KEY = 'vertex_branding';
+
+interface Branding { logo_url?: string; app_name?: string }
+
+function loadBranding(): Branding {
+  try { return JSON.parse(localStorage.getItem(BRANDING_KEY) ?? '{}'); }
+  catch { return {}; }
+}
+
+export function applyBranding(b: Branding) {
+  if (b.app_name) document.title = b.app_name;
+  if (b.logo_url) {
+    let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.type = 'image/png';
+    link.href = b.logo_url;
+  }
+}
 
 type NotifKey = 'payment_alerts' | 'new_leads' | 'task_due';
 
@@ -266,6 +290,7 @@ export default function Settings() {
   const [whatsappPhone, setWhatsappPhone]         = useState('');
   const [isSavingPhone, setIsSavingPhone]         = useState(false);
   const [showPassword, setShowPassword]           = useState(false);
+  const [branding, setBranding]                   = useState<Branding>(loadBranding);
 
   useEffect(() => {
     if (profile?.whatsapp_phone) setWhatsappPhone(profile.whatsapp_phone);
@@ -313,6 +338,12 @@ export default function Settings() {
     }
   };
 
+  const handleSaveBranding = () => {
+    localStorage.setItem(BRANDING_KEY, JSON.stringify(branding));
+    applyBranding(branding);
+    toast.success('Identidade visual salva!');
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPassword || newPassword.length < 8) { toast.error('A senha deve ter no mínimo 8 caracteres.'); return; }
@@ -330,6 +361,45 @@ export default function Settings() {
         <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
         <p className="text-muted-foreground text-sm mt-1">Gerencie suas preferências de conta</p>
       </div>
+
+      {/* Identidade Visual */}
+      <div className="stat-card space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Palette className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold text-foreground">Identidade Visual</h2>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Sua logo aparece como ícone na aba do navegador e na barra do Google. O nome aparece no título da aba.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm">Logo / Ícone do sistema</Label>
+            <ImageUpload
+              bucket="branding"
+              value={branding.logo_url}
+              onChange={(url) => setBranding((b) => ({ ...b, logo_url: url }))}
+              previewClassName="h-20 w-20"
+              label="Clique para enviar logo"
+            />
+            <p className="text-xs text-muted-foreground">Recomendado: PNG quadrado, mínimo 192×192px</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="app-name" className="text-sm">Nome do sistema (aba do navegador)</Label>
+            <Input
+              id="app-name"
+              value={branding.app_name ?? ''}
+              onChange={(e) => setBranding((b) => ({ ...b, app_name: e.target.value }))}
+              placeholder="Ex: Minha Agência ERP"
+              className="max-w-xs"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={handleSaveBranding}>Salvar identidade visual</Button>
+        </div>
+      </div>
+
+      <Separator />
 
       {/* Perfil */}
       <div className="stat-card space-y-4">

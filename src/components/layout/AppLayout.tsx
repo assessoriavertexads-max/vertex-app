@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { applyBranding } from '@/pages/Settings';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
   const isMobile = useIsMobile();
   const [isSidebarOpen, setSidebarOpen] = useState(!isMobile);
+
+  // Apply saved branding (favicon + tab title) on first load
+  useEffect(() => {
+    try {
+      const b = JSON.parse(localStorage.getItem('vertex_branding') ?? '{}');
+      applyBranding(b);
+    } catch { /* ignore */ }
+  }, []);
 
   // Close sidebar on mobile when route changes
   useEffect(() => {

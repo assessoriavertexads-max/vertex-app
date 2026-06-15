@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { ImageUpload } from '@/components/ImageUpload';
 import {
   Plus, Trash2, GripVertical, ExternalLink, Copy, Check,
   ClipboardList, ArrowLeft, Settings, Eye, ChevronDown, ChevronUp,
@@ -328,9 +329,13 @@ function QuestionEditor({ q, index, total, onChange, onRemove, onMoveUp, onMoveD
 
             {q.image_url !== undefined && (
               <div className="ml-8 space-y-2">
-                <Input value={q.image_url}
-                  onChange={(e) => onChange({ ...q, image_url: e.target.value })}
-                  placeholder="https://... URL da imagem" className="h-8 text-sm" />
+                <ImageUpload
+                  bucket="form-images"
+                  value={q.image_url || undefined}
+                  onChange={(url) => onChange({ ...q, image_url: url ?? '' })}
+                  previewClassName="h-24"
+                  label="Clique ou arraste para enviar imagem"
+                />
                 <div className="flex gap-2">
                   {(['left', 'right'] as const).map((pos) => (
                     <button key={pos} type="button" onClick={() => onChange({ ...q, image_position: pos })}
@@ -343,10 +348,6 @@ function QuestionEditor({ q, index, total, onChange, onRemove, onMoveUp, onMoveD
                     </button>
                   ))}
                 </div>
-                {q.image_url && (
-                  <img src={q.image_url} alt="preview" className="h-24 w-auto rounded border border-border object-cover"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                )}
               </div>
             )}
           </div>
@@ -568,15 +569,14 @@ function FormBuilder({ initial, onSave, onCancel, isSaving }: {
               </div>
 
               <div className="sm:col-span-2 space-y-1.5">
-                <Label className="text-xs">URL da imagem / logo</Label>
-                <Input value={settings.welcome_image_url ?? ''}
-                  onChange={(e) => set('welcome_image_url', e.target.value)}
-                  placeholder="https://... (logo, banner ou foto)" />
-                {settings.welcome_image_url && (
-                  <img src={settings.welcome_image_url} alt="preview"
-                    className="mt-2 h-28 w-auto rounded border border-border object-contain bg-muted/20"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                )}
+                <Label className="text-xs">Imagem / logo da tela inicial</Label>
+                <ImageUpload
+                  bucket="form-images"
+                  value={settings.welcome_image_url}
+                  onChange={(url) => set('welcome_image_url', url ?? '')}
+                  previewClassName="h-28"
+                  label="Clique ou arraste — logo, banner ou foto"
+                />
               </div>
             </div>
           </Section>
@@ -597,10 +597,14 @@ function FormBuilder({ initial, onSave, onCancel, isSaving }: {
                   placeholder="Entraremos em contato em breve!" />
               </div>
               <div className="sm:col-span-2 space-y-1.5">
-                <Label className="text-xs">URL da imagem (opcional)</Label>
-                <Input value={settings.thank_you_image_url ?? ''}
-                  onChange={(e) => set('thank_you_image_url', e.target.value)}
-                  placeholder="https://..." />
+                <Label className="text-xs">Imagem (opcional)</Label>
+                <ImageUpload
+                  bucket="form-images"
+                  value={settings.thank_you_image_url}
+                  onChange={(url) => set('thank_you_image_url', url ?? '')}
+                  previewClassName="h-28"
+                  label="Clique ou arraste uma imagem"
+                />
               </div>
             </div>
           </Section>
