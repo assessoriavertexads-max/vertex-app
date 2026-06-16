@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, Zap, Trash2, Loader2, MessageSquare, ClipboardList, Mail, Share2, Pencil,
+  Play, AlertCircle, CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -572,6 +574,38 @@ export default function Automation() {
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
 
+  const [cronRunning,  setCronRunning]  = useState(false);
+  const [cronResult,   setCronResult]   = useState<{ ok: boolean; data: unknown } | null>(null);
+
+  const handleRunCronNow = async () => {
+    setCronRunning(true);
+    setCronResult(null);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/check-due-dates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      setCronResult({ ok: res.ok, data });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
+        toast.success(`Cron disparado: ${(data as { executed?: number }).executed ?? 0} ação(ões) executada(s)`);
+      } else {
+        toast.error('Cron retornou erro — veja o resultado abaixo');
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setCronResult({ ok: false, data: { error: msg } });
+      toast.error('Falha ao chamar a função: ' + msg);
+    } finally {
+      setCronRunning(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -581,10 +615,37 @@ export default function Automation() {
             Regras automáticas disparadas por eventos no CRM, financeiro e agendamentos
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nova Regra
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRunCronNow} disabled={cronRunning}>
+            {cronRunning
+              ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              : <Play className="h-4 w-4 mr-1" />
+            }
+            Disparar cron agora
+          </Button>
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nova Regra
+          </Button>
+        </div>
       </div>
+
+      {/* Resultado do disparo manual */}
+      {cronResult && (
+        <div className={`rounded-xl border p-4 text-sm ${cronResult.ok ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/60'}`}>
+          <div className="flex items-center gap-2 font-medium mb-2">
+            {cronResult.ok
+              ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              : <AlertCircle className="h-4 w-4 text-red-600" />
+            }
+            <span className={cronResult.ok ? 'text-emerald-700' : 'text-red-700'}>
+              {cronResult.ok ? 'Cron executado com sucesso' : 'Cron retornou erro'}
+            </span>
+          </div>
+          <pre className="text-xs bg-white/80 rounded-lg p-3 overflow-x-auto border border-border text-foreground whitespace-pre-wrap break-all">
+            {JSON.stringify(cronResult.data, null, 2)}
+          </pre>
+        </div>
+      )}
 
       {/* Gatilhos disponíveis */}
       <div className="rounded-xl border border-border bg-card p-4">
@@ -710,8 +771,8 @@ export default function Automation() {
                         {actionSummary(rule)}
                       </p>
                       {rule.last_error && (
-                        <p className="text-xs text-red-500 truncate max-w-xs" title={rule.last_error}>
-                          Último erro: {rule.last_error}
+                        <p className="text-xs text-red-500 break-words max-w-sm">
+                          ⚠ {rule.last_error}
                         </p>
                       )}
                     </div>

@@ -591,7 +591,7 @@ export const CRM = () => {
             .replace('{company_name}', companyName ?? '');
           const raw   = companyPhone.replace(/\D/g, '');
           const phone = raw.startsWith('55') ? raw : `55${raw}`;
-          await supabase.functions.invoke('evolution-proxy', { body: { action: 'sendMessage', phone, message } });
+          await supabase.functions.invoke('evolution-proxy', { body: { action: 'sendMessage', payload: { number: phone, text: message } } });
         }
       }
 
