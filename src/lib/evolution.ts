@@ -25,9 +25,17 @@ export interface EvolutionMessage {
 }
 
 async function callProxy(action: string, payload?: unknown) {
-  const { data, error } = await supabase.functions.invoke('evolution-proxy', {
-    body: { action, payload },
-  });
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error('Tempo limite excedido (30s). Verifique se o WhatsApp está conectado na Evolution API.')),
+      30_000,
+    ),
+  );
+
+  const { data, error } = await Promise.race([
+    supabase.functions.invoke('evolution-proxy', { body: { action, payload } }),
+    timeout,
+  ]);
   if (error) throw new Error(error.message);
   if (data?.error) throw new Error(data.error);
   return data;
