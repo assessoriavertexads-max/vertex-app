@@ -50,6 +50,28 @@ const CYCLE_LABELS: Record<string, string> = {
   YEARLY: 'Anual',
 };
 
+// Separa tag de categoria do nome da saída (formato "Tag • Nome")
+function parseExpenseCategory(category: string | null): { tag: string | null; name: string } {
+  if (!category) return { tag: null, name: 'Sem nome' };
+  const idx = category.indexOf(' • ');
+  if (idx !== -1) return { tag: category.slice(0, idx), name: category.slice(idx + 3) };
+  return { tag: null, name: category };
+}
+
+// Calcula próxima data de vencimento baseada no ciclo
+function nextDueDate(currentDate: string, cycle: string): string {
+  const d = new Date(currentDate + 'T00:00:00');
+  switch (cycle) {
+    case 'WEEKLY':       d.setDate(d.getDate() + 7); break;
+    case 'BIWEEKLY':     d.setDate(d.getDate() + 14); break;
+    case 'MONTHLY':      d.setMonth(d.getMonth() + 1); break;
+    case 'QUARTERLY':    d.setMonth(d.getMonth() + 3); break;
+    case 'SEMIANNUALLY': d.setMonth(d.getMonth() + 6); break;
+    case 'YEARLY':       d.setFullYear(d.getFullYear() + 1); break;
+  }
+  return d.toISOString().split('T')[0];
+}
+
 // Normaliza qualquer ciclo para valor mensal equivalente
 const MRR_MULTIPLIER: Record<string, number> = {
   MONTHLY: 1,
@@ -417,6 +439,10 @@ export const Finance = () => {
     .filter(t => t.type === 'expense' && t.status === 'paid')
     .reduce((acc, t) => acc + Number(t.amount), 0);
 
+  const totalExpensePending = cardTransactions
+    .filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue'))
+    .reduce((acc, t) => acc + Number(t.amount), 0);
+
   const filteredTransactions = transactions.filter(t => {
     const companyName = t.companies?.name || '';
     const categoryText = t.category || '';
@@ -509,21 +535,64 @@ export const Finance = () => {
       if (error) throw error;
       const { data: tx } = await supabase
         .from('financial_transactions')
-        .select('category, company_id, amount, due_date, asaas_payment_url')
+        .select('*')
         .eq('id', id)
         .single();
-      return tx as { category: string | null; company_id: string | null; amount: number | null; due_date: string | null; asaas_payment_url: string | null } | null;
+      if (!tx) return null;
+
+      // Auto-cria próximo vencimento para saídas recorrentes
+      if (tx.type === 'expense' && tx.subscription_cycle && tx.due_date) {
+        const next = nextDueDate(tx.due_date, tx.subscription_cycle);
+        const { data: existing } = await supabase
+          .from('financial_transactions')
+          .select('id')
+          .eq('type', 'expense')
+          .eq('category', tx.category)
+          .eq('due_date', next)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (!existing) {
+          await supabase.from('financial_transactions').insert({
+            type: 'expense',
+            amount: tx.amount,
+            due_date: next,
+            category: tx.category,
+            company_id: tx.company_id,
+            status: 'pending',
+            subscription_cycle: tx.subscription_cycle,
+            billing_type: tx.billing_type,
+          });
+        }
+      }
+
+      return tx as {
+        type: string;
+        category: string | null;
+        company_id: string | null;
+        amount: number | null;
+        due_date: string | null;
+        asaas_payment_url: string | null;
+        subscription_cycle: string | null;
+      };
     },
     onSuccess: (tx) => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
-      toast.success('Marcado como pago!');
-      runAutomations('transaction_paid', 'any', {
-        entityTitle: tx?.category || 'Pagamento',
-        companyId: tx?.company_id ?? null,
-        amount: tx?.amount ?? null,
-        dueDate: tx?.due_date ?? null,
-        paymentLink: tx?.asaas_payment_url ?? null,
-      }).catch(() => {});
+      if (tx?.type === 'expense' && tx.subscription_cycle && tx.due_date) {
+        const next = nextDueDate(tx.due_date, tx.subscription_cycle);
+        const formatted = new Date(next + 'T00:00:00').toLocaleDateString('pt-BR');
+        toast.success(`Pago! Próximo vencimento criado para ${formatted}.`);
+      } else {
+        toast.success('Marcado como pago!');
+      }
+      if (tx?.type === 'income') {
+        runAutomations('transaction_paid', 'any', {
+          entityTitle: tx?.category || 'Pagamento',
+          companyId: tx?.company_id ?? null,
+          amount: tx?.amount ?? null,
+          dueDate: tx?.due_date ?? null,
+          paymentLink: tx?.asaas_payment_url ?? null,
+        }).catch(() => {});
+      }
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
@@ -840,6 +909,9 @@ export const Finance = () => {
             <div className="p-2 bg-red-500/10 rounded-lg text-red-600"><ArrowDownRight className="w-4 h-4" /></div>
           </div>
           <h2 className="text-2xl font-bold text-foreground mt-3">{fmtVal(totalExpense)}</h2>
+          {totalExpensePending > 0 && (
+            <p className="text-xs text-amber-600 mt-1">+ {fmtVal(totalExpensePending)} a pagar</p>
+          )}
         </div>
 
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
@@ -925,21 +997,48 @@ export const Finance = () => {
                 filteredTransactions.map(t => (
                   <tr key={t.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-4 max-w-xs">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="font-medium text-foreground">{t.companies?.name || 'Sem Empresa'}</p>
-                        {t.subscription_cycle && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-violet-100 text-violet-700 rounded-full">
-                            <RefreshCw className="w-3 h-3" />
-                            {CYCLE_LABELS[t.subscription_cycle] ?? t.subscription_cycle}
-                          </span>
-                        )}
-                        {isSubscriptionRecord(t) && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
-                            <CalendarDays className="w-3 h-3" /> Próx. cobrança
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-slate-500 text-xs mt-0.5 line-clamp-1">{t.category}</p>
+                      {t.type === 'expense' ? (() => {
+                        const { tag, name } = parseExpenseCategory(t.category);
+                        return (
+                          <>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <p className="font-medium text-foreground">{name}</p>
+                              {tag && (
+                                <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+                                  {tag}
+                                </span>
+                              )}
+                              {t.subscription_cycle && (
+                                <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-violet-100 text-violet-700 rounded-full">
+                                  <RefreshCw className="w-3 h-3" />
+                                  {CYCLE_LABELS[t.subscription_cycle] ?? t.subscription_cycle}
+                                </span>
+                              )}
+                            </div>
+                            {t.companies?.name && (
+                              <p className="text-slate-400 text-xs mt-0.5">{t.companies.name}</p>
+                            )}
+                          </>
+                        );
+                      })() : (
+                        <>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="font-medium text-foreground">{t.companies?.name || 'Sem Empresa'}</p>
+                            {t.subscription_cycle && (
+                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-violet-100 text-violet-700 rounded-full">
+                                <RefreshCw className="w-3 h-3" />
+                                {CYCLE_LABELS[t.subscription_cycle] ?? t.subscription_cycle}
+                              </span>
+                            )}
+                            {isSubscriptionRecord(t) && (
+                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                                <CalendarDays className="w-3 h-3" /> Próx. cobrança
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-500 text-xs mt-0.5 line-clamp-1">{t.category}</p>
+                        </>
+                      )}
                     </td>
 
                     <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
@@ -954,11 +1053,15 @@ export const Finance = () => {
 
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        {/* Marcar como pago */}
-                        {t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && (
+                        {/* Marcar como pago — entradas e saídas */}
+                        {(t.status === 'pending' || t.status === 'overdue') && (
                           <Button
                             variant="ghost" size="sm"
-                            className="h-8 gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 text-xs"
+                            className={`h-8 gap-1 text-xs ${
+                              t.type === 'income'
+                                ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                                : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                            }`}
                             onClick={() => markAsPaid.mutate(t.id)}
                             disabled={markAsPaid.isPending}
                           >
