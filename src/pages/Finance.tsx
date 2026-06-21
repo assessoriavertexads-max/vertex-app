@@ -322,10 +322,19 @@ function CustomChargeModal({
   );
 }
 
+// Retorna "YYYY-MM" do mês atual
+function currentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Ordem de status para ordenação: vencidos → pendentes → pagos → cancelados
+const STATUS_SORT: Record<string, number> = { overdue: 0, pending: 1, paid: 2, cancelled: 3 };
+
 export const Finance = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [filterMonth, setFilterMonth] = useState('all');
+  const [filterMonth, setFilterMonth] = useState(currentMonthKey);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'income' | 'expense'>('income');
   const [isCustomChargeOpen, setIsCustomChargeOpen] = useState(false);
@@ -458,6 +467,20 @@ export const Finance = () => {
     }
     return matchesSearch && matchesType && matchesMonth;
   });
+
+  // Ordenação: vencidos → pendentes (data asc) → pagos (data desc) → cancelados
+  const sortedTransactions = useMemo(() => {
+    return [...filteredTransactions].sort((a, b) => {
+      const sa = STATUS_SORT[a.status] ?? 4;
+      const sb = STATUS_SORT[b.status] ?? 4;
+      if (sa !== sb) return sa - sb;
+      const ta = new Date(a.due_date).getTime();
+      const tb = new Date(b.due_date).getTime();
+      // Pendentes/vencidos: vencimento mais próximo primeiro
+      // Pagos/cancelados: mais recente primeiro
+      return a.status === 'paid' || a.status === 'cancelled' ? tb - ta : ta - tb;
+    });
+  }, [filteredTransactions]);
 
   const createTransaction = useMutation({
     mutationFn: async (data: TransactionInsert) => {
@@ -987,14 +1010,14 @@ export const Finance = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredTransactions.length === 0 ? (
+              {sortedTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-10 text-slate-400">
                     Nenhuma transação encontrada.
                   </td>
                 </tr>
               ) : (
-                filteredTransactions.map(t => (
+                sortedTransactions.map(t => (
                   <tr key={t.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-4 max-w-xs">
                       {t.type === 'expense' ? (() => {
@@ -1134,9 +1157,9 @@ export const Finance = () => {
           </table>
         </div>
 
-        {filteredTransactions.length > 0 && (
+        {sortedTransactions.length > 0 && (
           <div className="px-5 py-3 border-t border-border bg-muted/30 text-xs text-muted-foreground">
-            {filteredTransactions.length} registro{filteredTransactions.length !== 1 ? 's' : ''}
+            {sortedTransactions.length} registro{sortedTransactions.length !== 1 ? 's' : ''}
           </div>
         )}
       </div>

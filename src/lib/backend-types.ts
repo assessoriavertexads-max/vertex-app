@@ -4,6 +4,7 @@ export interface CompanyOption {
   asaas_customer_id?: string | null;
   phone?: string | null;
   email?: string | null;
+  document?: string | null;
 }
 
 export interface LeadInsert {
