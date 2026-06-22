@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, ArrowRight, Loader2 } from "lucide-react";
+import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, ArrowRight, Loader2, Send, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { askAI, buildBusinessContext } from "@/lib/ai";
 
 interface Insight {
   id: string;
@@ -31,8 +33,20 @@ const insightRoutes: Record<string, string> = {
   "mom-revenue-drop": "/finance",
 };
 
+const QUICK_QUESTIONS = [
+  "Como está a saúde financeira do meu negócio?",
+  "Quais clientes devo priorizar esta semana?",
+  "Onde estou perdendo mais dinheiro?",
+  "Que ações podem aumentar minha receita?",
+];
+
 export default function AIInsights() {
   const navigate = useNavigate();
+  const [question, setQuestion]     = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [aiError, setAiError]       = useState("");
+  const responseRef = useRef<HTMLDivElement>(null);
   const { data: transactions = [], isLoading: loadingTx } = useQuery({
     queryKey: ["insights-transactions"],
     queryFn: async () => {
@@ -298,6 +312,24 @@ export default function AIInsights() {
     sugestoes: insights.filter((i) => i.type === "sugestão").length,
   }), [insights]);
 
+  async function handleAsk(q?: string) {
+    const prompt = (q ?? question).trim();
+    if (!prompt) return;
+    setIsAILoading(true);
+    setAiError("");
+    setAiResponse("");
+    try {
+      const context = buildBusinessContext({ transactions, leads, tasks, companies });
+      const text = await askAI(prompt, context);
+      setAiResponse(text);
+      setTimeout(() => responseRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Erro ao consultar IA");
+    } finally {
+      setIsAILoading(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -361,6 +393,80 @@ export default function AIInsights() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Painel de Chat com IA ───────────────────────────── */}
+      <div className="stat-card !p-0 overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-border bg-muted/30">
+          <Bot className="h-5 w-5 text-primary" />
+          <div>
+            <p className="font-semibold text-sm text-foreground">Pergunte à IA</p>
+            <p className="text-xs text-muted-foreground">Claude analisa seus dados e responde em segundos</p>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Perguntas rápidas */}
+          <div className="flex flex-wrap gap-2">
+            {QUICK_QUESTIONS.map((q) => (
+              <button
+                key={q}
+                type="button"
+                disabled={isAILoading}
+                onClick={() => { setQuestion(q); handleAsk(q); }}
+                className="text-xs px-3 py-1.5 rounded-full border border-border bg-background hover:border-primary/50 hover:text-primary transition-colors disabled:opacity-50"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+
+          {/* Input customizado */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleAsk(); }}
+            className="flex gap-2"
+          >
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="Ou escreva sua pergunta sobre o negócio…"
+              disabled={isAILoading}
+              className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            />
+            <Button type="submit" disabled={isAILoading || !question.trim()} size="sm" className="gap-1.5">
+              {isAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Perguntar
+            </Button>
+          </form>
+
+          {/* Loading */}
+          {isAILoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Analisando seus dados…
+            </div>
+          )}
+
+          {/* Erro */}
+          {aiError && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              {aiError}
+            </div>
+          )}
+
+          {/* Resposta */}
+          {aiResponse && (
+            <div ref={responseRef} className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-1">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-xs font-medium text-primary">Resposta da IA</span>
+              </div>
+              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
