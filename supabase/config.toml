@@ -13,3 +13,7 @@ verify_jwt = false
 
 [functions.ai-assistant]
 verify_jwt = true
+
+# Link de rastreamento: público, sem JWT (acessado por qualquer pessoa ao clicar no anúncio)
+[functions.track]
+verify_jwt = false
