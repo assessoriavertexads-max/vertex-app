@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" rx="44" fill="#0E1116"/>
+  <!-- V externo branco -->
+  <path d="M32 42 L100 158 L168 42" fill="none" stroke="white" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Risco de velocidade esmeralda -->
+  <path d="M100 100 L134 42" fill="none" stroke="#0DB878" stroke-width="13" stroke-linecap="round"/>
+</svg>
