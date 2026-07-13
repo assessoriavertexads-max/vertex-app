@@ -114,15 +114,12 @@ export default function Dashboard() {
     staleTime: 30_000,
   });
 
-  if (isLoading) return <DashboardSkeleton />;
-
   const companies    = data?.companies    ?? [];
   const leads        = data?.leads        ?? [];
   const tasks        = data?.tasks        ?? [];
   const transactions = data?.transactions ?? [];
 
   // ── Metrics ────────────────────────────────────────────────────────────────
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const metrics = useMemo(() => {
     const now          = new Date();
     const thisMonth    = now.toISOString().substring(0, 7);
@@ -179,7 +176,6 @@ export default function Dashboard() {
   }, [companies, leads, tasks, transactions]);
 
   // ── Chart Data ─────────────────────────────────────────────────────────────
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const funnelData = useMemo(() => [
     { name: 'Prospecção', quantidade: leads.filter(l => l.funnel_stage === 'prospect').length },
     { name: 'Negociação', quantidade: leads.filter(l => l.funnel_stage === 'negotiation').length },
@@ -187,7 +183,6 @@ export default function Dashboard() {
     { name: 'Fechado',    quantidade: leads.filter(l => l.funnel_stage === 'closed').length },
   ], [leads]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const revenueData = useMemo(() => {
     const now = new Date();
     return Array.from({ length: 6 }, (_, i) => {
@@ -202,7 +197,6 @@ export default function Dashboard() {
     });
   }, [transactions]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const tasksStatusData = useMemo(() => [
     { name: 'A Fazer',      value: metrics.tasksPending,    fill: '#f59e0b' },
     { name: 'Em Progresso', value: metrics.tasksInProgress, fill: '#3b82f6' },
@@ -217,6 +211,8 @@ export default function Dashboard() {
   } = metrics;
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  if (isLoading) return <DashboardSkeleton />;
+
   return (
     <div className="flex flex-col h-full gap-6 max-w-7xl mx-auto pb-8">
 
