@@ -644,8 +644,8 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-3 p-3 rounded-xl border border-border">
-                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-blue-600">f</span>
+                  <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-emerald-600">f</span>
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Meta Ads</p>
@@ -714,10 +714,10 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                     <p className="text-2xl font-bold text-emerald-700 mt-1">{closedDeals.length}</p>
                     <p className="text-xs text-emerald-600 mt-1">R$ {fmt(totalSold)} em pipeline</p>
                   </div>
-                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                    <p className="text-xs text-blue-600 font-medium">Receita Recebida</p>
-                    <p className="text-2xl font-bold text-blue-700 mt-1">R$ {fmt(totalReceived)}</p>
-                    <p className="text-xs text-blue-600 mt-1">{paidIncome.length} cobranças pagas</p>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                    <p className="text-xs text-emerald-600 font-medium">Receita Recebida</p>
+                    <p className="text-2xl font-bold text-emerald-700 mt-1">R$ {fmt(totalReceived)}</p>
+                    <p className="text-xs text-emerald-600 mt-1">{paidIncome.length} cobranças pagas</p>
                   </div>
                   <div className="rounded-2xl border border-border bg-card p-5 col-span-2 md:col-span-1">
                     <p className="text-xs text-muted-foreground font-medium">Ticket Médio</p>
@@ -811,15 +811,15 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
           {!metaAccountId ? (
             // Sem conta vinculada
             <div className="rounded-2xl border border-dashed border-border p-10 text-center space-y-3">
-              <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto">
-                <span className="text-xl font-bold text-blue-600">f</span>
+              <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
+                <span className="text-xl font-bold text-emerald-600">f</span>
               </div>
               <p className="font-semibold text-foreground">Meta Ads não conectado</p>
               <p className="text-sm text-muted-foreground">
                 Acesse o <strong>Perfil da Empresa</strong> e insira o Ad Account ID para sincronizar campanhas.
               </p>
               <button
-                className="text-sm text-blue-600 underline underline-offset-2"
+                className="text-sm text-emerald-600 underline underline-offset-2"
                 onClick={() => navigate(`/companies/${companyId}/profile`)}
               >
                 Ir para o Perfil →
@@ -830,8 +830,8 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
               {/* Controles */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <span className="text-xs font-bold text-blue-600">f</span>
+                  <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                    <span className="text-xs font-bold text-emerald-600">f</span>
                   </div>
                   <span className="text-sm font-semibold text-foreground">Meta Ads</span>
                   <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
@@ -900,9 +900,9 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                     {[
                       { label: 'Investido', value: `R$ ${metaData.account_totals.spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-red-500' },
-                      { label: 'Alcance', value: metaData.account_totals.reach.toLocaleString('pt-BR'), icon: Users, color: 'text-blue-500' },
-                      { label: 'Impressões', value: metaData.account_totals.impressions.toLocaleString('pt-BR'), icon: Eye, color: 'text-purple-500' },
-                      { label: 'Cliques', value: metaData.account_totals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick, color: 'text-indigo-500' },
+                      { label: 'Alcance', value: metaData.account_totals.reach.toLocaleString('pt-BR'), icon: Users, color: 'text-emerald-500' },
+                      { label: 'Impressões', value: metaData.account_totals.impressions.toLocaleString('pt-BR'), icon: Eye, color: 'text-emerald-500' },
+                      { label: 'Cliques', value: metaData.account_totals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick, color: 'text-emerald-500' },
                       { label: 'CTR', value: `${metaData.account_totals.ctr.toFixed(2)}%`, icon: TrendingUp, color: 'text-green-500' },
                       { label: 'CPC', value: `R$ ${metaData.account_totals.cpc.toFixed(2)}`, icon: DollarSign, color: 'text-amber-500' },
                       { label: 'ROAS', value: metaData.account_totals.roas > 0 ? `${metaData.account_totals.roas.toFixed(2)}x` : '—', icon: TrendingUp, color: 'text-emerald-500' },
@@ -930,11 +930,11 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                         </div>
                       )}
                       {metaData.account_totals.leads > 0 && (
-                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-                          <p className="text-xs text-blue-600">Leads</p>
-                          <p className="text-xl font-bold text-blue-700">{metaData.account_totals.leads.toLocaleString('pt-BR')}</p>
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                          <p className="text-xs text-emerald-600">Leads</p>
+                          <p className="text-xl font-bold text-emerald-700">{metaData.account_totals.leads.toLocaleString('pt-BR')}</p>
                           {metaData.account_totals.spend > 0 && metaData.account_totals.leads > 0 && (
-                            <p className="text-xs text-blue-600 mt-0.5">CPL: R$ {(metaData.account_totals.spend / metaData.account_totals.leads).toFixed(2)}</p>
+                            <p className="text-xs text-emerald-600 mt-0.5">CPL: R$ {(metaData.account_totals.spend / metaData.account_totals.leads).toFixed(2)}</p>
                           )}
                         </div>
                       )}
@@ -991,7 +991,7 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                                   <span className="text-xs text-emerald-600 font-medium">✓ {campaign.insights.conversions} conversões</span>
                                 )}
                                 {campaign.insights.leads > 0 && (
-                                  <span className="text-xs text-blue-600 font-medium">◎ {campaign.insights.leads} leads</span>
+                                  <span className="text-xs text-emerald-600 font-medium">◎ {campaign.insights.leads} leads</span>
                                 )}
                               </div>
                             )}
@@ -1064,7 +1064,7 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{ad.creative.body}</p>
                                 )}
                                 {ad.creative.call_to_action && (
-                                  <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-blue-500/10 text-blue-600 rounded">
+                                  <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-emerald-500/10 text-emerald-600 rounded">
                                     {ad.creative.call_to_action}
                                   </span>
                                 )}
@@ -1173,11 +1173,11 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                     {[
                       { label: 'Investido', value: `R$ ${googleData.account_totals.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-red-500' },
-                      { label: 'Impressões', value: googleData.account_totals.impressions.toLocaleString('pt-BR'), icon: Eye, color: 'text-purple-500' },
-                      { label: 'Cliques', value: googleData.account_totals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick, color: 'text-indigo-500' },
+                      { label: 'Impressões', value: googleData.account_totals.impressions.toLocaleString('pt-BR'), icon: Eye, color: 'text-emerald-500' },
+                      { label: 'Cliques', value: googleData.account_totals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick, color: 'text-emerald-500' },
                       { label: 'CTR', value: `${googleData.account_totals.ctr.toFixed(2)}%`, icon: TrendingUp, color: 'text-green-500' },
                       { label: 'CPC Médio', value: `R$ ${googleData.account_totals.avg_cpc.toFixed(2)}`, icon: DollarSign, color: 'text-amber-500' },
-                      { label: 'Conversões', value: googleData.account_totals.conversions.toLocaleString('pt-BR'), icon: Users, color: 'text-blue-500' },
+                      { label: 'Conversões', value: googleData.account_totals.conversions.toLocaleString('pt-BR'), icon: Users, color: 'text-emerald-500' },
                       { label: 'ROAS', value: googleData.account_totals.roas > 0 ? `${googleData.account_totals.roas.toFixed(2)}x` : '—', icon: TrendingUp, color: 'text-emerald-500' },
                     ].map(kpi => (
                       <div key={kpi.label} className="rounded-xl border border-border bg-card p-3">
@@ -1261,12 +1261,12 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
               </div>
               <div className="rounded-2xl border border-border bg-card p-5">
                 <p className="text-xs text-muted-foreground">Taxa de Conclusão</p>
-                <p className="text-xl font-bold text-blue-600 mt-1">{metrics.completionRate}%</p>
+                <p className="text-xl font-bold text-emerald-600 mt-1">{metrics.completionRate}%</p>
                 <p className="text-xs text-muted-foreground">{metrics.tasksDone} de {tasks.length} tarefas</p>
               </div>
               <div className="rounded-2xl border border-border bg-card p-5">
                 <p className="text-xs text-muted-foreground">Valor Pipeline</p>
-                <p className="text-xl font-bold text-violet-600 mt-1">
+                <p className="text-xl font-bold text-emerald-600 mt-1">
                   R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
               </div>
@@ -1322,7 +1322,7 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                 <div className="space-y-2">
                   {[
                     { status: 'concluido', label: 'Concluídas', color: 'bg-emerald-500' },
-                    { status: 'em_progresso', label: 'Em Progresso', color: 'bg-blue-500' },
+                    { status: 'em_progresso', label: 'Em Progresso', color: 'bg-emerald-500' },
                     { status: 'a_receber', label: 'A Fazer', color: 'bg-slate-400' },
                   ].map(({ status, label, color }) => {
                     const count = tasks.filter(t => t.status === status).length;
@@ -1377,8 +1377,8 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
 
             <div className="space-y-3">
               {aiInsights.map((insight, i) => {
-                const bgMap: Record<string, string> = { red: 'bg-red-500/5 border-red-200', orange: 'bg-orange-500/5 border-orange-200', amber: 'bg-amber-500/5 border-amber-200', blue: 'bg-blue-500/5 border-blue-200', green: 'bg-green-500/5 border-green-200' };
-                const iconMap: Record<string, string> = { red: 'text-red-500', orange: 'text-orange-500', amber: 'text-amber-500', blue: 'text-blue-500', green: 'text-green-500' };
+                const bgMap: Record<string, string> = { red: 'bg-red-500/5 border-red-200', orange: 'bg-orange-500/5 border-orange-200', amber: 'bg-amber-500/5 border-amber-200', blue: 'bg-emerald-500/5 border-emerald-200', green: 'bg-green-500/5 border-green-200' };
+                const iconMap: Record<string, string> = { red: 'text-red-500', orange: 'text-orange-500', amber: 'text-amber-500', blue: 'text-emerald-500', green: 'text-green-500' };
                 const typeMap: Record<string, string> = { alerta: 'bg-red-100 text-red-700', sugestão: 'bg-amber-100 text-amber-700', oportunidade: 'bg-green-100 text-green-700' };
                 return (
                   <div key={i} className={`rounded-xl border p-4 ${bgMap[insight.color] ?? 'border-border'}`}>

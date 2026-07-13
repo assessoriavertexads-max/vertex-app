@@ -32,24 +32,24 @@ const COLUMNS = [
     id: 'qualification',
     emoji: '✅',
     title: 'Qualificação (SDR)',
-    color: 'border-violet-200 bg-violet-50/80',
-    headerColor: 'text-violet-700',
+    color: 'border-violet-200 bg-emerald-50/80',
+    headerColor: 'text-emerald-700',
     criteria: 'SDR confirmou: orçamento mínimo, perfil ideal de cliente e momento certo para contratar.',
   },
   {
     id: 'diagnosis',
     emoji: '🔬',
     title: 'Diagnóstico',
-    color: 'border-blue-200 bg-blue-50/80',
-    headerColor: 'text-blue-700',
+    color: 'border-emerald-200 bg-emerald-50/80',
+    headerColor: 'text-emerald-700',
     criteria: 'Reunião de briefing realizada com o tomador de decisão (CEO/Diretor). Dores e objetivos mapeados.',
   },
   {
     id: 'proposal',
     emoji: '📋',
     title: 'Proposta Comercial',
-    color: 'border-indigo-200 bg-indigo-50/80',
-    headerColor: 'text-indigo-700',
+    color: 'border-emerald-200 bg-emerald-50/80',
+    headerColor: 'text-emerald-700',
     criteria: 'Escopo, prazos, entregáveis e valores apresentados em reunião com o tomador de decisão.',
   },
   {
@@ -121,15 +121,15 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (l: LeadWit
       style={style}
       {...listeners}
       {...attributes}
-      className={`bg-white p-3.5 rounded-xl border shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-300 hover:shadow-md transition-all ${
-        isDragging ? 'opacity-40 ring-2 ring-blue-400 shadow-xl z-50 relative' : ''
+      className={`bg-white p-3.5 rounded-xl border shadow-sm cursor-grab active:cursor-grabbing hover:border-emerald-300 hover:shadow-md transition-all ${
+        isDragging ? 'opacity-40 ring-2 ring-emerald-400 shadow-xl z-50 relative' : ''
       }`}
     >
       {/* Header */}
       <div className="flex justify-between items-start mb-2 gap-1">
         <h4 className="font-semibold text-slate-800 text-sm leading-tight flex-1">{lead.title}</h4>
         <button
-          className="text-slate-300 hover:text-blue-500 shrink-0 p-0.5 rounded transition-colors"
+          className="text-slate-300 hover:text-emerald-500 shrink-0 p-0.5 rounded transition-colors"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onEdit(lead); }}
         >
@@ -171,7 +171,7 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (l: LeadWit
 
       {/* Reunião agendada */}
       {meeting && (
-        <div className="flex items-center gap-1.5 text-xs text-blue-600 mt-1.5 bg-blue-50 px-2 py-1 rounded-md">
+        <div className="flex items-center gap-1.5 text-xs text-emerald-600 mt-1.5 bg-emerald-50 px-2 py-1 rounded-md">
           <CalendarClock className="w-3 h-3 shrink-0" />
           Reunião: {meeting}
         </div>
@@ -255,7 +255,7 @@ const KanbanColumn = ({
       <div
         ref={setNodeRef}
         className={`flex-1 rounded-xl border-2 border-dashed p-2.5 flex flex-col gap-2.5 min-h-[480px] transition-colors ${
-          isOver ? 'border-blue-400 bg-blue-50/60 scale-[1.01]' : column.color
+          isOver ? 'border-emerald-400 bg-emerald-50/60 scale-[1.01]' : column.color
         }`}
       >
         {leads.map((lead) => (
@@ -290,9 +290,9 @@ const MetricsBar = ({ leads }: { leads: LeadWithCompany[] }) => {
 
   const cards = [
     { icon: <Flame className="w-4 h-4 text-amber-500" />,    label: 'Leads Ativos',    value: active.length,     sub: `${lost.length} perdidos` },
-    { icon: <TrendingUp className="w-4 h-4 text-blue-500" />, label: 'Pipeline Ativo',  value: `R$ ${pipeline.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`, sub: `${active.length} oportunidades` },
+    { icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, label: 'Pipeline Ativo',  value: `R$ ${pipeline.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`, sub: `${active.length} oportunidades` },
     { icon: <Trophy className="w-4 h-4 text-emerald-500" />, label: 'Taxa de Ganho',   value: `${winRate}%`,     sub: `R$ ${wonValue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} ganhos` },
-    { icon: <Timer className="w-4 h-4 text-violet-500" />,   label: 'Ciclo Médio',     value: avgDays > 0 ? `${avgDays} dias` : '—', sub: 'da prospecção ao fechamento' },
+    { icon: <Timer className="w-4 h-4 text-emerald-500" />,   label: 'Ciclo Médio',     value: avgDays > 0 ? `${avgDays} dias` : '—', sub: 'da prospecção ao fechamento' },
   ];
 
   return (
@@ -641,7 +641,7 @@ export const CRM = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
       </div>
     );
   }
@@ -720,7 +720,7 @@ export const CRM = () => {
 
           <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
             {activeLead ? (
-              <div className="bg-white p-3.5 rounded-xl border border-blue-300 shadow-2xl ring-2 ring-blue-400/40 rotate-1 w-64 pointer-events-none">
+              <div className="bg-white p-3.5 rounded-xl border border-emerald-300 shadow-2xl ring-2 ring-emerald-400/40 rotate-1 w-64 pointer-events-none">
                 <p className="font-semibold text-slate-800 text-sm">{activeLead.title}</p>
                 {activeLead.companies?.name && (
                   <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">

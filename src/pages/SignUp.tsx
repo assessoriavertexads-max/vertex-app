@@ -115,7 +115,7 @@ export default function SignUp() {
 
             <Button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium h-10 rounded-lg"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-10 rounded-lg"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -132,7 +132,7 @@ export default function SignUp() {
           <div className="mt-6 pt-6 border-t border-slate-700 text-center">
             <p className="text-slate-400 text-sm">
               Já tem conta?{' '}
-              <Link to="/login" className="text-blue-400 hover:text-blue-300 font-medium">
+              <Link to="/login" className="text-emerald-400 hover:text-emerald-300 font-medium">
                 Fazer login
               </Link>
             </p>

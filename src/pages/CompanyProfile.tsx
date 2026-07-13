@@ -309,8 +309,8 @@ export default function CompanyProfile() {
           {/* Meta */}
           <div className="rounded-lg border border-border p-4 space-y-3">
             <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <span className="text-xs font-bold text-blue-600">f</span>
+              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <span className="text-xs font-bold text-emerald-600">f</span>
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Meta Ads</p>

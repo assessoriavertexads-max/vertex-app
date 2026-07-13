@@ -659,7 +659,7 @@ export default function Automation() {
               <div className="grid gap-2 sm:grid-cols-3">
                 {TRIGGER_EVENTS.filter((t) => t.group === group).map((t) => (
                   <div key={t.value} className="flex items-start gap-2 rounded-lg bg-muted/40 p-2.5">
-                    <Zap className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${group === 'Agendado' ? 'text-blue-500' : 'text-amber-500'}`} />
+                    <Zap className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${group === 'Agendado' ? 'text-emerald-500' : 'text-amber-500'}`} />
                     <div>
                       <p className="text-xs font-medium text-foreground">{t.label}</p>
                       {group === 'Agendado' && (
@@ -785,7 +785,7 @@ export default function Automation() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-blue-600"
+                      className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
                       onClick={() => { setEditingRule(rule); setIsModalOpen(true); }}
                     >
                       <Pencil className="h-4 w-4" />

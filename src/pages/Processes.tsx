@@ -48,7 +48,7 @@ interface CompanyItem { id: string; name: string; }
 const PRIORITY_CONFIG = {
   alta:   { label: "Alta",   dot: "bg-red-500",    badge: "bg-red-100 text-red-700 border-red-200" },
   media:  { label: "Média",  dot: "bg-amber-500",  badge: "bg-amber-100 text-amber-700 border-amber-200" },
-  baixa:  { label: "Baixa",  dot: "bg-blue-400",   badge: "bg-blue-100 text-blue-700 border-blue-200" },
+  baixa:  { label: "Baixa",  dot: "bg-emerald-400",   badge: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   normal: { label: "Normal", dot: "bg-slate-400",  badge: "bg-slate-100 text-slate-600 border-slate-200" },
 };
 
@@ -155,7 +155,7 @@ function TaskFormFields({
             <option value="quarterly">Trimestral</option>
           </select>
           {data.recurrence !== "none" && (
-            <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
+            <div className="flex items-start gap-2 rounded-md bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs text-emerald-700">
               <RefreshCw className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               A próxima ocorrência é criada automaticamente quando esta for concluída.
               {!data.due_date && <span className="font-semibold ml-1">Informe uma data de vencimento.</span>}
@@ -294,7 +294,7 @@ function TaskRow({ task, companies, onToggle, onEdit, onDelete }: {
         </span>
         {task.recurrence_pattern && (
           <span title={`Recorrente: ${RECURRENCE_LABELS[task.recurrence_pattern] ?? task.recurrence_pattern}`}>
-            <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+            <RefreshCw className="w-3 h-3 text-emerald-500 shrink-0" />
           </span>
         )}
         {task.description && (
@@ -350,7 +350,7 @@ function TaskCard({ task, companies, onToggle, onEdit, onDelete }: {
           <span className="text-sm font-medium text-foreground leading-snug">{task.name}</span>
           {task.recurrence_pattern && (
             <RefreshCw
-              className="w-3 h-3 text-blue-500 shrink-0 mt-1"
+              className="w-3 h-3 text-emerald-500 shrink-0 mt-1"
               title={`Recorrente: ${RECURRENCE_LABELS[task.recurrence_pattern] ?? task.recurrence_pattern}`}
             />
           )}
@@ -709,7 +709,7 @@ export default function Processes() {
           <h1 className="text-2xl font-bold text-foreground">A Fazeres</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Gerencie tarefas da agência por cliente, prazo e prioridade.</p>
         </div>
-        <Button onClick={() => setIsNewOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+        <Button onClick={() => setIsNewOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
           <Plus className="h-4 w-4" /> Nova Tarefa
         </Button>
       </div>
@@ -793,7 +793,7 @@ export default function Processes() {
             { key: "overdue" as const, label: "Atrasadas",    icon: AlertCircle,   color: "text-red-600"          },
             { key: "today"   as const, label: "Hoje",         icon: CalendarClock, color: "text-orange-600"       },
             { key: "week"    as const, label: "Esta semana",  icon: CalendarCheck, color: "text-amber-600"        },
-            { key: "later"   as const, label: "Mais tarde",   icon: Clock,         color: "text-blue-500"         },
+            { key: "later"   as const, label: "Mais tarde",   icon: Clock,         color: "text-emerald-500"         },
             { key: "noDate"  as const, label: "Sem data",     icon: Circle,        color: "text-muted-foreground" },
             { key: "done"    as const, label: "Concluídas",   icon: CheckCircle2,  color: "text-emerald-500"      },
           ].map(sec => {

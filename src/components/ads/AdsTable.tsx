@@ -45,8 +45,8 @@ function StatusBadge({ status }: { status: string }) {
 
 function PlatformBadge({ platform }: { platform: string }) {
   if (platform === 'google')
-    return <Badge className="bg-blue-100 text-blue-700 border-0 text-xs hover:bg-blue-100">Google</Badge>;
-  return <Badge className="bg-indigo-100 text-indigo-700 border-0 text-xs hover:bg-indigo-100">Meta</Badge>;
+    return <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs hover:bg-emerald-100">Google</Badge>;
+  return <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs hover:bg-emerald-100">Meta</Badge>;
 }
 
 interface AdsTableProps {

@@ -65,7 +65,7 @@ export default function ResetPassword() {
               Link de redefinição inválido ou expirado. Solicite um novo link na página de login.
             </p>
             <Button
-              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+              className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={() => navigate('/login')}
             >
               Voltar ao Login
@@ -125,7 +125,7 @@ export default function ResetPassword() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium h-10 rounded-lg"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-10 rounded-lg"
                   disabled={isLoading}
                 >
                   {isLoading ? (

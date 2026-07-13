@@ -101,7 +101,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowReset(true)}
-                  className="text-xs text-blue-400 hover:text-blue-300"
+                  className="text-xs text-emerald-400 hover:text-emerald-300"
                 >
                   Esqueci minha senha
                 </button>
@@ -119,7 +119,7 @@ export default function Login() {
 
             <Button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium h-10 rounded-lg"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-10 rounded-lg"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -156,7 +156,7 @@ export default function Login() {
                     />
                     <div className="flex gap-2">
                       <Button type="button" variant="outline" className="flex-1 border-slate-600 text-slate-300" onClick={() => setShowReset(false)}>Cancelar</Button>
-                      <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700" disabled={resetLoading}>
+                      <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={resetLoading}>
                         {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enviar'}
                       </Button>
                     </div>
@@ -169,7 +169,7 @@ export default function Login() {
           <div className="mt-6 pt-6 border-t border-slate-700 text-center">
             <p className="text-slate-400 text-sm">
               Não tem conta?{' '}
-              <Link to="/signup" className="text-blue-400 hover:text-blue-300 font-medium">
+              <Link to="/signup" className="text-emerald-400 hover:text-emerald-300 font-medium">
                 Criar conta
               </Link>
             </p>

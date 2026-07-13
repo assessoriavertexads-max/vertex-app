@@ -297,7 +297,7 @@ export default function Dashboard() {
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-medium text-muted-foreground">Clientes / Tarefas</h3>
-            <div className="p-2 bg-purple-500/10 text-purple-500 rounded-lg"><Activity className="w-5 h-5" /></div>
+            <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg"><Activity className="w-5 h-5" /></div>
           </div>
           <div className="flex items-baseline gap-2">
             <h2 className="text-3xl font-bold text-foreground">{m(activeCompanies)}</h2>
@@ -389,7 +389,7 @@ export default function Dashboard() {
           <div className="space-y-3">
             {([
               { label: 'A Fazer',      value: tasksPending,    color: 'bg-amber-400' },
-              { label: 'Em Progresso', value: tasksInProgress, color: 'bg-blue-500'  },
+              { label: 'Em Progresso', value: tasksInProgress, color: 'bg-emerald-500'  },
               { label: 'Concluído',    value: tasksDone,       color: 'bg-emerald-500' },
             ] as const).map(({ label, value, color }) => (
               <div key={label} className="flex items-center gap-3">
@@ -461,7 +461,7 @@ export default function Dashboard() {
         {/* Tarefas por Status — BarChart */}
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm">
           <h3 className="font-semibold text-foreground flex items-center gap-2 mb-4">
-            <Activity className="w-4 h-4 text-blue-500" />
+            <Activity className="w-4 h-4 text-emerald-500" />
             Tarefas por Status
           </h3>
           <div className="h-44 w-full">

@@ -192,7 +192,7 @@ function CustomChargeModal({
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Send className="h-4 w-4 text-blue-600" /> Enviar Cobrança
+            <Send className="h-4 w-4 text-emerald-600" /> Enviar Cobrança
           </DialogTitle>
           <DialogDescription>
             Envie a cobrança diretamente ao cliente via WhatsApp ou e-mail.
@@ -218,7 +218,7 @@ function CustomChargeModal({
                 </div>
               )}
               {result.email === 'ok' && (
-                <div className="flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700">
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">
                   <CheckCircle2 className="h-4 w-4 shrink-0" /> Cliente de e-mail aberto para envio.
                 </div>
               )}
@@ -253,7 +253,7 @@ function CustomChargeModal({
                 <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasPhone ? 'bg-green-50 border-green-200 text-green-700' : 'bg-muted border-border text-muted-foreground'}`}>
                   <MessageSquare className="h-3 w-3" /> {hasPhone ? selectedCompany.phone : 'Sem telefone'}
                 </span>
-                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasEmail ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-muted border-border text-muted-foreground'}`}>
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasEmail ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-muted border-border text-muted-foreground'}`}>
                   <Mail className="h-3 w-3" /> {hasEmail ? selectedCompany.email : 'Sem e-mail'}
                 </span>
               </div>
@@ -300,7 +300,7 @@ function CustomChargeModal({
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-blue-500" />
+                  <Mail className="h-4 w-4 text-emerald-500" />
                   <span className="text-sm">E-mail</span>
                   {!hasEmail && companyId && <span className="text-xs text-muted-foreground">(sem e-mail)</span>}
                 </div>
@@ -778,7 +778,7 @@ export const Finance = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
       </div>
     );
   }
@@ -813,7 +813,7 @@ export const Finance = () => {
             <Button
               variant="outline"
               onClick={() => setShowImportDropdown(!showImportDropdown)}
-              className="gap-2 border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              className="gap-2 border-emerald-200 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
             >
               <Download className="w-4 h-4" /> Importar <ChevronDown className="w-3 h-3" />
             </Button>
@@ -833,7 +833,7 @@ export const Finance = () => {
                         onClick={() => setImportMode(value)}
                         className={`flex-1 flex flex-col items-center gap-1 px-2 py-2 rounded-md text-xs font-medium transition-colors border ${
                           importMode === value
-                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                             : 'border-transparent text-muted-foreground hover:bg-accent'
                         }`}
                       >
@@ -848,7 +848,7 @@ export const Finance = () => {
                   <button
                     onClick={() => { setImportingAll(true); importAsaasSubscriptions.mutate({ companyId: '__all__', mode: importMode }); }}
                     disabled={importAsaasSubscriptions.isPending}
-                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
+                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-medium text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors disabled:opacity-50"
                   >
                     <span>Todas as Empresas</span>
                     {importAsaasSubscriptions.isPending && importingAll
@@ -871,7 +871,7 @@ export const Finance = () => {
                       >
                         <span>{company.name}</span>
                         {importAsaasSubscriptions.isPending && selectedCompanyForImport === company.id && (
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
                         )}
                       </button>
                     ))
@@ -896,7 +896,7 @@ export const Finance = () => {
           </Button>
           <Button
             onClick={() => setIsCustomChargeOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
           >
             <Send className="w-4 h-4" /> Cobrança Personalizada
           </Button>
@@ -940,7 +940,7 @@ export const Finance = () => {
         <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <span className="text-muted-foreground text-sm font-medium">MRR</span>
-            <div className="p-2 bg-violet-500/10 rounded-lg text-violet-600"><TrendingUp className="w-4 h-4" /></div>
+            <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-600"><TrendingUp className="w-4 h-4" /></div>
           </div>
           <h2 className="text-2xl font-bold text-foreground mt-3">{fmtVal(mrr)}</h2>
           <p className="text-xs text-muted-foreground mt-1">Receita Mensal Recorrente</p>
@@ -1032,7 +1032,7 @@ export const Finance = () => {
                                 </span>
                               )}
                               {t.subscription_cycle && (
-                                <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-violet-100 text-violet-700 rounded-full">
+                                <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
                                   <RefreshCw className="w-3 h-3" />
                                   {CYCLE_LABELS[t.subscription_cycle] ?? t.subscription_cycle}
                                 </span>
@@ -1048,13 +1048,13 @@ export const Finance = () => {
                           <div className="flex flex-wrap items-center gap-1.5">
                             <p className="font-medium text-foreground">{t.companies?.name || 'Sem Empresa'}</p>
                             {t.subscription_cycle && (
-                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-violet-100 text-violet-700 rounded-full">
+                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
                                 <RefreshCw className="w-3 h-3" />
                                 {CYCLE_LABELS[t.subscription_cycle] ?? t.subscription_cycle}
                               </span>
                             )}
                             {isSubscriptionRecord(t) && (
-                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
                                 <CalendarDays className="w-3 h-3" /> Próx. cobrança
                               </span>
                             )}
@@ -1083,7 +1083,7 @@ export const Finance = () => {
                             className={`h-8 gap-1 text-xs ${
                               t.type === 'income'
                                 ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
-                                : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                                : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
                             }`}
                             onClick={() => markAsPaid.mutate(t.id)}
                             disabled={markAsPaid.isPending}
@@ -1096,13 +1096,13 @@ export const Finance = () => {
                         {/* Link Asaas */}
                         {t.type === 'income' && t.status !== 'paid' && (
                           t.asaas_payment_url ? (
-                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-blue-600 hover:bg-blue-50 text-xs"
+                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-emerald-600 hover:bg-emerald-50 text-xs"
                               onClick={() => window.open(t.asaas_payment_url!, '_blank')}>
                               <LinkIcon className="w-3 h-3" />
                               {t.subscription_cycle ? 'Ver Assinatura' : 'Ver Boleto'}
                             </Button>
                           ) : !t.asaas_payment_id && !t.asaas_subscription_id ? (
-                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-blue-600 hover:bg-blue-50 text-xs"
+                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-emerald-600 hover:bg-emerald-50 text-xs"
                               onClick={() => generateAsaasCharge.mutate(t)}
                               disabled={generatingChargeId === t.id}>
                               {generatingChargeId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <LinkIcon className="w-3 h-3" />}

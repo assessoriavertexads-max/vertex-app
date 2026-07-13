@@ -300,14 +300,14 @@ export default function AdsManager() {
           label="Impressões"
           value={combinedTotals ? fmtInt(combinedTotals.impressions) : '—'}
           icon={Eye}
-          iconColor="bg-blue-500/10 text-blue-500"
+          iconColor="bg-emerald-500/10 text-emerald-500"
           isLoading={isLoadingAny}
         />
         <KpiCard
           label="Cliques"
           value={combinedTotals ? fmtInt(combinedTotals.clicks) : '—'}
           icon={MousePointerClick}
-          iconColor="bg-purple-500/10 text-purple-500"
+          iconColor="bg-emerald-500/10 text-emerald-500"
           isLoading={isLoadingAny}
         />
         <KpiCard

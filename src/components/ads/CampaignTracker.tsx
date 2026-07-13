@@ -112,7 +112,7 @@ function CampaignRow({ campaign, link, companyId, companyPhone, onCreated, onUpd
   }
 
   const platformColor = campaign.platform === 'meta'
-    ? 'bg-blue-100 text-blue-700'
+    ? 'bg-emerald-100 text-emerald-700'
     : 'bg-orange-100 text-orange-700';
 
   return (
@@ -179,7 +179,7 @@ function CampaignRow({ campaign, link, companyId, companyPhone, onCreated, onUpd
           {/* Métricas comparativas */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <MetricBox
-              icon={<MousePointerClick className="w-4 h-4 text-blue-500" />}
+              icon={<MousePointerClick className="w-4 h-4 text-emerald-500" />}
               label="Meta reportou"
               value={metaRef > 0 ? metaRef.toLocaleString('pt-BR') : '—'}
               sub={cplMeta ? `CPL ${fmtBRL(cplMeta)}` : undefined}
@@ -350,7 +350,7 @@ export function CampaignTracker({
     <div className="space-y-5">
       {/* Resumo geral */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard label="Meta reportou" value={totalMetaRef} color="text-blue-500" />
+        <SummaryCard label="Meta reportou" value={totalMetaRef} color="text-emerald-500" />
         <SummaryCard label="Cliques reais no link" value={totalLinkClicks} color="text-primary" highlight />
         <SummaryCard label="Contatos confirmados" value={totalConfirmed} color="text-emerald-600" />
         <SummaryCard

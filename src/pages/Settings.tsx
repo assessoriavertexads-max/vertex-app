@@ -266,11 +266,11 @@ function ApiKeysSection({ userId }: { userId: string }) {
       <div className="space-y-2">
         <p className="text-xs font-semibold text-foreground">Exemplo n8n — HTTP Request</p>
         <div className="rounded-md bg-muted p-2.5 text-[11px] font-mono text-muted-foreground space-y-0.5">
-          <p><span className="text-blue-400">URL:</span> {API_BASE}/companies</p>
-          <p><span className="text-blue-400">Method:</span> GET</p>
-          <p><span className="text-blue-400">Header:</span> X-API-Key: vtx_live_...</p>
+          <p><span className="text-emerald-400">URL:</span> {API_BASE}/companies</p>
+          <p><span className="text-emerald-400">Method:</span> GET</p>
+          <p><span className="text-emerald-400">Header:</span> X-API-Key: vtx_live_...</p>
           <p className="mt-1"><span className="text-green-400">POST</span> {API_BASE}/leads</p>
-          <p><span className="text-blue-400">Body:</span> {"{ name, email, phone, stage }"}</p>
+          <p><span className="text-emerald-400">Body:</span> {"{ name, email, phone, stage }"}</p>
         </div>
       </div>
     </div>
@@ -551,7 +551,7 @@ export default function Settings() {
           </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-blue-500" />
+              <Mail className="h-4 w-4 text-emerald-500" />
               <div>
                 <p className="text-sm font-medium text-foreground">E-mail</p>
                 <p className="text-xs text-muted-foreground">Abre o cliente de e-mail com a mensagem pré-preenchida</p>
