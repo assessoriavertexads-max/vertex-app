@@ -59,7 +59,7 @@ export default function ResetPassword() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4">
         <div className="w-full max-w-md text-center space-y-4">
-          <h1 className="text-4xl font-bold text-white">Vertex</h1>
+          <h1 className="text-4xl font-bold text-white">Vertos</h1>
           <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-xl">
             <p className="text-slate-300 text-sm">
               Link de redefinição inválido ou expirado. Solicite um novo link na página de login.
@@ -80,7 +80,7 @@ export default function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Vertex</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Vertos</h1>
           <p className="text-slate-400">Redefinição de senha</p>
         </div>
 

@@ -225,7 +225,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Visão Geral</h1>
           <p className="text-muted-foreground mt-1">
-            Bem-vindo ao Vertex Workspace. Aqui está o resumo da sua operação hoje.
+            Bem-vindo ao Vertos Workspace. Aqui está o resumo da sua operação hoje.
           </p>
         </div>
         <button

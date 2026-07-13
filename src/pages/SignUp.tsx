@@ -59,14 +59,14 @@ export default function SignUp() {
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Vertex</h1>
-          <p className="text-slate-400">Business Intelligence & Financial Management</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Vertos</h1>
+          <p className="text-slate-400">Gestão de Performance</p>
         </div>
 
         {/* Card */}
         <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-xl">
           <h2 className="text-2xl font-bold text-white mb-1">Criar Conta</h2>
-          <p className="text-slate-400 text-sm mb-6">Faça parte da Vertex</p>
+          <p className="text-slate-400 text-sm mb-6">Faça parte da Vertos</p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
@@ -141,7 +141,7 @@ export default function SignUp() {
 
         {/* Footer */}
         <p className="text-center text-slate-500 text-xs mt-8">
-          © 2026 Vertex. Todos os direitos reservados.
+          © 2026 Vertos. Todos os direitos reservados.
         </p>
       </div>
     </div>

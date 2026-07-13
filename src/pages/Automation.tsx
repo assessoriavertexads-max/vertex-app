@@ -449,7 +449,7 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
                   <Textarea
                     value={emailBody}
                     onChange={(e) => setEmailBody(e.target.value)}
-                    placeholder={`Ex: Olá {company_name},\n\nEste é um lembrete de que a cobrança "{entity_name}" vence em {due_date}.\n\nEquipe Vertex`}
+                    placeholder={`Ex: Olá {company_name},\n\nEste é um lembrete de que a cobrança "{entity_name}" vence em {due_date}.\n\nEquipe Vertos`}
                     rows={6}
                   />
                   <p className="text-xs text-muted-foreground">

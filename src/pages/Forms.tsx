@@ -639,7 +639,7 @@ function FormBuilder({ initial, onSave, onCancel, isSaving }: {
                   checked={settings.show_branding ?? true}
                   onCheckedChange={(v) => set('show_branding', v)} />
                 <Label htmlFor="show-branding" className="text-sm cursor-pointer">
-                  Mostrar "powered by Vertex"
+                  Mostrar "powered by Vertos"
                 </Label>
               </div>
             </div>

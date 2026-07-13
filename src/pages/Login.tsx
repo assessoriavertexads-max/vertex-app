@@ -73,8 +73,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Vertex</h1>
-          <p className="text-slate-400">Business Intelligence & Financial Management</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Vertos</h1>
+          <p className="text-slate-400">Gestão de Performance</p>
         </div>
 
         {/* Card */}
@@ -178,7 +178,7 @@ export default function Login() {
 
         {/* Footer */}
         <p className="text-center text-slate-500 text-xs mt-8">
-          © 2026 Vertex. Todos os direitos reservados.
+          © 2026 Vertos. Todos os direitos reservados.
         </p>
       </div>
     </div>

@@ -85,7 +85,7 @@ export default function Companies() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gerencie todos os clientes da Vertex.</p>
+          <p className="text-muted-foreground text-sm mt-1">Gerencie todos os clientes da Vertos.</p>
         </div>
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />

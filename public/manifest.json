@@ -1,7 +1,7 @@
 {
-  "name": "Vertex - Business Intelligence & Financial Management",
-  "short_name": "Vertex",
-  "description": "Plataforma integrada de inteligência empresarial e gestão financeira",
+  "name": "Vertos - Gestão de Performance",
+  "short_name": "Vertos",
+  "description": "Plataforma integrada de gestão de performance para agências",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

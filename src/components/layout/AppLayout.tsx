@@ -22,7 +22,7 @@ const menuItems = [
   { icon: Zap, label: 'Automação', path: '/automation' },
   { icon: Briefcase, label: 'Empresas (Demandas)', path: '/companies' },
   { icon: Users, label: 'CRM (Comercial/Jurídico)', path: '/crm' },
-  { icon: DollarSign, label: 'Financeiro (Vertex)', path: '/finance' },
+  { icon: DollarSign, label: 'Financeiro', path: '/finance' },
   { icon: BarChart2, label: 'Ads Manager', path: '/ads-manager' },
   { icon: ClipboardList, label: 'Formulários', path: '/forms' },
   { icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
@@ -87,7 +87,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="flex items-center justify-between h-14 px-3 border-b border-sidebar-border">
           {(isSidebarOpen || isMobile) && (
-            <span className="text-lg font-bold text-sidebar-primary">VERTEX ERP</span>
+            <span className="text-lg font-bold text-sidebar-primary">VERTOS</span>
           )}
           <button
             onClick={() => setSidebarOpen(!isSidebarOpen)}

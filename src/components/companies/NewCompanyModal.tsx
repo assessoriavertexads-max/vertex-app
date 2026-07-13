@@ -74,7 +74,7 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Cadastrar Nova Empresa</DialogTitle>
-          <DialogDescription>Adicione um novo cliente ao seu workspace da Vertex.</DialogDescription>
+          <DialogDescription>Adicione um novo cliente ao seu workspace da Vertos.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">

@@ -8,7 +8,8 @@ import { ClientLayout } from "@/components/layout/ClientLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { lazy, Suspense } from "react";
+import { SplashScreen } from "@/components/SplashScreen";
+import { lazy, Suspense, useState } from "react";
 
 function PageLoader() {
   return (
@@ -53,8 +54,23 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => (
-  <ErrorBoundary>
+const SPLASH_KEY = 'vertos_splash_shown';
+
+function AppWithSplash() {
+  const [showSplash, setShowSplash] = useState(() => {
+    const shown = sessionStorage.getItem(SPLASH_KEY);
+    if (!shown) {
+      sessionStorage.setItem(SPLASH_KEY, '1');
+      return true;
+    }
+    return false;
+  });
+
+  if (showSplash) {
+    return <SplashScreen onDone={() => setShowSplash(false)} />;
+  }
+
+  return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -115,6 +131,12 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+  );
+}
+
+const App = () => (
+  <ErrorBoundary>
+    <AppWithSplash />
   </ErrorBoundary>
 );
 

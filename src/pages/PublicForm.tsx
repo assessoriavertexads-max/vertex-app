@@ -526,7 +526,7 @@ export default function PublicForm() {
   useEffect(() => {
     if (form?.settings?.welcome_custom_title || form?.title)
       document.title = form.settings.welcome_custom_title || form.title;
-    return () => { document.title = 'Vertex'; };
+    return () => { document.title = 'Vertos'; };
   }, [form?.title, form?.settings?.welcome_custom_title]);
 
   // Detect split layout for current step
@@ -603,7 +603,7 @@ export default function PublicForm() {
       {/* Branding */}
       {(s.show_branding ?? true) && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
-          <span className="text-white/20 text-xs">powered by Vertex</span>
+          <span className="text-white/20 text-xs">powered by Vertos</span>
         </div>
       )}
     </div>

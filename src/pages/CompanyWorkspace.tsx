@@ -490,7 +490,7 @@ export default function CompanyWorkspace() {
 </style></head><body>
 <div class="header">
   <div>
-    <div class="logo">VERTEX<span>.</span>ERP</div>
+    <div class="logo">VERTOS</div>
     <div class="co-name">${company.name}</div>
     <div class="sub">Status: ${statusLabels[company.status] ?? company.status} · CNPJ: ${company.document ?? 'N/A'} · Desde ${new Date(company.created_at).toLocaleDateString('pt-BR')}</div>
   </div>
@@ -519,7 +519,7 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
   <tr><td style="font-weight:600;width:140px">Chave ERP</td><td>${erpParameter}</td></tr>
   ${erpNotes ? `<tr><td style="font-weight:600">Notas</td><td>${erpNotes}</td></tr>` : ''}
 </tbody></table></div>` : ''}
-<div class="footer"><span>VERTEX ERP · ${company.name}</span><span>Gerado em ${dateStr} ${timeStr}</span></div>
+<div class="footer"><span>VERTOS · ${company.name}</span><span>Gerado em ${dateStr} ${timeStr}</span></div>
 <script>window.onload=()=>window.print()</script>
 </body></html>`;
 

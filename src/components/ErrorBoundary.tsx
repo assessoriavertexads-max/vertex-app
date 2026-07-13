@@ -41,9 +41,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <p className="text-sm text-muted-foreground">
               Ocorreu um erro inesperado. Tente recarregar a página ou voltar para o início.
             </p>
-            {process.env.NODE_ENV === 'development' && (
+            {this.state.error && (
               <pre className="text-left bg-muted p-3 rounded text-xs overflow-auto max-h-40 text-destructive">
-                {this.state.error?.toString()}
+                {this.state.error.toString()}
+                {'\n\n'}
+                {this.state.error.stack?.split('\n').slice(0, 6).join('\n')}
               </pre>
             )}
             <div className="flex gap-2 justify-center pt-4">
