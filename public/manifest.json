@@ -4,8 +4,8 @@
   "description": "Plataforma integrada de gestão de performance para agências",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0f172a",
+  "background_color": "#0E1116",
+  "theme_color": "#0E1116",
   "orientation": "portrait-primary",
   "icons": [
     {
