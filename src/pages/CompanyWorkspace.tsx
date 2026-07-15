@@ -3,9 +3,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Briefcase, ClipboardList, FileText,
   Search, SlidersHorizontal, Sparkles, BarChart2, Download,
-  RefreshCw, TrendingUp, MousePointerClick, Eye, DollarSign,
+  RefreshCw, TrendingUp, MousePointerClick, Eye, EyeOff, DollarSign,
   Users, Loader2, AlertCircle, Image as ImageIcon, Play, ShoppingBag,
-  CheckCircle2, Calendar,
+  CheckCircle2, Calendar, KeyRound, Info, StickyNote, Plus, Pencil,
+  Trash2, Copy, ExternalLink, Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,33 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Json } from '@/integrations/supabase/types';
+
+// ── Vault types ───────────────────────────────────────────────────────────
+
+interface VaultCredential {
+  id: string;
+  title: string;
+  username: string;
+  password: string;
+  url: string;
+  notes: string;
+}
+
+interface VaultInfoItem {
+  id: string;
+  label: string;
+  value: string;
+}
+
+interface ClientVault {
+  credentials: VaultCredential[];
+  info_items: VaultInfoItem[];
+  notes: string;
+}
+
+const EMPTY_VAULT: ClientVault = { credentials: [], info_items: [], notes: '' };
+
+function nanoid() { return Math.random().toString(36).slice(2, 10); }
 
 // ── Google Ads types ──────────────────────────────────────────────────────
 interface GoogleAdsInsights {
@@ -144,13 +172,22 @@ export default function CompanyWorkspace() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'google-ads' | 'metrics' | 'improvements' | 'history' | 'erp'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'google-ads' | 'metrics' | 'improvements' | 'history' | 'erp' | 'info'>('overview');
   const [searchCampaigns, setSearchCampaigns] = useState('');
   const [metaDatePreset, setMetaDatePreset] = useState('last_30d');
   const [metaView, setMetaView] = useState<'campaigns' | 'ads'>('campaigns');
   const [googleDateRange, setGoogleDateRange] = useState('LAST_30_DAYS');
   const [erpParameter, setErpParameter] = useState('');
   const [erpNotes, setErpNotes] = useState('');
+
+  // Vault state
+  const [vault, setVault] = useState<ClientVault>(EMPTY_VAULT);
+  const [vaultDirty, setVaultDirty] = useState(false);
+  const [editingCred, setEditingCred] = useState<VaultCredential | null>(null);
+  const [editingInfo, setEditingInfo] = useState<VaultInfoItem | null>(null);
+  const [showCredModal, setShowCredModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [revealedPasswords, setRevealedPasswords] = useState<Set<string>>(new Set());
 
   const { data: company, isLoading: isLoadingCompany, isError: isErrorCompany } = useQuery<Company>({
     queryKey: ['company', companyId],
@@ -272,6 +309,13 @@ export default function CompanyWorkspace() {
       const data = (company.custom_data ?? {}) as Record<string, unknown>;
       setErpParameter((data.erp_parameter as string) ?? '');
       setErpNotes((data.erp_notes as string) ?? '');
+      const v = data.vault as Partial<ClientVault> | undefined;
+      setVault({
+        credentials: (v?.credentials ?? []) as VaultCredential[],
+        info_items:  (v?.info_items  ?? []) as VaultInfoItem[],
+        notes:       (v?.notes       ?? '') as string,
+      });
+      setVaultDirty(false);
     }
   }, [company]);
 
@@ -290,6 +334,29 @@ export default function CompanyWorkspace() {
       queryClient.invalidateQueries({ queryKey: ['company', companyId] });
     },
   });
+
+  const saveVault = useMutation({
+    mutationFn: async (v: ClientVault) => {
+      if (!companyId) throw new Error('ID de empresa não encontrado');
+      const currentData = (company?.custom_data ?? {}) as Record<string, unknown>;
+      const { error } = await supabase
+        .from('companies')
+        .update({ custom_data: { ...currentData, vault: v } })
+        .eq('id', companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Informações salvas!');
+      setVaultDirty(false);
+      queryClient.invalidateQueries({ queryKey: ['company', companyId] });
+    },
+    onError: (err: Error) => toast.error(`Erro ao salvar: ${err.message}`),
+  });
+
+  const patchVault = (patch: Partial<ClientVault>) => {
+    setVault(prev => ({ ...prev, ...patch }));
+    setVaultDirty(true);
+  };
 
   const filteredCampaigns = useMemo(() => {
     const term = searchCampaigns.trim().toLowerCase();
@@ -601,6 +668,9 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
           <TabsTrigger value="metrics">Métricas</TabsTrigger>
           <TabsTrigger value="improvements">Diagnóstico IA</TabsTrigger>
           <TabsTrigger value="erp">ERP</TabsTrigger>
+          <TabsTrigger value="info" className="gap-1.5">
+            <Lock className="w-3.5 h-3.5" /> Informações
+          </TabsTrigger>
         </TabsList>
 
         {/* ====== RESUMO ====== */}
@@ -1448,7 +1518,294 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
             </div>
           </div>
         </TabsContent>
+
+        {/* ── INFORMAÇÕES DO CLIENTE ── */}
+        <TabsContent value="info" className="space-y-6">
+
+          {/* Credenciais */}
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Credenciais de Acesso</h3>
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{vault.credentials.length}</span>
+              </div>
+              <Button size="sm" variant="outline" className="gap-1.5 h-8"
+                onClick={() => { setEditingCred({ id: nanoid(), title: '', username: '', password: '', url: '', notes: '' }); setShowCredModal(true); }}>
+                <Plus className="w-3.5 h-3.5" /> Adicionar
+              </Button>
+            </div>
+
+            {vault.credentials.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6 border border-dashed border-border rounded-xl">
+                Nenhuma credencial cadastrada. Adicione logins, senhas e acessos do cliente.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {vault.credentials.map(cred => (
+                  <div key={cred.id} className="rounded-xl border border-border bg-background p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-foreground">{cred.title || 'Sem título'}</p>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => { setEditingCred(cred); setShowCredModal(true); }}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const updated = vault.credentials.filter(c => c.id !== cred.id);
+                            patchVault({ credentials: updated });
+                            saveVault.mutate({ ...vault, credentials: updated });
+                          }}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid gap-1.5 text-sm">
+                      {cred.username && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground w-20 shrink-0">Usuário</span>
+                          <span className="font-mono text-foreground flex-1 truncate">{cred.username}</span>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(cred.username); toast.success('Copiado!'); }}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            title="Copiar"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      {cred.password && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground w-20 shrink-0">Senha</span>
+                          <span className="font-mono text-foreground flex-1 truncate">
+                            {revealedPasswords.has(cred.id) ? cred.password : '••••••••••'}
+                          </span>
+                          <button
+                            onClick={() => setRevealedPasswords(prev => {
+                              const next = new Set(prev);
+                              next.has(cred.id) ? next.delete(cred.id) : next.add(cred.id);
+                              return next;
+                            })}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            title={revealedPasswords.has(cred.id) ? 'Ocultar' : 'Revelar'}
+                          >
+                            {revealedPasswords.has(cred.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(cred.password); toast.success('Senha copiada!'); }}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            title="Copiar senha"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      {cred.url && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground w-20 shrink-0">URL</span>
+                          <a href={cred.url} target="_blank" rel="noopener noreferrer"
+                            className="text-primary hover:underline flex items-center gap-1 flex-1 truncate text-xs">
+                            {cred.url} <ExternalLink className="w-3 h-3 shrink-0" />
+                          </a>
+                        </div>
+                      )}
+                      {cred.notes && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-muted-foreground w-20 shrink-0 pt-0.5">Notas</span>
+                          <span className="text-muted-foreground text-xs leading-relaxed">{cred.notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Informações Gerais */}
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Info className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Informações Gerais</h3>
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{vault.info_items.length}</span>
+              </div>
+              <Button size="sm" variant="outline" className="gap-1.5 h-8"
+                onClick={() => { setEditingInfo({ id: nanoid(), label: '', value: '' }); setShowInfoModal(true); }}>
+                <Plus className="w-3.5 h-3.5" /> Adicionar
+              </Button>
+            </div>
+
+            {vault.info_items.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6 border border-dashed border-border rounded-xl">
+                Nenhuma informação cadastrada. Adicione CNPJ, telefone, endereço, etc.
+              </p>
+            ) : (
+              <div className="divide-y divide-border">
+                {vault.info_items.map(item => (
+                  <div key={item.id} className="flex items-center gap-3 py-2.5 group/info">
+                    <span className="text-sm font-medium text-muted-foreground w-36 shrink-0">{item.label}</span>
+                    <span className="text-sm text-foreground flex-1 font-mono">{item.value}</span>
+                    <div className="flex gap-1 opacity-0 group-hover/info:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(item.value); toast.success('Copiado!'); }}
+                        className="p-1 rounded text-muted-foreground hover:text-primary"
+                        title="Copiar"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => { setEditingInfo(item); setShowInfoModal(true); }}
+                        className="p-1 rounded text-muted-foreground hover:text-foreground"
+                        title="Editar"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const updated = vault.info_items.filter(i => i.id !== item.id);
+                          patchVault({ info_items: updated });
+                          saveVault.mutate({ ...vault, info_items: updated });
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-red-500"
+                        title="Excluir"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Anotações livres */}
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <StickyNote className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Anotações Livres</h3>
+            </div>
+            <Textarea
+              value={vault.notes}
+              onChange={e => patchVault({ notes: e.target.value })}
+              placeholder="Observações importantes, contatos de emergência, preferências do cliente, histórico relevante..."
+              rows={6}
+              className="text-sm resize-none"
+            />
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={() => saveVault.mutate(vault)}
+                disabled={!vaultDirty || saveVault.isPending}
+                className="gap-1.5"
+              >
+                {saveVault.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Salvar Anotações
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* ── Modal: Credencial ── */}
+      {showCredModal && editingCred && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-card rounded-2xl border border-border shadow-xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-primary" />
+              {vault.credentials.find(c => c.id === editingCred.id) ? 'Editar Credencial' : 'Nova Credencial'}
+            </h2>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Título *</Label>
+                <Input value={editingCred.title} onChange={e => setEditingCred(p => p ? { ...p, title: e.target.value } : p)} placeholder="Ex: Meta Ads Business" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Usuário / Email</Label>
+                  <Input value={editingCred.username} onChange={e => setEditingCred(p => p ? { ...p, username: e.target.value } : p)} placeholder="email@..." />
+                </div>
+                <div className="space-y-1">
+                  <Label>Senha</Label>
+                  <Input type="text" value={editingCred.password} onChange={e => setEditingCred(p => p ? { ...p, password: e.target.value } : p)} placeholder="••••••" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>URL / Link de acesso</Label>
+                <Input value={editingCred.url} onChange={e => setEditingCred(p => p ? { ...p, url: e.target.value } : p)} placeholder="https://..." />
+              </div>
+              <div className="space-y-1">
+                <Label>Notas</Label>
+                <Textarea value={editingCred.notes} onChange={e => setEditingCred(p => p ? { ...p, notes: e.target.value } : p)} placeholder="Observações adicionais..." rows={2} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={() => { setShowCredModal(false); setEditingCred(null); }}>Cancelar</Button>
+              <Button size="sm" onClick={() => {
+                if (!editingCred.title.trim()) { toast.error('Informe um título.'); return; }
+                const exists = vault.credentials.some(c => c.id === editingCred.id);
+                const updated = exists
+                  ? vault.credentials.map(c => c.id === editingCred.id ? editingCred : c)
+                  : [...vault.credentials, editingCred];
+                const newVault = { ...vault, credentials: updated };
+                patchVault({ credentials: updated });
+                saveVault.mutate(newVault);
+                setShowCredModal(false);
+                setEditingCred(null);
+              }}>
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Info Item ── */}
+      {showInfoModal && editingInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-card rounded-2xl border border-border shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Info className="w-4 h-4 text-primary" />
+              {vault.info_items.find(i => i.id === editingInfo.id) ? 'Editar Informação' : 'Nova Informação'}
+            </h2>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Rótulo *</Label>
+                <Input value={editingInfo.label} onChange={e => setEditingInfo(p => p ? { ...p, label: e.target.value } : p)} placeholder="Ex: CNPJ, Telefone, Endereço..." />
+              </div>
+              <div className="space-y-1">
+                <Label>Valor *</Label>
+                <Input value={editingInfo.value} onChange={e => setEditingInfo(p => p ? { ...p, value: e.target.value } : p)} placeholder="Valor da informação..." />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={() => { setShowInfoModal(false); setEditingInfo(null); }}>Cancelar</Button>
+              <Button size="sm" onClick={() => {
+                if (!editingInfo.label.trim() || !editingInfo.value.trim()) { toast.error('Preencha rótulo e valor.'); return; }
+                const exists = vault.info_items.some(i => i.id === editingInfo.id);
+                const updated = exists
+                  ? vault.info_items.map(i => i.id === editingInfo.id ? editingInfo : i)
+                  : [...vault.info_items, editingInfo];
+                const newVault = { ...vault, info_items: updated };
+                patchVault({ info_items: updated });
+                saveVault.mutate(newVault);
+                setShowInfoModal(false);
+                setEditingInfo(null);
+              }}>
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
