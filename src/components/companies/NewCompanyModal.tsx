@@ -1,4 +1,12 @@
 import { useState } from 'react';
+
+const ONBOARDING_TASKS = [
+  { name: 'Reunião de Briefing Inicial', priority: 'alta' },
+  { name: 'Coletar acessos e senhas do cliente', priority: 'alta' },
+  { name: 'Configurar integração Asaas', priority: 'media' },
+  { name: 'Alinhar cronograma de entregas', priority: 'media' },
+  { name: 'Criar relatório de onboarding', priority: 'baixa' },
+];
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +69,17 @@ export const NewCompanyModal = ({ isOpen, onClose, onSave }: NewCompanyModalProp
     onClose();
 
     if (inserted) {
+      // Cria tarefas de onboarding automaticamente
+      const tasks = ONBOARDING_TASKS.map(t => ({
+        name: t.name,
+        priority: t.priority,
+        company_id: inserted.id,
+        status: 'a_receber',
+      }));
+      supabase.from('tasks').insert(tasks).then(({ error }) => {
+        if (!error) toast.success(`${tasks.length} tarefas de onboarding criadas!`, { duration: 3500 });
+      });
+
       runAutomations('new_company_created', 'any', {
         entityTitle: inserted.name,
         companyId: inserted.id,

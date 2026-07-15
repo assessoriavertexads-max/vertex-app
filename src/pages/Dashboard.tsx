@@ -6,6 +6,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend, Cell,
 } from 'recharts';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -241,6 +242,38 @@ export default function Dashboard() {
           Alguns dados não puderam ser carregados. Verifique sua conexão ou recarregue a página.
         </div>
       )}
+
+      {/* ── Alertas críticos ──────────────────────────────────────────────── */}
+      {!privacy && (() => {
+        const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+        const dueTodayCount = upcomingDue.filter(t => t.due_date === todayStr).length;
+        if (overdueTasks === 0 && dueTodayCount === 0) return null;
+        return (
+          <div className="flex flex-wrap items-center gap-2 px-1">
+            <span className="text-xs text-muted-foreground font-medium">Atenção:</span>
+            {overdueTasks > 0 && (
+              <Link
+                to="/tasks"
+                className="inline-flex items-center gap-1.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-xs font-medium px-3 py-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {overdueTasks} tarefa{overdueTasks !== 1 ? 's' : ''} atrasada{overdueTasks !== 1 ? 's' : ''}
+                <ArrowUpRight className="h-3 w-3 opacity-70" />
+              </Link>
+            )}
+            {dueTodayCount > 0 && (
+              <Link
+                to="/finance"
+                className="inline-flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 text-xs font-medium px-3 py-1.5 rounded-full hover:bg-orange-100 dark:hover:bg-orange-950/50 transition-colors"
+              >
+                <CalendarClock className="h-3.5 w-3.5" />
+                {dueTodayCount} cobrança{dueTodayCount !== 1 ? 's' : ''} vence{dueTodayCount !== 1 ? 'm' : ''} hoje
+                <ArrowUpRight className="h-3 w-3 opacity-70" />
+              </Link>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Row 1: KPI Cards ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

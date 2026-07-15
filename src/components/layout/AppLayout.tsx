@@ -3,8 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Briefcase, DollarSign,
   CheckSquare, BookOpen, BrainCircuit, Menu, LogOut, Settings as SettingsIcon,
-  MessageCircle, X, Zap, BarChart2, ClipboardList
+  MessageCircle, X, Zap, BarChart2, ClipboardList, Search,
 } from 'lucide-react';
+import { GlobalSearch } from '@/components/GlobalSearch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { applyBranding } from '@/pages/Settings';
@@ -36,6 +37,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
   const isMobile = useIsMobile();
   const [isSidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Apply saved branding (favicon + tab title) on first load
   useEffect(() => {
@@ -43,6 +45,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       const b = JSON.parse(localStorage.getItem('vertex_branding') ?? '{}');
       applyBranding(b);
     } catch { /* ignore */ }
+  }, []);
+
+  // Atalho global Cmd+K / Ctrl+K para abrir busca
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   // Close sidebar on mobile when route changes
@@ -133,7 +147,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </button>
           )}
           {!isMobile && <div />}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Busca global */}
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground border border-border rounded-md px-3 py-1.5 hover:text-foreground hover:border-primary/50 transition-colors bg-card/50"
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span className="text-xs">Buscar...</span>
+              <kbd className="hidden md:inline text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="h-8 w-8 rounded-full bg-primary flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer">
@@ -166,6 +189,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

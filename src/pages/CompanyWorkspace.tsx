@@ -6,7 +6,7 @@ import {
   RefreshCw, TrendingUp, MousePointerClick, Eye, EyeOff, DollarSign,
   Users, Loader2, AlertCircle, Image as ImageIcon, Play, ShoppingBag,
   CheckCircle2, Calendar, KeyRound, Info, StickyNote, Plus, Pencil,
-  Trash2, Copy, ExternalLink, Lock,
+  Trash2, Copy, ExternalLink, Lock, History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Json } from '@/integrations/supabase/types';
+
+// ── Interaction types ─────────────────────────────────────────────────────
+
+interface Interaction {
+  id: string;
+  type: string;
+  description: string;
+  created_at: string;
+}
+
+const INTERACTION_LABELS: Record<string, string> = {
+  note: 'Anotação', call: 'Ligação', meeting: 'Reunião',
+  email: 'E-mail', whatsapp: 'WhatsApp',
+};
+const INTERACTION_COLORS: Record<string, string> = {
+  note:     'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  call:     'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+  meeting:  'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
+  email:    'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400',
+  whatsapp: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
+};
+const INTERACTION_EMOJI: Record<string, string> = {
+  note: '📝', call: '📞', meeting: '🤝', email: '✉️', whatsapp: '💬',
+};
 
 // ── Vault types ───────────────────────────────────────────────────────────
 
@@ -172,7 +196,9 @@ export default function CompanyWorkspace() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'google-ads' | 'metrics' | 'improvements' | 'history' | 'erp' | 'info'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'google-ads' | 'metrics' | 'improvements' | 'history' | 'erp' | 'info' | 'interactions'>('overview');
+  const [interactionType, setInteractionType] = useState('note');
+  const [interactionText, setInteractionText] = useState('');
   const [searchCampaigns, setSearchCampaigns] = useState('');
   const [metaDatePreset, setMetaDatePreset] = useState('last_30d');
   const [metaView, setMetaView] = useState<'campaigns' | 'ads'>('campaigns');
@@ -248,6 +274,47 @@ export default function CompanyWorkspace() {
       return (data || []) as unknown as Transaction[];
     },
     enabled: !!companyId,
+  });
+
+  // Histórico de interações
+  const { data: interactions = [], refetch: refetchInteractions } = useQuery<Interaction[]>({
+    queryKey: ['interactions', companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('company_interactions')
+        .select('id, type, description, created_at')
+        .eq('company_id', companyId!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Interaction[];
+    },
+    enabled: !!companyId && activeTab === 'interactions',
+  });
+
+  const addInteraction = useMutation({
+    mutationFn: async ({ type, description }: { type: string; description: string }) => {
+      const { error } = await supabase.from('company_interactions').insert({
+        company_id: companyId,
+        type,
+        description,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchInteractions();
+      setInteractionText('');
+      toast.success('Interação registrada!');
+    },
+    onError: () => toast.error('Erro ao registrar interação.'),
+  });
+
+  const deleteInteraction = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('company_interactions').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => refetchInteractions(),
+    onError: () => toast.error('Erro ao remover.'),
   });
 
   // Meta Ads
@@ -670,6 +737,9 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
           <TabsTrigger value="erp">ERP</TabsTrigger>
           <TabsTrigger value="info" className="gap-1.5">
             <Lock className="w-3.5 h-3.5" /> Informações
+          </TabsTrigger>
+          <TabsTrigger value="interactions" className="gap-1.5">
+            <History className="w-3.5 h-3.5" /> Histórico
           </TabsTrigger>
         </TabsList>
 
@@ -1710,6 +1780,82 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                 Salvar Anotações
               </Button>
             </div>
+          </div>
+        </TabsContent>
+
+        {/* ====== HISTÓRICO DE INTERAÇÕES ====== */}
+        <TabsContent value="interactions" className="space-y-4 mt-4">
+          {/* Formulário de nova interação */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">Registrar Interação</h3>
+            <div className="flex gap-2 flex-wrap">
+              {(['note', 'call', 'meeting', 'email', 'whatsapp'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setInteractionType(t)}
+                  className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
+                    interactionType === t
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-transparent text-muted-foreground border-border hover:border-primary/60 hover:text-foreground'
+                  }`}
+                >
+                  {INTERACTION_EMOJI[t]} {INTERACTION_LABELS[t]}
+                </button>
+              ))}
+            </div>
+            <Textarea
+              placeholder={`Descreva a ${INTERACTION_LABELS[interactionType]}...`}
+              value={interactionText}
+              onChange={e => setInteractionText(e.target.value)}
+              rows={3}
+              className="resize-none text-sm"
+            />
+            <Button
+              size="sm"
+              disabled={!interactionText.trim() || addInteraction.isPending}
+              onClick={() => addInteraction.mutate({ type: interactionType, description: interactionText })}
+            >
+              {addInteraction.isPending && <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />}
+              Registrar
+            </Button>
+          </div>
+
+          {/* Timeline */}
+          <div className="space-y-3">
+            {interactions.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground text-sm border border-dashed border-border rounded-xl">
+                Nenhuma interação registrada ainda.
+              </div>
+            ) : (
+              interactions.map(interaction => (
+                <div key={interaction.id} className="flex gap-3 group/item">
+                  <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-base ${INTERACTION_COLORS[interaction.type] ?? 'bg-muted text-muted-foreground'}`}>
+                    {INTERACTION_EMOJI[interaction.type] ?? '💬'}
+                  </div>
+                  <div className="flex-1 bg-card border border-border rounded-xl p-3 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {INTERACTION_LABELS[interaction.type] ?? interaction.type}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(interaction.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </span>
+                        <button
+                          onClick={() => deleteInteraction.mutate(interaction.id)}
+                          className="opacity-0 group-hover/item:opacity-100 text-muted-foreground hover:text-red-500 transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                      {interaction.description}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </TabsContent>
       </Tabs>
