@@ -31,6 +31,9 @@ const CompanyWorkspace = lazy(() => import("./pages/CompanyWorkspace"));
 const CompanyProfile = lazy(() => import("./pages/CompanyProfile"));
 const CompanyContracts = lazy(() => import("./pages/CompanyContracts"));
 const Processes = lazy(() => import("./pages/Processes"));
+const Projects = lazy(() => import("./pages/Projects"));
+const CalendarView = lazy(() => import("./pages/CalendarView"));
+const Integrations = lazy(() => import("./pages/Integrations"));
 const Automation = lazy(() => import("./pages/Automation"));
 const Docs = lazy(() => import("./pages/Docs"));
 const AIInsights = lazy(() => import("./pages/AIInsights"));
@@ -106,6 +109,9 @@ function AppWithSplash() {
                     <Routes>
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/tasks" element={<Processes />} />
+                      <Route path="/projects" element={<Projects />} />
+                      <Route path="/calendar" element={<CalendarView />} />
+                      <Route path="/integrations" element={<Integrations />} />
                       <Route path="/automation" element={<Automation />} />
                       <Route path="/crm" element={<CRM />} />
                       <Route path="/finance" element={<Finance />} />

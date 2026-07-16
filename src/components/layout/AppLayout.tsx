@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Users, Briefcase, DollarSign,
   CheckSquare, BookOpen, BrainCircuit, Menu, LogOut, Settings as SettingsIcon,
   MessageCircle, X, Zap, BarChart2, ClipboardList, Search,
+  FolderKanban, CalendarDays, Plug2,
 } from 'lucide-react';
 import { GlobalSearch } from '@/components/GlobalSearch';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,17 +19,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: CheckSquare, label: 'A Fazeres', path: '/tasks' },
-  { icon: Zap, label: 'Automação', path: '/automation' },
-  { icon: Briefcase, label: 'Empresas (Demandas)', path: '/companies' },
-  { icon: Users, label: 'CRM (Comercial/Jurídico)', path: '/crm' },
-  { icon: DollarSign, label: 'Financeiro', path: '/finance' },
-  { icon: BarChart2, label: 'Ads Manager', path: '/ads-manager' },
-  { icon: ClipboardList, label: 'Formulários', path: '/forms' },
-  { icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
-  { icon: BrainCircuit, label: 'IA Insights', path: '/ai-insights' },
-  { icon: BookOpen, label: 'Processos & Docs', path: '/docs' },
+  { icon: LayoutDashboard, label: 'Dashboard',             path: '/'             },
+  { icon: CheckSquare,     label: 'A Fazeres',             path: '/tasks'        },
+  { icon: FolderKanban,    label: 'Projetos',              path: '/projects'     },
+  { icon: CalendarDays,    label: 'Calendário',            path: '/calendar'     },
+  { icon: Briefcase,       label: 'Empresas',              path: '/companies'    },
+  { icon: Users,           label: 'CRM Comercial',         path: '/crm'          },
+  { icon: DollarSign,      label: 'Financeiro',            path: '/finance'      },
+  { icon: BarChart2,       label: 'Ads Manager',           path: '/ads-manager'  },
+  { icon: ClipboardList,   label: 'Formulários',           path: '/forms'        },
+  { icon: MessageCircle,   label: 'WhatsApp',              path: '/whatsapp'     },
+  { icon: BrainCircuit,    label: 'IA Insights',           path: '/ai-insights'  },
+  { icon: Zap,             label: 'Automação',             path: '/automation'   },
+  { icon: Plug2,           label: 'Integrações',           path: '/integrations' },
+  { icon: BookOpen,        label: 'Processos & Docs',      path: '/docs'         },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

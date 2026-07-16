@@ -110,5 +110,36 @@ export async function runAutomations(
     }
   }
 
+  // Disparo de webhooks configurados (fire-and-forget)
+  supabase
+    .from('webhook_configs')
+    .select('url, events')
+    .eq('active', true)
+    .then(({ data: webhooks }) => {
+      for (const wh of webhooks ?? []) {
+        const evts = wh.events as string[];
+        if (evts.includes(triggerEvent) || evts.includes('*')) {
+          fetch(wh.url as string, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: triggerEvent,
+              source: 'Vertos',
+              timestamp: new Date().toISOString(),
+              data: {
+                entityTitle: context.entityTitle,
+                companyId: context.companyId,
+                companyName: context.companyName,
+                amount: context.amount,
+                dueDate: context.dueDate,
+              },
+            }),
+            mode: 'no-cors',
+          }).catch(() => {});
+        }
+      }
+    })
+    .catch(() => {});
+
   return { executed, ruleName: rules.length === 1 ? rules[0].name : undefined };
 }
