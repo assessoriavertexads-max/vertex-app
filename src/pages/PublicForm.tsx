@@ -14,11 +14,12 @@ interface ScheduleSettings {
 
 interface Question {
   id: string;
-  type: 'short_text' | 'email' | 'tel' | 'long_text' | 'choice' | 'schedule';
+  type: 'short_text' | 'email' | 'tel' | 'long_text' | 'choice' | 'list' | 'schedule';
   label: string;
   placeholder?: string;
   required: boolean;
   choices?: string[];
+  allow_other?: boolean;
   maps_to?: string;
   schedule_settings?: ScheduleSettings;
   image_url?: string;
@@ -214,14 +215,66 @@ function QuestionContent({ question, index, total, value, onChange, onNext, onBa
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (question.type !== 'schedule') {
+    if (question.type !== 'schedule' && question.type !== 'list') {
       const t = setTimeout(() => inputRef.current?.focus(), 350);
       return () => clearTimeout(t);
     }
   }, [animKey, question.type]);
 
+  // "Outro" state — used by both choice+allow_other and list+allow_other
+  const [otherMode, setOtherMode] = useState(() => {
+    if (question.type === 'choice' && question.allow_other)
+      return !!(value && !(question.choices ?? []).includes(value));
+    if (question.type === 'list' && question.allow_other) {
+      try {
+        const all = JSON.parse(value || '[]') as string[];
+        return all.some(v => !(question.choices ?? []).includes(v));
+      } catch { return false; }
+    }
+    return false;
+  });
+  const [otherText, setOtherText] = useState(() => {
+    if (question.type === 'choice' && question.allow_other)
+      return (value && !(question.choices ?? []).includes(value)) ? value : '';
+    if (question.type === 'list' && question.allow_other) {
+      try {
+        const all = JSON.parse(value || '[]') as string[];
+        return all.find(v => !(question.choices ?? []).includes(v)) ?? '';
+      } catch { return ''; }
+    }
+    return '';
+  });
+
+  // List multi-select — base items (excluding "outro")
+  const [listBaseSelected, setListBaseSelected] = useState<string[]>(() => {
+    if (question.type !== 'list') return [];
+    try {
+      const all = JSON.parse(value || '[]') as string[];
+      return all.filter(v => (question.choices ?? []).includes(v));
+    } catch { return []; }
+  });
+
+  const pushListValue = (base: string[], om: boolean, ot: string) => {
+    const combined = [...base, ...(om && ot.trim() ? [ot.trim()] : [])];
+    onChange(JSON.stringify(combined));
+  };
+
+  const toggleListItem = (item: string) => {
+    const next = listBaseSelected.includes(item)
+      ? listBaseSelected.filter(x => x !== item)
+      : [...listBaseSelected, item];
+    setListBaseSelected(next);
+    pushListValue(next, otherMode, otherText);
+  };
+
   const canAdvance = !question.required || (
-    question.type === 'schedule' ? value.includes('T') : value.trim().length > 0
+    question.type === 'schedule'
+      ? value.includes('T')
+      : question.type === 'list'
+      ? (listBaseSelected.length > 0 || (otherMode && otherText.trim().length > 0))
+      : otherMode
+      ? otherText.trim().length > 0
+      : value.trim().length > 0
   );
 
   const inputClass = 'w-full bg-transparent border-0 border-b-2 border-white/30 focus:border-white/80 focus:outline-none text-white text-2xl md:text-3xl py-3 placeholder:text-white/30 transition-colors resize-none';
@@ -246,17 +299,98 @@ function QuestionContent({ question, index, total, value, onChange, onNext, onBa
         <div className="space-y-3 mb-8">
           {(question.choices ?? []).map((choice, i) => (
             <button key={choice}
-              onClick={() => { onChange(choice); setTimeout(onNext, 300); }}
+              onClick={() => {
+                setOtherMode(false);
+                setOtherText('');
+                onChange(choice);
+                setTimeout(onNext, 300);
+              }}
               className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg border transition-all text-white text-lg ${
-                value === choice ? 'border-white bg-white/20' : 'border-white/20 hover:border-white/50 hover:bg-white/10'
+                !otherMode && value === choice ? 'border-white bg-white/20' : 'border-white/20 hover:border-white/50 hover:bg-white/10'
               }`}>
               <span className="w-7 h-7 rounded border border-white/40 flex items-center justify-center text-xs font-bold shrink-0"
-                style={value === choice ? { backgroundColor: accentColor, borderColor: accentColor } : {}}>
-                {value === choice ? <Check className="w-3.5 h-3.5" /> : String.fromCharCode(65 + i)}
+                style={!otherMode && value === choice ? { backgroundColor: accentColor, borderColor: accentColor } : {}}>
+                {!otherMode && value === choice ? <Check className="w-3.5 h-3.5" /> : String.fromCharCode(65 + i)}
               </span>
               {choice}
             </button>
           ))}
+          {question.allow_other && (
+            <div>
+              <button
+                onClick={() => { setOtherMode(true); onChange(otherText); }}
+                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg border transition-all text-white text-lg ${
+                  otherMode ? 'border-white bg-white/20' : 'border-white/20 hover:border-white/50 hover:bg-white/10'
+                }`}>
+                <span className="w-7 h-7 rounded border border-white/40 flex items-center justify-center text-xs font-bold shrink-0"
+                  style={otherMode ? { backgroundColor: accentColor, borderColor: accentColor } : {}}>
+                  {otherMode ? <Check className="w-3.5 h-3.5" /> : String.fromCharCode(65 + (question.choices ?? []).length)}
+                </span>
+                Outro (escrever)
+              </button>
+              {otherMode && (
+                <input
+                  autoFocus
+                  type="text"
+                  value={otherText}
+                  onChange={(e) => { setOtherText(e.target.value); onChange(e.target.value); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onNext(); } }}
+                  placeholder="Escreva sua resposta..."
+                  className="w-full mt-3 bg-transparent border-0 border-b-2 border-white/30 focus:border-white/80 focus:outline-none text-white text-xl py-2 placeholder:text-white/30 transition-colors"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      ) : question.type === 'list' ? (
+        <div className="space-y-3 mb-8">
+          {(question.choices ?? []).map((choice) => {
+            const checked = listBaseSelected.includes(choice);
+            return (
+              <button key={choice}
+                onClick={() => toggleListItem(choice)}
+                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg border transition-all text-white text-lg ${
+                  checked ? 'border-white bg-white/20' : 'border-white/20 hover:border-white/50 hover:bg-white/10'
+                }`}>
+                <span className="w-7 h-7 rounded border border-white/40 flex items-center justify-center shrink-0"
+                  style={checked ? { backgroundColor: accentColor, borderColor: accentColor } : {}}>
+                  {checked && <Check className="w-3.5 h-3.5" />}
+                </span>
+                {choice}
+              </button>
+            );
+          })}
+          {question.allow_other && (
+            <div>
+              <button
+                onClick={() => {
+                  const next = !otherMode;
+                  setOtherMode(next);
+                  if (!next) { setOtherText(''); pushListValue(listBaseSelected, false, ''); }
+                  else { pushListValue(listBaseSelected, true, otherText); }
+                }}
+                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg border transition-all text-white text-lg ${
+                  otherMode ? 'border-white bg-white/20' : 'border-white/20 hover:border-white/50 hover:bg-white/10'
+                }`}>
+                <span className="w-7 h-7 rounded border border-white/40 flex items-center justify-center shrink-0"
+                  style={otherMode ? { backgroundColor: accentColor, borderColor: accentColor } : {}}>
+                  {otherMode && <Check className="w-3.5 h-3.5" />}
+                </span>
+                Outro (escrever)
+              </button>
+              {otherMode && (
+                <input
+                  autoFocus
+                  type="text"
+                  value={otherText}
+                  onChange={(e) => { setOtherText(e.target.value); pushListValue(listBaseSelected, true, e.target.value); }}
+                  placeholder="Escreva sua resposta..."
+                  className="w-full mt-3 bg-transparent border-0 border-b-2 border-white/30 focus:border-white/80 focus:outline-none text-white text-xl py-2 placeholder:text-white/30 transition-colors"
+                />
+              )}
+            </div>
+          )}
+          <p className="text-white/30 text-xs mt-2">Selecione todas que se aplicam, depois clique em OK</p>
         </div>
       ) : question.type === 'long_text' ? (
         <>
@@ -288,7 +422,7 @@ function QuestionContent({ question, index, total, value, onChange, onNext, onBa
             <ArrowLeft className="w-4 h-4" />
           </button>
         )}
-        {question.type !== 'choice' && question.type !== 'schedule' && (
+        {question.type !== 'choice' && question.type !== 'list' && question.type !== 'schedule' && (
           <span className="text-white/30 text-xs ml-1">
             pressione <kbd className="bg-white/10 rounded px-1.5 py-0.5 text-white/50">Enter ↵</kbd>
           </span>

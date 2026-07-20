@@ -25,11 +25,12 @@ interface ScheduleSettings {
 
 interface Question {
   id: string;
-  type: 'short_text' | 'email' | 'tel' | 'long_text' | 'choice' | 'schedule';
+  type: 'short_text' | 'email' | 'tel' | 'long_text' | 'choice' | 'list' | 'schedule';
   label: string;
   placeholder?: string;
   required: boolean;
   choices?: string[];
+  allow_other?: boolean;
   maps_to?: 'name' | 'email' | 'phone' | 'notes' | '';
   schedule_settings?: ScheduleSettings;
   image_url?: string;
@@ -98,6 +99,7 @@ const QUESTION_TYPES = [
   { value: 'tel',        label: 'Telefone' },
   { value: 'long_text',  label: 'Texto longo' },
   { value: 'choice',     label: 'Múltipla escolha' },
+  { value: 'list',       label: 'Lista (múltipla resposta)' },
   { value: 'schedule',   label: 'Agendamento (Calendly)' },
 ] as const;
 
@@ -214,12 +216,12 @@ function QuestionEditor({ q, index, total, onChange, onRemove, onMoveUp, onMoveD
   const [open, setOpen] = useState(true);
 
   const handleTypeChange = (type: Question['type']) => {
-    if (type === 'choice')
+    if (type === 'choice' || type === 'list')
       onChange({ ...q, type, choices: q.choices ?? ['Opção 1', 'Opção 2'], schedule_settings: undefined });
     else if (type === 'schedule')
-      onChange({ ...q, type, choices: undefined, maps_to: '', schedule_settings: q.schedule_settings ?? defaultScheduleSettings() });
+      onChange({ ...q, type, choices: undefined, allow_other: undefined, maps_to: '', schedule_settings: q.schedule_settings ?? defaultScheduleSettings() });
     else
-      onChange({ ...q, type, choices: undefined, schedule_settings: undefined });
+      onChange({ ...q, type, choices: undefined, schedule_settings: undefined, allow_other: undefined });
   };
 
   return (
@@ -271,7 +273,7 @@ function QuestionEditor({ q, index, total, onChange, onRemove, onMoveUp, onMoveD
               </div>
             )}
 
-            {q.type !== 'schedule' && q.type !== 'choice' && (
+            {q.type !== 'schedule' && q.type !== 'choice' && q.type !== 'list' && (
               <div className="space-y-1.5">
                 <Label className="text-xs">Placeholder (opcional)</Label>
                 <Input value={q.placeholder ?? ''} onChange={(e) => onChange({ ...q, placeholder: e.target.value })}
@@ -286,9 +288,11 @@ function QuestionEditor({ q, index, total, onChange, onRemove, onMoveUp, onMoveD
           </div>
 
           {/* Choices */}
-          {q.type === 'choice' && (
+          {(q.type === 'choice' || q.type === 'list') && (
             <div className="space-y-2">
-              <Label className="text-xs">Opções</Label>
+              <Label className="text-xs">
+                {q.type === 'list' ? 'Opções (o respondente pode marcar várias)' : 'Opções'}
+              </Label>
               {(q.choices ?? []).map((c, i) => (
                 <div key={i} className="flex gap-2">
                   <Input value={c}
@@ -304,6 +308,16 @@ function QuestionEditor({ q, index, total, onChange, onRemove, onMoveUp, onMoveD
                 onClick={() => onChange({ ...q, choices: [...(q.choices ?? []), ''] })}>
                 <Plus className="h-3 w-3 mr-1" /> Adicionar opção
               </Button>
+              <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                <Switch
+                  id={`other-${q.id}`}
+                  checked={q.allow_other ?? false}
+                  onCheckedChange={(v) => onChange({ ...q, allow_other: v })}
+                />
+                <Label htmlFor={`other-${q.id}`} className="text-xs cursor-pointer">
+                  Incluir opção "Outro (escrever)" no final
+                </Label>
+              </div>
             </div>
           )}
 
