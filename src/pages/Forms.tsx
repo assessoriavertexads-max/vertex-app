@@ -13,10 +13,16 @@ import {
   Plus, Trash2, GripVertical, ExternalLink, Copy, Check,
   ClipboardList, ArrowLeft, Settings, Eye, ChevronDown, ChevronUp,
   Calendar, ImagePlus, Palette, LayoutTemplate, CheckSquare, Radio,
-  BarChart2, EyeOff,
+  BarChart2, EyeOff, X,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+interface LogicRule {
+  condition: 'equals' | 'not_equals';
+  value: string;
+  jump_to: string; // question id or '__end__'
+}
+
 interface ScheduleSettings {
   available_days: number[];
   time_slots: string[];
@@ -35,6 +41,7 @@ interface Question {
   schedule_settings?: ScheduleSettings;
   image_url?: string;
   image_position?: 'left' | 'right';
+  logic?: LogicRule[];
 }
 
 interface FormSettings {
@@ -386,6 +393,268 @@ function QuestionEditor({ q, index, total, onChange, onRemove, onMoveUp, onMoveD
   );
 }
 
+// ── Logic Canvas ──────────────────────────────────────────────────────────────
+const RULE_COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899'];
+const LC_X    = 40;
+const LC_W    = 288;
+const LC_H    = 80;
+const LC_ROWH = 148;
+const LC_LOOP = LC_X + LC_W + 60;
+
+function lcTop(i: number)  { return i * LC_ROWH + 16; }
+function lcMidY(i: number) { return lcTop(i) + LC_H / 2; }
+
+function LogicRuleEditor({ question, questions, onChange, onClose }: {
+  question: Question;
+  questions: Question[];
+  onChange: (rules: LogicRule[]) => void;
+  onClose: () => void;
+}) {
+  const rules   = question.logic ?? [];
+  const qIdx    = questions.findIndex(q => q.id === question.id);
+  const choices = (question.type === 'choice' || question.type === 'list') ? (question.choices ?? []) : [];
+
+  const addRule    = () => onChange([...rules, { condition: 'equals', value: '', jump_to: '' }]);
+  const updateRule = (i: number, r: LogicRule) => { const n = [...rules]; n[i] = r; onChange(n); };
+  const removeRule = (i: number) => onChange(rules.filter((_, j) => j !== i));
+
+  return (
+    <div className="w-72 shrink-0 border border-border rounded-xl bg-card p-4 space-y-4 sticky top-4 max-h-[calc(100vh-140px)] overflow-y-auto">
+      <div className="flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Lógica condicional</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            P{qIdx + 1}: {question.label || '(sem título)'}
+          </p>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground ml-2 shrink-0">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {rules.length === 0 && (
+        <p className="text-xs text-muted-foreground italic bg-muted/30 rounded-lg px-3 py-2">
+          Sem regras — segue o fluxo padrão (próxima pergunta).
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {rules.map((rule, i) => (
+          <div key={i} className="rounded-lg border border-border p-3 space-y-2.5"
+            style={{ borderLeftColor: RULE_COLORS[i % RULE_COLORS.length], borderLeftWidth: 3 }}>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Regra {i + 1}</span>
+              <button onClick={() => removeRule(i)} className="text-destructive hover:opacity-70">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">Se a resposta</Label>
+              <select value={rule.condition}
+                onChange={(e) => updateRule(i, { ...rule, condition: e.target.value as LogicRule['condition'] })}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+                <option value="equals">for igual a</option>
+                <option value="not_equals">for diferente de</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">Valor</Label>
+              {choices.length > 0 ? (
+                <select value={rule.value}
+                  onChange={(e) => updateRule(i, { ...rule, value: e.target.value })}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+                  <option value="">Selecione...</option>
+                  {choices.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : (
+                <Input value={rule.value}
+                  onChange={(e) => updateRule(i, { ...rule, value: e.target.value })}
+                  placeholder="Ex: sim, não..."
+                  className="h-8 text-xs" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">Ir para</Label>
+              <select value={rule.jump_to}
+                onChange={(e) => updateRule(i, { ...rule, jump_to: e.target.value })}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+                <option value="">Selecione...</option>
+                {questions.filter(q => q.id !== question.id).map(q => {
+                  const qi = questions.findIndex(x => x.id === q.id);
+                  return (
+                    <option key={q.id} value={q.id}>
+                      P{qi + 1}: {(q.label || 'sem título').slice(0, 28)}
+                    </option>
+                  );
+                })}
+                <option value="__end__">Finalizar formulário</option>
+              </select>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button size="sm" variant="outline" className="w-full h-8 text-xs" onClick={addRule}>
+        <Plus className="h-3 w-3 mr-1" /> Adicionar regra
+      </Button>
+    </div>
+  );
+}
+
+function LogicCanvas({ questions, onChange }: {
+  questions: Question[];
+  onChange: (qs: Question[]) => void;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const endY   = lcTop(questions.length);
+  const totalH = endY + LC_H + 40;
+
+  const selectedQ = questions.find(q => q.id === selected);
+
+  const updateLogic = (id: string, logic: LogicRule[]) =>
+    onChange(questions.map(q => q.id === id ? { ...q, logic } : q));
+
+  // Collect valid conditional arrows
+  const condArrows: Array<{ fromI: number; toI: number; colorIdx: number }> = [];
+  let arrowCount = 0;
+  questions.forEach((q, fromI) => {
+    (q.logic ?? []).forEach(rule => {
+      if (!rule.value || !rule.jump_to) return;
+      const toI = rule.jump_to === '__end__'
+        ? questions.length
+        : questions.findIndex(qi => qi.id === rule.jump_to);
+      if (toI >= 0) {
+        condArrows.push({ fromI, toI, colorIdx: arrowCount % RULE_COLORS.length });
+        arrowCount++;
+      }
+    });
+  });
+
+  const totalW = Math.max(LC_LOOP + condArrows.length * 22 + 40, 460);
+
+  const condPath = (fromI: number, toI: number, idx: number) => {
+    const lx = LC_LOOP + idx * 22;
+    const fy = lcMidY(fromI);
+    const ty = toI === questions.length ? endY + LC_H / 2 : lcMidY(toI);
+    const rx = LC_X + LC_W;
+    return `M ${rx} ${fy} C ${lx} ${fy}, ${lx} ${ty}, ${rx} ${ty}`;
+  };
+
+  return (
+    <div className="flex gap-4 items-start">
+      {/* Canvas */}
+      <div className="flex-1 border border-border rounded-xl bg-muted/10 overflow-auto">
+        <div style={{ position: 'relative', width: totalW, height: totalH }}>
+          {/* SVG layer */}
+          <svg style={{ position: 'absolute', inset: 0, width: totalW, height: totalH, pointerEvents: 'none' }}>
+            <defs>
+              <marker id="lc-def" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+                <path d="M0,1 L0,6 L6,3.5 z" fill="#9ca3af" />
+              </marker>
+              {RULE_COLORS.map((color, i) => (
+                <marker key={i} id={`lc-c${i}`} markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+                  <path d="M0,1 L0,6 L6,3.5 z" fill={color} />
+                </marker>
+              ))}
+            </defs>
+
+            {/* Default dashed flow arrows */}
+            {questions.map((_, i) => {
+              const x  = LC_X + LC_W / 2;
+              const y1 = lcTop(i) + LC_H;
+              const y2 = lcTop(i + 1);
+              return (
+                <line key={`df-${i}`}
+                  x1={x} y1={y1} x2={x} y2={y2 - 5}
+                  stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="4 3"
+                  markerEnd="url(#lc-def)" />
+              );
+            })}
+
+            {/* Conditional arrows */}
+            {condArrows.map((a, idx) => (
+              <path key={`ca-${idx}`}
+                d={condPath(a.fromI, a.toI, idx)}
+                fill="none" stroke={RULE_COLORS[a.colorIdx]} strokeWidth="2.5" opacity="0.85"
+                markerEnd={`url(#lc-c${a.colorIdx})`}
+              />
+            ))}
+          </svg>
+
+          {/* Question cards */}
+          {questions.map((q, i) => {
+            const validRules = (q.logic ?? []).filter(r => r.value && r.jump_to);
+            const isSel = q.id === selected;
+            return (
+              <div key={q.id}
+                onClick={() => setSelected(isSel ? null : q.id)}
+                style={{ position: 'absolute', left: LC_X, top: lcTop(i), width: LC_W, height: LC_H }}
+                className={`rounded-xl border cursor-pointer transition-all px-3 flex flex-col justify-center gap-1 ${
+                  isSel
+                    ? 'border-primary bg-primary/10 ring-2 ring-primary/25 shadow-sm'
+                    : validRules.length > 0
+                    ? 'border-primary/40 bg-card hover:border-primary/60'
+                    : 'border-border bg-card hover:border-primary/40'
+                }`}>
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {i + 1}
+                  </span>
+                  <span className="text-xs font-medium text-foreground truncate flex-1">
+                    {q.label || <span className="italic text-muted-foreground text-[11px]">sem título</span>}
+                  </span>
+                  <span className="text-[9px] shrink-0 bg-muted text-muted-foreground px-1.5 py-px rounded">
+                    {QUESTION_TYPES.find(t => t.value === q.type)?.label.split(' ')[0]}
+                  </span>
+                </div>
+                {validRules.length > 0 && (
+                  <div className="flex gap-1 flex-wrap pl-7">
+                    {validRules.map((r, ri) => (
+                      <span key={ri}
+                        className="text-[9px] px-1.5 py-px rounded-full text-white font-medium"
+                        style={{ backgroundColor: RULE_COLORS[ri % RULE_COLORS.length] }}>
+                        {r.condition === 'equals' ? '=' : '≠'} "{r.value.slice(0, 10)}"
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* END node */}
+          <div style={{ position: 'absolute', left: LC_X, top: endY }}
+            className="border border-dashed border-border rounded-xl px-4 py-2 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+            <span className="text-xs text-muted-foreground font-medium">FIM do formulário</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Rule editor panel */}
+      {selectedQ ? (
+        <LogicRuleEditor
+          question={selectedQ}
+          questions={questions}
+          onChange={(rules) => updateLogic(selectedQ.id, rules)}
+          onClose={() => setSelected(null)}
+        />
+      ) : (
+        <div className="w-64 shrink-0 border border-dashed border-border rounded-xl p-6 text-center sticky top-4">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Clique em uma pergunta para definir as regras de navegação com base nas respostas.
+          </p>
+          <p className="text-xs text-muted-foreground/50 mt-3">
+            Setas cinzas = fluxo padrão<br />
+            Setas coloridas = desvios condicionais
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Form Builder ──────────────────────────────────────────────────────────────
 function FormBuilder({ initial, onSave, onCancel, isSaving }: {
   initial?: Partial<LeadForm>;
@@ -408,7 +677,7 @@ function FormBuilder({ initial, onSave, onCancel, isSaving }: {
     show_branding: true,
   });
   const [isActive, setIsActive]       = useState(initial?.is_active ?? true);
-  const [tab, setTab]                 = useState<'questions' | 'settings'>('questions');
+  const [tab, setTab]                 = useState<'questions' | 'logic' | 'settings'>('questions');
   const [slugEdited, setSlugEdited]   = useState(!!initial?.slug);
 
   const set = <K extends keyof FormSettings>(key: K, value: FormSettings[K]) =>
@@ -468,12 +737,12 @@ function FormBuilder({ initial, onSave, onCancel, isSaving }: {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {(['questions', 'settings'] as const).map((t) => (
+        {(['questions', 'logic', 'settings'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}>
-            {t === 'questions' ? 'Perguntas' : 'Configurações'}
+            {t === 'questions' ? 'Perguntas' : t === 'logic' ? 'Lógica' : 'Configurações'}
           </button>
         ))}
       </div>
@@ -516,6 +785,17 @@ function FormBuilder({ initial, onSave, onCancel, isSaving }: {
             <Plus className="h-4 w-4 mr-2" /> Adicionar pergunta
           </Button>
         </div>
+      )}
+
+      {/* ── Logic Tab ── */}
+      {tab === 'logic' && (
+        questions.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground text-sm">
+            Adicione pelo menos uma pergunta para configurar a lógica condicional.
+          </div>
+        ) : (
+          <LogicCanvas questions={questions} onChange={setQuestions} />
+        )
       )}
 
       {/* ── Settings Tab ── */}

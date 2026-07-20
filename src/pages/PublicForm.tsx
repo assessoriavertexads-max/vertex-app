@@ -12,6 +12,12 @@ interface ScheduleSettings {
   duration_minutes?: number;
 }
 
+interface LogicRule {
+  condition: 'equals' | 'not_equals';
+  value: string;
+  jump_to: string;
+}
+
 interface Question {
   id: string;
   type: 'short_text' | 'email' | 'tel' | 'long_text' | 'choice' | 'list' | 'schedule';
@@ -20,6 +26,7 @@ interface Question {
   required: boolean;
   choices?: string[];
   allow_other?: boolean;
+  logic?: LogicRule[];
   maps_to?: string;
   schedule_settings?: ScheduleSettings;
   image_url?: string;
@@ -642,6 +649,29 @@ export default function PublicForm() {
       const val = answers[q.id] ?? '';
       if (q.type === 'schedule' ? !val.includes('T') : !val.trim()) return;
     }
+
+    // Apply conditional logic rules
+    if (q?.logic?.length) {
+      const currentAnswer = (answers[q.id] ?? '').trim();
+      const matched = q.logic.find(rule => {
+        if (!rule.value || !rule.jump_to) return false;
+        if (q.type === 'list') {
+          try {
+            const arr = JSON.parse(answers[q.id] || '[]') as string[];
+            return rule.condition === 'equals' ? arr.includes(rule.value) : !arr.includes(rule.value);
+          } catch { return false; }
+        }
+        return rule.condition === 'equals'
+          ? currentAnswer === rule.value
+          : currentAnswer !== rule.value;
+      });
+      if (matched) {
+        if (matched.jump_to === '__end__') { submitMutation.mutate(); return; }
+        const targetIdx = questions.findIndex(qi => qi.id === matched.jump_to);
+        if (targetIdx >= 0) { setStep(targetIdx); setAnimKey((k) => k + 1); return; }
+      }
+    }
+
     if (step >= questions.length - 1) { submitMutation.mutate(); }
     else { setStep((p) => p + 1); setAnimKey((k) => k + 1); }
   }, [step, questions, answers, submitMutation]);
