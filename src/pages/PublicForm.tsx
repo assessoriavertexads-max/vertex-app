@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, ArrowLeft, Check, Loader2, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -105,6 +106,10 @@ function SchedulePicker({ schedSettings, value, onChange, onAdvance, accentColor
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(initDateStr);
   const selectedTimeStr = value.includes('T') ? value.split('T')[1]?.slice(0,5) : null;
 
+  // Ref para sempre ter a versão mais recente do callback sem closure stale
+  const onAdvanceRef = useRef(onAdvance);
+  useEffect(() => { onAdvanceRef.current = onAdvance; }, [onAdvance]);
+
   const year  = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const daysInMonth    = new Date(year, month + 1, 0).getDate();
@@ -129,7 +134,7 @@ function SchedulePicker({ schedSettings, value, onChange, onAdvance, accentColor
   const handleTimeClick = (time: string) => {
     if (!selectedDateStr) return;
     onChange(`${selectedDateStr}T${time}`);
-    setTimeout(onAdvance, 350);
+    setTimeout(() => onAdvanceRef.current(), 350);
   };
 
   const formatDisplay = (ds: string) =>
@@ -628,6 +633,7 @@ export default function PublicForm() {
       setStep(form?.questions.length ?? 0);
       setAnimKey((k) => k + 1);
     },
+    onError: () => toast.error('Erro ao enviar. Verifique sua conexão e tente novamente.'),
   });
 
   const questions   = form?.questions ?? [];
