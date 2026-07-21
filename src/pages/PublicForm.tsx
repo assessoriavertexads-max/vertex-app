@@ -622,11 +622,17 @@ export default function PublicForm() {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('submit-form', { body: { slug, answers } });
-      if (error) {
-        const detail = (data as { error?: string } | null)?.error;
-        throw new Error(detail ?? error.message ?? 'Erro desconhecido');
-      }
+      // Usa fetch direto para evitar CORS bloqueando headers extras do supabase-js (apikey, x-client-info)
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/submit-form`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ slug, answers }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Erro ${res.status}`);
     },
     onSuccess: () => {
       const pid = form?.settings?.meta_pixel_id;
