@@ -123,6 +123,20 @@ export default function CalendarView() {
     },
   });
 
+  // Agendamentos criados via formulários (tabela meetings)
+  const { data: formMeetings = [] } = useQuery({
+    queryKey: ['cal-form-meetings', rangeStart, rangeEnd],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('meetings')
+        .select('id, title, scheduled_at, duration_minutes, status')
+        .gte('scheduled_at', `${rangeStart}T00:00:00`)
+        .lte('scheduled_at', `${rangeEnd}T23:59:59`)
+        .neq('status', 'cancelled');
+      return data ?? [];
+    },
+  });
+
   // ── Build event map ─────────────────────────────────────────────────────
 
   const eventsByDay = useMemo<Record<string, CalendarEvent[]>>(() => {
@@ -183,8 +197,24 @@ export default function CalendarView() {
       });
     }
 
+    for (const fm of formMeetings as Array<{ id: string; title: string; scheduled_at: string; duration_minutes: number }>) {
+      if (!fm.scheduled_at) continue;
+      const date = fm.scheduled_at.slice(0, 10);
+      const time = fm.scheduled_at.slice(11, 16); // HH:MM
+      add(date, {
+        id: fm.id,
+        title: fm.title ?? 'Reunião agendada',
+        date,
+        type: 'meeting',
+        color: 'violet',
+        badge: 'Reunião',
+        path: '/calendar',
+        meta: time ? `${time} · ${fm.duration_minutes ?? 30}min` : undefined,
+      });
+    }
+
     return map;
-  }, [tasks, transactions, milestones, meetings]);
+  }, [tasks, transactions, milestones, meetings, formMeetings]);
 
   // ── Calendar grid ───────────────────────────────────────────────────────
 
