@@ -95,7 +95,11 @@ serve(async (req) => {
   const notes = extraLines.join("\n") || null;
   const scheduledAtIso = scheduledAt ? new Date(scheduledAt).toISOString() : null;
 
-  const { data: lead, error: leadErr } = await sb
+  // Try full insert; fall back to minimal if schema migration not yet applied (42703 = undefined_column)
+  let lead: { id: string } | null = null;
+  let leadErr: { message: string; code?: string } | null = null;
+
+  ({ data: lead, error: leadErr } = await sb
     .from("leads")
     .insert({
       auth_user_id: form.auth_user_id,
@@ -108,9 +112,27 @@ serve(async (req) => {
       source:       "form",
     })
     .select("id")
-    .single();
+    .single());
 
-  if (leadErr) return json({ error: leadErr.message }, 500);
+  if (leadErr?.code === "42703") {
+    // Colunas extras não existem ainda (migração pendente) — insere apenas campos base
+    ({ data: lead, error: leadErr } = await sb
+      .from("leads")
+      .insert({ title: leadTitle ?? "Lead sem nome", funnel_stage: "prospect" })
+      .select("id")
+      .single());
+
+    // Se funnel_stage também não existir, usa status (coluna original)
+    if (leadErr?.code === "42703") {
+      ({ data: lead, error: leadErr } = await sb
+        .from("leads")
+        .insert({ title: leadTitle ?? "Lead sem nome", status: "prospect" })
+        .select("id")
+        .single());
+    }
+  }
+
+  if (leadErr) return json({ error: leadErr.message, code: leadErr.code }, 500);
 
   await sb.from("lead_form_responses").insert({
     form_id: form.id,

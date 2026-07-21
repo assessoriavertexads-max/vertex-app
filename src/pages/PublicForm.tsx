@@ -622,8 +622,11 @@ export default function PublicForm() {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.functions.invoke('submit-form', { body: { slug, answers } });
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke('submit-form', { body: { slug, answers } });
+      if (error) {
+        const detail = (data as { error?: string } | null)?.error;
+        throw new Error(detail ?? error.message ?? 'Erro desconhecido');
+      }
     },
     onSuccess: () => {
       const pid = form?.settings?.meta_pixel_id;
@@ -633,7 +636,7 @@ export default function PublicForm() {
       setStep(form?.questions.length ?? 0);
       setAnimKey((k) => k + 1);
     },
-    onError: () => toast.error('Erro ao enviar. Verifique sua conexão e tente novamente.'),
+    onError: (e: Error) => toast.error(e.message || 'Erro ao enviar. Verifique sua conexão e tente novamente.'),
   });
 
   const questions   = form?.questions ?? [];
