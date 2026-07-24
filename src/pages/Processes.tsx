@@ -71,6 +71,76 @@ const RECURRENCE_LABELS: Record<string, string> = {
   monthly: "Mensal", quarterly: "Trimestral",
 };
 
+function recurrenceLabel(pattern: string | null): string {
+  if (!pattern) return "";
+  if (RECURRENCE_LABELS[pattern]) return RECURRENCE_LABELS[pattern];
+  if (pattern.startsWith("custom_")) {
+    const suffix = pattern.slice(7);
+    const unit   = suffix.slice(-1);
+    const count  = parseInt(suffix.slice(0, -1), 10);
+    if (isNaN(count)) return pattern;
+    const lbl = { d: count === 1 ? "dia" : "dias", w: count === 1 ? "semana" : "semanas", m: count === 1 ? "mês" : "meses" }[unit] ?? unit;
+    return `A cada ${count} ${lbl}`;
+  }
+  return pattern;
+}
+
+// ── RecurrencePicker ───────────────────────────────────────────────────────
+function RecurrencePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const isCustom = value.startsWith("custom_");
+
+  const parseCustom = () => {
+    if (!isCustom) return { count: 1, unit: "d" };
+    const suffix = value.slice(7);
+    const unit   = suffix.slice(-1);
+    const count  = parseInt(suffix.slice(0, -1), 10);
+    return { count: isNaN(count) ? 1 : count, unit };
+  };
+
+  const { count: customCount, unit: customUnit } = parseCustom();
+
+  const setCustom = (c: number, u: string) => onChange(`custom_${Math.max(1, c)}${u}`);
+
+  return (
+    <div className="grid gap-2">
+      <select
+        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        value={isCustom ? "custom" : value}
+        onChange={e => e.target.value === "custom" ? onChange("custom_1d") : onChange(e.target.value)}
+      >
+        <option value="none">Nenhuma</option>
+        <option value="daily">Diária</option>
+        <option value="weekly">Semanal (7 dias)</option>
+        <option value="biweekly">Quinzenal (14 dias)</option>
+        <option value="monthly">Mensal</option>
+        <option value="quarterly">Trimestral</option>
+        <option value="custom">Personalizado...</option>
+      </select>
+
+      {isCustom && (
+        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">A cada</span>
+          <Input
+            type="number" min={1} max={365}
+            className="w-20 h-9 text-center"
+            value={customCount}
+            onChange={e => setCustom(parseInt(e.target.value) || 1, customUnit)}
+          />
+          <select
+            className="flex h-9 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={customUnit}
+            onChange={e => setCustom(customCount, e.target.value)}
+          >
+            <option value="d">dias</option>
+            <option value="w">semanas</option>
+            <option value="m">meses</option>
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TAG_COLORS = [
   "bg-emerald-100 text-emerald-700", "bg-amber-100 text-amber-700",
   "bg-sky-100 text-sky-700", "bg-violet-100 text-violet-700",
@@ -522,7 +592,7 @@ function TaskDetailSheet({
             {task.recurrence_pattern && (
               <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
                 <RefreshCw className="w-3.5 h-3.5 shrink-0" />
-                Recorrente: {RECURRENCE_LABELS[task.recurrence_pattern] ?? task.recurrence_pattern}
+                Recorrente: {recurrenceLabel(task.recurrence_pattern)}
               </div>
             )}
 
@@ -630,15 +700,7 @@ function NewTaskModal({ isOpen, onClose, onSave, companies }: {
           </div>
           <div className="grid gap-2">
             <Label>Recorrência</Label>
-            <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={data.recurrence} onChange={e => patch({ recurrence: e.target.value })}>
-              <option value="none">Nenhuma</option>
-              <option value="daily">Diária</option>
-              <option value="weekly">Semanal</option>
-              <option value="biweekly">Quinzenal</option>
-              <option value="monthly">Mensal</option>
-              <option value="quarterly">Trimestral</option>
-            </select>
+            <RecurrencePicker value={data.recurrence} onChange={v => patch({ recurrence: v })} />
           </div>
           <DialogFooter className="pt-1">
             <Button type="button" variant="outline" onClick={() => { setData(EMPTY_FORM); onClose(); }}>Cancelar</Button>
@@ -695,7 +757,7 @@ function TaskRow({ task, companies, allTasks, onToggle, onOpen, onDelete }: {
           </span>
           {isBlocked && <span title="Bloqueada"><Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" /></span>}
           {task.recurrence_pattern && (
-            <span title={RECURRENCE_LABELS[task.recurrence_pattern]}><RefreshCw className="w-3 h-3 text-emerald-500 shrink-0" /></span>
+            <span title={recurrenceLabel(task.recurrence_pattern)}><RefreshCw className="w-3 h-3 text-emerald-500 shrink-0" /></span>
           )}
         </div>
 
@@ -1022,7 +1084,7 @@ export default function Processes() {
       if (updates.status === "concluido") {
         const task = tasks.find(t => t.id === id);
         if (task?.recurrence_pattern) {
-          toast.success(`Concluída! Próxima (${RECURRENCE_LABELS[task.recurrence_pattern]}) criada.`);
+          toast.success(`Concluída! Próxima (${recurrenceLabel(task.recurrence_pattern)}) criada.`);
         }
         if (task) runAutomations("task_completed", "any", { entityTitle: task.name, companyId: task.company_id }).catch(() => {});
       }
