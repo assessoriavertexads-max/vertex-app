@@ -133,16 +133,16 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
       type="button"
       onClick={() => setIsRecurring(v => !v)}
       className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
-        isRecurring ? accentClass : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+        isRecurring ? accentClass : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/30'
       }`}
     >
-      <RefreshCw className={`w-4 h-4 shrink-0 ${isRecurring ? '' : 'text-slate-400'}`} />
+      <RefreshCw className={`w-4 h-4 shrink-0 ${isRecurring ? '' : 'text-muted-foreground'}`} />
       <div className="text-left">
         <p className="font-semibold">{isRecurring ? activeLabel : inactiveLabel}</p>
         <p className="text-xs font-normal opacity-70">{isRecurring ? activeDesc : inactiveDesc}</p>
       </div>
-      <div className={`ml-auto w-9 h-5 rounded-full flex items-center px-0.5 transition-colors ${isRecurring ? trackColor : 'bg-slate-200'}`}>
-        <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${isRecurring ? 'translate-x-4' : 'translate-x-0'}`} />
+      <div className={`ml-auto w-9 h-5 rounded-full flex items-center px-0.5 transition-colors ${isRecurring ? trackColor : 'bg-muted'}`}>
+        <div className={`w-4 h-4 rounded-full bg-background shadow transition-transform ${isRecurring ? 'translate-x-4' : 'translate-x-0'}`} />
       </div>
     </button>
   );
@@ -151,7 +151,7 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className={type === 'income' ? 'text-emerald-600' : 'text-red-600'}>
+          <DialogTitle className={type === 'income' ? 'text-primary' : 'text-destructive'}>
             {type === 'income' ? '💰 Registrar Nova Entrada' : '💸 Registrar Nova Saída'}
           </DialogTitle>
           <DialogDescription>
@@ -352,8 +352,8 @@ export const NewTransactionModal = ({ isOpen, onClose, onSave, defaultType }: Ne
             <Button
               type="submit"
               className={type === 'income'
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                : 'bg-red-600 hover:bg-red-700 text-white'}
+                ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'}
             >
               {isRecurring
                 ? (type === 'income' ? 'Criar Assinatura' : 'Criar Saída Recorrente')

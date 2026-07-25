@@ -39,7 +39,7 @@ function formatDate(d: string | null) {
 
 function statusBadge(status: string) {
   switch (status) {
-    case 'paid':      return <Badge className="bg-green-100 text-green-800 border-green-200">Pago</Badge>;
+    case 'paid':      return <Badge className="bg-primary/10 text-primary border-primary/20">Pago</Badge>;
     case 'pending':   return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pendente</Badge>;
     case 'overdue':   return <Badge variant="destructive">Vencido</Badge>;
     case 'cancelled': return <Badge variant="secondary">Cancelado</Badge>;
@@ -163,17 +163,17 @@ export default function ClientPortal() {
           </CardContent>
         </Card>
 
-        <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20">
+        <Card className="border-primary/20 bg-primary/5">
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Pagos este mês</p>
-                <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+                <p className="text-2xl font-bold text-primary">
                   {formatBRL(paid.reduce((s, t) => s + Number(t.amount), 0))}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">{paid.length} fatura{paid.length !== 1 ? 's' : ''}</p>
               </div>
-              <CheckCircle2 className="h-10 w-10 text-green-400 opacity-60" />
+              <CheckCircle2 className="h-10 w-10 text-primary opacity-60" />
             </div>
           </CardContent>
         </Card>

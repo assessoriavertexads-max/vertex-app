@@ -24,16 +24,16 @@ const COLUMNS = [
     id: 'prospect',
     emoji: '🔍',
     title: 'Prospecção',
-    color: 'border-slate-300 bg-slate-50/80',
-    headerColor: 'text-slate-600',
+    color: 'border-border bg-muted/20',
+    headerColor: 'text-muted-foreground',
     criteria: 'Lead identificado por tráfego pago, inbound ou prospecção ativa. Contato inicial realizado.',
   },
   {
     id: 'qualification',
     emoji: '✅',
     title: 'Qualificação (SDR)',
-    color: 'border-violet-200 bg-emerald-50/80',
-    headerColor: 'text-emerald-700',
+    color: 'border-primary/20 bg-primary/5',
+    headerColor: 'text-primary',
     criteria: 'SDR confirmou: orçamento mínimo, perfil ideal de cliente e momento certo para contratar.',
   },
   {
@@ -121,15 +121,15 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (l: LeadWit
       style={style}
       {...listeners}
       {...attributes}
-      className={`bg-white p-3.5 rounded-xl border shadow-sm cursor-grab active:cursor-grabbing hover:border-emerald-300 hover:shadow-md transition-all ${
-        isDragging ? 'opacity-40 ring-2 ring-emerald-400 shadow-xl z-50 relative' : ''
+      className={`bg-card p-3.5 rounded-xl border border-border shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/30 hover:shadow-md transition-all ${
+        isDragging ? 'opacity-40 ring-2 ring-primary/40 shadow-xl z-50 relative' : ''
       }`}
     >
       {/* Header */}
       <div className="flex justify-between items-start mb-2 gap-1">
-        <h4 className="font-semibold text-slate-800 text-sm leading-tight flex-1">{lead.title}</h4>
+        <h4 className="font-semibold text-card-foreground text-sm leading-tight flex-1">{lead.title}</h4>
         <button
-          className="text-slate-300 hover:text-emerald-500 shrink-0 p-0.5 rounded transition-colors"
+          className="text-muted-foreground/40 hover:text-primary shrink-0 p-0.5 rounded transition-colors"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onEdit(lead); }}
         >
@@ -139,15 +139,15 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (l: LeadWit
 
       {/* Empresa */}
       {lead.companies?.name && (
-        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-          <Building2 className="w-3 h-3 shrink-0 text-slate-400" />
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+          <Building2 className="w-3 h-3 shrink-0 text-muted-foreground/60" />
           <span className="truncate">{lead.companies.name}</span>
         </div>
       )}
 
       {/* Email */}
       {lead.email && (
-        <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
           <Mail className="w-3 h-3 shrink-0" />
           <span className="truncate">{lead.email}</span>
         </div>
@@ -155,7 +155,7 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (l: LeadWit
 
       {/* Telefone (só se sem email) */}
       {lead.phone && !lead.email && (
-        <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
           <Phone className="w-3 h-3 shrink-0" />
           {lead.phone}
         </div>
@@ -171,15 +171,15 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (l: LeadWit
 
       {/* Reunião agendada */}
       {meeting && (
-        <div className="flex items-center gap-1.5 text-xs text-emerald-600 mt-1.5 bg-emerald-50 px-2 py-1 rounded-md">
+        <div className="flex items-center gap-1.5 text-xs text-primary mt-1.5 bg-primary/10 px-2 py-1 rounded-md">
           <CalendarClock className="w-3 h-3 shrink-0" />
           Reunião: {meeting}
         </div>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-slate-100">
-        <div className="flex items-center gap-1 font-semibold text-emerald-600 text-sm">
+      <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
+        <div className="flex items-center gap-1 font-semibold text-primary text-sm">
           <DollarSign className="w-3.5 h-3.5" />
           {Number(lead.estimated_value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </div>
@@ -189,7 +189,7 @@ const LeadCard = ({ lead, onEdit }: { lead: LeadWithCompany; onEdit: (l: LeadWit
               {temp.label}
             </span>
           )}
-          <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
             <Clock className="w-3 h-3" />
             {lead.source === 'form' ? 'Form' : 'Manual'}
           </span>
@@ -226,12 +226,12 @@ const KanbanColumn = ({
           <h3 className={`font-bold text-sm flex items-center gap-1.5 ${column.headerColor}`}>
             <span>{column.emoji}</span>
             {column.title}
-            <span className="bg-white border border-current/20 text-xs py-0.5 px-1.5 rounded-full font-medium ml-0.5">
+            <span className="bg-background/80 border border-current/20 text-xs py-0.5 px-1.5 rounded-full font-medium ml-0.5">
               {leads.length}
             </span>
           </h3>
           <button
-            className="text-slate-300 hover:text-slate-500 transition-colors"
+            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
             onClick={() => onCriteriaClick(activeCriteria === column.id ? null : column.id)}
             title="Critérios de passagem"
           >
@@ -239,13 +239,13 @@ const KanbanColumn = ({
           </button>
         </div>
         {colValue > 0 && (
-          <p className="text-xs text-slate-400 mt-0.5 pl-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5 pl-0.5">
             R$ {colValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </p>
         )}
         {activeCriteria === column.id && (
-          <div className="mt-1.5 p-2 rounded-lg bg-white border border-slate-200 shadow-sm text-xs text-slate-600 leading-relaxed">
-            <span className="font-semibold text-slate-700 block mb-0.5">Critério de passagem</span>
+          <div className="mt-1.5 p-2 rounded-lg bg-card border border-border shadow-sm text-xs text-foreground leading-relaxed">
+            <span className="font-semibold text-foreground block mb-0.5">Critério de passagem</span>
             {column.criteria}
           </div>
         )}
@@ -255,14 +255,14 @@ const KanbanColumn = ({
       <div
         ref={setNodeRef}
         className={`flex-1 rounded-xl border-2 border-dashed p-2.5 flex flex-col gap-2.5 min-h-[480px] transition-colors ${
-          isOver ? 'border-emerald-400 bg-emerald-50/60 scale-[1.01]' : column.color
+          isOver ? 'border-primary/50 bg-primary/5 scale-[1.01]' : column.color
         }`}
       >
         {leads.map((lead) => (
           <LeadCard key={lead.id} lead={lead} onEdit={onEdit} />
         ))}
         {leads.length === 0 && !isOver && (
-          <div className="text-center p-6 text-xs text-slate-400">
+          <div className="text-center p-6 text-xs text-muted-foreground">
             Arraste um lead para cá
           </div>
         )}
@@ -641,7 +641,7 @@ export const CRM = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -720,15 +720,15 @@ export const CRM = () => {
 
           <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
             {activeLead ? (
-              <div className="bg-white p-3.5 rounded-xl border border-emerald-300 shadow-2xl ring-2 ring-emerald-400/40 rotate-1 w-64 pointer-events-none">
-                <p className="font-semibold text-slate-800 text-sm">{activeLead.title}</p>
+              <div className="bg-card p-3.5 rounded-xl border border-primary/40 shadow-2xl ring-2 ring-primary/20 rotate-1 w-64 pointer-events-none">
+                <p className="font-semibold text-foreground text-sm">{activeLead.title}</p>
                 {activeLead.companies?.name && (
-                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                     <Building2 className="w-3 h-3" />
                     {activeLead.companies.name}
                   </p>
                 )}
-                <p className="text-sm font-semibold text-emerald-600 mt-2 pt-2 border-t border-slate-100 flex items-center gap-1">
+                <p className="text-sm font-semibold text-primary mt-2 pt-2 border-t border-border flex items-center gap-1">
                   <DollarSign className="w-3.5 h-3.5" />
                   {Number(activeLead.estimated_value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>

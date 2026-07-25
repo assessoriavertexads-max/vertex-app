@@ -193,7 +193,7 @@ export const NewLeadModal = ({ isOpen, onClose, onSave }: NewLeadModalProps) => 
             <Button type="button" variant="outline" onClick={handleClose} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving}>
+            <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2" disabled={isSaving}>
               {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               Criar Lead
             </Button>

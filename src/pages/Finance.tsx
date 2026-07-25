@@ -250,10 +250,10 @@ function CustomChargeModal({
 
             {selectedCompany && (
               <div className="flex gap-2 text-xs">
-                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasPhone ? 'bg-green-50 border-green-200 text-green-700' : 'bg-muted border-border text-muted-foreground'}`}>
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasPhone ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted border-border text-muted-foreground'}`}>
                   <MessageSquare className="h-3 w-3" /> {hasPhone ? selectedCompany.phone : 'Sem telefone'}
                 </span>
-                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasEmail ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-muted border-border text-muted-foreground'}`}>
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border ${hasEmail ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted border-border text-muted-foreground'}`}>
                   <Mail className="h-3 w-3" /> {hasEmail ? selectedCompany.email : 'Sem e-mail'}
                 </span>
               </div>
@@ -292,7 +292,7 @@ function CustomChargeModal({
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Canais de envio</p>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-green-600" />
+                  <MessageSquare className="h-4 w-4 text-primary" />
                   <span className="text-sm">WhatsApp</span>
                   {!hasPhone && companyId && <span className="text-xs text-muted-foreground">(sem telefone)</span>}
                 </div>
@@ -759,13 +759,13 @@ export const Finance = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'paid':
-        return <span className="flex w-fit items-center gap-1 px-2.5 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full"><CheckCircle2 className="w-3 h-3" /> Pago</span>;
+        return <span className="flex w-fit items-center gap-1 px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary rounded-full"><CheckCircle2 className="w-3 h-3" /> Pago</span>;
       case 'pending':
         return <span className="flex w-fit items-center gap-1 px-2.5 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-full"><Clock className="w-3 h-3" /> Aguardando</span>;
       case 'overdue':
         return <span className="flex w-fit items-center gap-1 px-2.5 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full"><AlertCircle className="w-3 h-3" /> Vencido</span>;
       case 'cancelled':
-        return <span className="flex w-fit items-center gap-1 px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-500 rounded-full">Cancelado</span>;
+        return <span className="flex w-fit items-center gap-1 px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground rounded-full">Cancelado</span>;
       default:
         return null;
     }
@@ -778,7 +778,7 @@ export const Finance = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -798,13 +798,13 @@ export const Finance = () => {
             size="icon"
             onClick={() => setHideValues(v => !v)}
             title={hideValues ? 'Exibir valores' : 'Ocultar valores'}
-            className="text-slate-500"
+            className="text-muted-foreground"
           >
             {hideValues ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </Button>
 
           {/* Export CSV */}
-          <Button variant="outline" onClick={exportCSV} className="gap-2 text-slate-600">
+          <Button variant="outline" onClick={exportCSV} className="gap-2">
             <FileDown className="w-4 h-4" /> Exportar CSV
           </Button>
 
@@ -813,7 +813,7 @@ export const Finance = () => {
             <Button
               variant="outline"
               onClick={() => setShowImportDropdown(!showImportDropdown)}
-              className="gap-2 border-emerald-200 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+              className="gap-2 border-primary/20 text-primary hover:text-primary hover:bg-primary/10"
             >
               <Download className="w-4 h-4" /> Importar <ChevronDown className="w-3 h-3" />
             </Button>
@@ -833,7 +833,7 @@ export const Finance = () => {
                         onClick={() => setImportMode(value)}
                         className={`flex-1 flex flex-col items-center gap-1 px-2 py-2 rounded-md text-xs font-medium transition-colors border ${
                           importMode === value
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                            ? 'bg-primary/10 border-primary/30 text-primary'
                             : 'border-transparent text-muted-foreground hover:bg-accent'
                         }`}
                       >
@@ -890,13 +890,13 @@ export const Finance = () => {
           </Button>
           <Button
             onClick={() => { setModalType('income'); setIsModalOpen(true); }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
           >
             <CreditCard className="w-4 h-4" /> Nova Entrada / Cobrar
           </Button>
           <Button
             onClick={() => setIsCustomChargeOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
           >
             <Send className="w-4 h-4" /> Cobrança Personalizada
           </Button>
@@ -972,7 +972,7 @@ export const Finance = () => {
           <div className="flex gap-2 w-full sm:w-auto">
             {/* Filtro por mês */}
             <div className="relative">
-              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <select
                 className="pl-9 h-9 rounded-md border border-input bg-background pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={filterMonth}
@@ -987,7 +987,7 @@ export const Finance = () => {
 
             {/* Busca */}
             <div className="relative flex-1 sm:w-56">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar..."
                 className="pl-9 h-9"
@@ -1012,7 +1012,7 @@ export const Finance = () => {
             <tbody className="divide-y divide-border">
               {sortedTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-10 text-slate-400">
+                  <td colSpan={5} className="text-center py-10 text-muted-foreground">
                     Nenhuma transação encontrada.
                   </td>
                 </tr>
@@ -1039,7 +1039,7 @@ export const Finance = () => {
                               )}
                             </div>
                             {t.companies?.name && (
-                              <p className="text-slate-400 text-xs mt-0.5">{t.companies.name}</p>
+                              <p className="text-muted-foreground text-xs mt-0.5">{t.companies.name}</p>
                             )}
                           </>
                         );
@@ -1059,7 +1059,7 @@ export const Finance = () => {
                               </span>
                             )}
                           </div>
-                          <p className="text-slate-500 text-xs mt-0.5 line-clamp-1">{t.category}</p>
+                          <p className="text-muted-foreground text-xs mt-0.5 line-clamp-1">{t.category}</p>
                         </>
                       )}
                     </td>
@@ -1096,13 +1096,13 @@ export const Finance = () => {
                         {/* Link Asaas */}
                         {t.type === 'income' && t.status !== 'paid' && (
                           t.asaas_payment_url ? (
-                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-emerald-600 hover:bg-emerald-50 text-xs"
+                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-primary hover:bg-primary/10 text-xs"
                               onClick={() => window.open(t.asaas_payment_url!, '_blank')}>
                               <LinkIcon className="w-3 h-3" />
                               {t.subscription_cycle ? 'Ver Assinatura' : 'Ver Boleto'}
                             </Button>
                           ) : !t.asaas_payment_id && !t.asaas_subscription_id ? (
-                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-emerald-600 hover:bg-emerald-50 text-xs"
+                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-primary hover:bg-primary/10 text-xs"
                               onClick={() => generateAsaasCharge.mutate(t)}
                               disabled={generatingChargeId === t.id}>
                               {generatingChargeId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <LinkIcon className="w-3 h-3" />}
@@ -1113,7 +1113,7 @@ export const Finance = () => {
 
                         {/* Enviar via WhatsApp — disponível para qualquer entrada pendente com telefone */}
                         {t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && t.companies?.phone && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:bg-green-50"
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10"
                             title="Enviar cobrança via WhatsApp"
                             onClick={() => sendPaymentWhatsApp(t)}
                             disabled={sendingWhatsAppId === t.id}>
@@ -1124,7 +1124,7 @@ export const Finance = () => {
                         )}
 
                         {/* Editar */}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700"
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           onClick={() => setEditingTransaction(t)}>
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
@@ -1137,13 +1137,13 @@ export const Finance = () => {
                               disabled={deleteTransaction.isPending}>
                               {deleteTransaction.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirmar'}
                             </Button>
-                            <Button variant="ghost" size="sm" className="h-8 text-xs text-slate-500"
+                            <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground"
                               onClick={() => setDeletingId(null)}>
                               Cancelar
                             </Button>
                           </div>
                         ) : (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600"
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             onClick={() => setDeletingId(t.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>

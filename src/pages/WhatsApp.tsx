@@ -58,13 +58,13 @@ function PinLock({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-6">
-      <div className="bg-white rounded-2xl border shadow-sm p-8 w-80 flex flex-col items-center gap-5">
-        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-          <Lock className="w-8 h-8 text-green-600" />
+      <div className="bg-card rounded-2xl border shadow-sm p-8 w-80 flex flex-col items-center gap-5">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+          <Lock className="w-8 h-8 text-primary" />
         </div>
         <div className="text-center">
-          <h2 className="text-lg font-semibold text-slate-800">WhatsApp Protegido</h2>
-          <p className="text-sm text-slate-500 mt-1">Digite o PIN para acessar</p>
+          <h2 className="text-lg font-semibold text-foreground">WhatsApp Protegido</h2>
+          <p className="text-sm text-muted-foreground mt-1">Digite o PIN para acessar</p>
         </div>
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3">
           <div className="relative">
@@ -80,13 +80,13 @@ function PinLock({ onUnlock }: { onUnlock: () => void }) {
             <button
               type="button"
               onClick={() => setShowPin(!showPin)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             >
               {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
           {error && <p className="text-xs text-red-500 text-center">PIN incorreto</p>}
-          <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white w-full" disabled={loading}>
+          <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground w-full" disabled={loading}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Entrar'}
           </Button>
         </form>
@@ -199,24 +199,24 @@ export default function WhatsApp() {
   if (!unlocked) return <PinLock onUnlock={() => setUnlocked(true)} />;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] bg-white rounded-xl border shadow-sm overflow-hidden">
+    <div className="flex h-[calc(100vh-8rem)] bg-card rounded-xl border shadow-sm overflow-hidden">
 
       {/* Sidebar de chats */}
       <div className="w-80 flex flex-col border-r shrink-0">
         {/* Header */}
-        <div className="p-4 border-b bg-slate-50">
+        <div className="p-4 border-b bg-muted/30">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-green-600" />
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-primary" />
               WhatsApp
             </h2>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={loadChats} disabled={loadingChats}>
-              <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingChats ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 text-muted-foreground ${loadingChats ? 'animate-spin' : ''}`} />
             </Button>
           </div>
 
           <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Buscar conversa..."
               className="pl-9 h-9 text-sm"
@@ -225,13 +225,13 @@ export default function WhatsApp() {
             />
           </div>
 
-          <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
+          <div className="flex gap-1 p-1 bg-muted rounded-lg">
             {([['all', 'Todos'], ['contacts', 'Contatos'], ['groups', 'Grupos']] as const).map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setFilterGroup(val)}
                 className={`flex-1 py-1 text-xs font-medium rounded-md transition-colors ${
-                  filterGroup === val ? 'bg-white shadow text-slate-800' : 'text-slate-500'
+                  filterGroup === val ? 'bg-card shadow text-foreground' : 'text-muted-foreground'
                 }`}
               >
                 {label}
@@ -244,18 +244,18 @@ export default function WhatsApp() {
         <div className="flex-1 overflow-y-auto">
           {loadingChats ? (
             <div className="flex flex-col items-center justify-center h-32 gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-              <p className="text-xs text-slate-400">Carregando conversas...</p>
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">Carregando conversas...</p>
             </div>
           ) : chatsError ? (
             <div className="flex flex-col items-center justify-center h-40 gap-3 p-4 text-center">
-              <WifiOff className="w-8 h-8 text-slate-300" />
-              <p className="text-sm text-slate-500">Não foi possível carregar as conversas</p>
-              <p className="text-xs text-slate-400">{chatsError}</p>
+              <WifiOff className="w-8 h-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Não foi possível carregar as conversas</p>
+              <p className="text-xs text-muted-foreground/70">{chatsError}</p>
               <Button variant="outline" size="sm" onClick={loadChats}>Tentar novamente</Button>
             </div>
           ) : filteredChats.length === 0 ? (
-            <div className="text-center py-10 text-slate-400 text-sm">
+            <div className="text-center py-10 text-muted-foreground text-sm">
               {chats.length === 0 ? 'Nenhuma conversa disponível' : 'Nenhuma conversa encontrada'}
             </div>
           ) : (
@@ -263,12 +263,12 @@ export default function WhatsApp() {
               <button
                 key={chat.id}
                 onClick={() => setActiveChat(chat)}
-                className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 text-left ${
-                  activeChat?.id === chat.id ? 'bg-green-50 border-l-2 border-l-green-500' : ''
+                className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors border-b border-border/30 text-left ${
+                  activeChat?.id === chat.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''
                 }`}
               >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-white font-semibold text-sm ${
-                  chat.isGroup ? 'bg-emerald-500' : 'bg-green-500'
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-primary-foreground font-semibold text-sm ${
+                  chat.isGroup ? 'bg-primary/70' : 'bg-primary'
                 }`}>
                   {chat.isGroup
                     ? <Users className="w-5 h-5" />
@@ -278,14 +278,14 @@ export default function WhatsApp() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center">
-                    <p className="text-sm font-medium text-slate-800 truncate">{chat.name}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{chat.name}</p>
                     {chat.unreadCount ? (
-                      <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-500 text-white rounded-full shrink-0">
+                      <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full shrink-0">
                         {chat.unreadCount}
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-xs text-slate-400 truncate mt-0.5">
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
                     {chat.isGroup ? 'Grupo' : chat.remoteJid.split('@')[0]}
                   </p>
                 </div>
@@ -299,29 +299,29 @@ export default function WhatsApp() {
       {activeChat ? (
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header do chat */}
-          <div className="px-5 py-3 border-b bg-slate-50 flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm ${
-              activeChat.isGroup ? 'bg-emerald-500' : 'bg-green-500'
+          <div className="px-5 py-3 border-b bg-muted/30 flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-primary-foreground font-semibold text-sm ${
+              activeChat.isGroup ? 'bg-primary/70' : 'bg-primary'
             }`}>
               {activeChat.isGroup ? <Users className="w-4 h-4" /> : activeChat.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="font-semibold text-slate-800 text-sm">{activeChat.name}</p>
-              <p className="text-xs text-slate-400">
+              <p className="font-semibold text-foreground text-sm">{activeChat.name}</p>
+              <p className="text-xs text-muted-foreground">
                 {activeChat.isGroup ? 'Grupo' : activeChat.remoteJid.split('@')[0]}
               </p>
             </div>
           </div>
 
           {/* Mensagens */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/10">
             {loadingMessages ? (
               <div className="flex flex-col items-center justify-center h-full gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-                <p className="text-xs text-slate-400">Carregando mensagens...</p>
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Carregando mensagens...</p>
               </div>
             ) : messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                 Nenhuma mensagem encontrada
               </div>
             ) : (
@@ -333,14 +333,14 @@ export default function WhatsApp() {
                   <div key={msg.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm shadow-sm ${
                       fromMe
-                        ? 'bg-green-500 text-white rounded-br-sm'
-                        : 'bg-white text-slate-800 rounded-bl-sm border'
+                        ? 'bg-primary text-primary-foreground rounded-br-sm'
+                        : 'bg-card text-foreground rounded-bl-sm border border-border'
                     }`}>
                       {!fromMe && activeChat.isGroup && msg.pushName && (
-                        <p className="text-xs font-semibold text-emerald-600 mb-1">{msg.pushName}</p>
+                        <p className="text-xs font-semibold text-primary mb-1">{msg.pushName}</p>
                       )}
                       <p className="whitespace-pre-wrap break-words">{text}</p>
-                      <p className={`text-xs mt-1 text-right ${fromMe ? 'text-green-100' : 'text-slate-400'}`}>
+                      <p className={`text-xs mt-1 text-right ${fromMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                         {formatTimestamp(msg.messageTimestamp)}
                       </p>
                     </div>
@@ -352,7 +352,7 @@ export default function WhatsApp() {
           </div>
 
           {/* Input de envio */}
-          <div className="px-4 py-3 border-t bg-white flex gap-2 items-center">
+          <div className="px-4 py-3 border-t bg-card flex gap-2 items-center">
             <Input
               placeholder="Digite uma mensagem..."
               className="flex-1 h-10"
@@ -363,16 +363,16 @@ export default function WhatsApp() {
             <Button
               onClick={handleSend}
               disabled={!messageInput.trim() || sending}
-              className="h-10 w-10 p-0 bg-green-500 hover:bg-green-600 text-white"
+              className="h-10 w-10 p-0 bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-            <MessageSquare className="w-8 h-8 text-green-500" />
+        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <MessageSquare className="w-8 h-8 text-primary" />
           </div>
           <p className="text-sm font-medium">Selecione uma conversa</p>
           <p className="text-xs">Escolha um chat na lista ao lado</p>

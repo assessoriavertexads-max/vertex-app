@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Briefcase, DollarSign,
   CheckSquare, BookOpen, BrainCircuit, Menu, LogOut, Settings as SettingsIcon,
   MessageCircle, X, Zap, BarChart2, ClipboardList, Search,
-  FolderKanban, CalendarDays, Plug2,
+  FolderKanban, CalendarDays, Plug2, Target,
 } from 'lucide-react';
 import { GlobalSearch } from '@/components/GlobalSearch';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,6 +27,7 @@ const menuItems = [
   { icon: Users,           label: 'CRM Comercial',         path: '/crm'          },
   { icon: DollarSign,      label: 'Financeiro',            path: '/finance'      },
   { icon: BarChart2,       label: 'Ads Manager',           path: '/ads-manager'  },
+  { icon: Target,          label: 'Meta Diagnóstico',      path: '/meta-diagnostic' },
   { icon: ClipboardList,   label: 'Formulários',           path: '/forms'        },
   { icon: MessageCircle,   label: 'WhatsApp',              path: '/whatsapp'     },
   { icon: BrainCircuit,    label: 'IA Insights',           path: '/ai-insights'  },

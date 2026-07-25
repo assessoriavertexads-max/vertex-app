@@ -793,7 +793,7 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                       {company.meta_ad_account_id || 'Não conectado'}
                     </p>
                   </div>
-                  {company.meta_ad_account_id && <span className="ml-auto w-2 h-2 rounded-full bg-green-500 shrink-0" />}
+                  {company.meta_ad_account_id && <span className="ml-auto w-2 h-2 rounded-full bg-primary shrink-0" />}
                 </div>
                 <div className="flex items-center gap-3 p-3 rounded-xl border border-border">
                   <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
@@ -805,7 +805,7 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                       {company.google_ad_account_id || 'Não conectado'}
                     </p>
                   </div>
-                  {company.google_ad_account_id && <span className="ml-auto w-2 h-2 rounded-full bg-green-500 shrink-0" />}
+                  {company.google_ad_account_id && <span className="ml-auto w-2 h-2 rounded-full bg-primary shrink-0" />}
                 </div>
               </div>
             </div>
@@ -1000,7 +1000,7 @@ ${erpParameter ? `<div class="section"><div class="section-title">ERP</div>
                       <button
                         key={v}
                         onClick={() => setMetaView(v)}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${metaView === v ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${metaView === v ? 'bg-card shadow text-foreground' : 'text-muted-foreground'}`}
                       >
                         {v === 'campaigns' ? 'Campanhas' : 'Anúncios'}
                       </button>

@@ -38,10 +38,10 @@ const STATUS_OPTIONS = [
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'draft': return 'bg-gray-500/20 text-gray-500';
-    case 'active': return 'bg-green-500/20 text-green-600';
+    case 'active': return 'bg-primary/15 text-primary';
     case 'expired': return 'bg-red-500/20 text-red-600';
     case 'cancelled': return 'bg-orange-500/20 text-orange-600';
-    default: return 'bg-emerald-500/20 text-emerald-600';
+    default: return 'bg-primary/15 text-primary';
   }
 };
 

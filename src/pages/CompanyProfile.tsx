@@ -317,7 +317,7 @@ export default function CompanyProfile() {
                 <p className="text-xs text-muted-foreground">Facebook & Instagram</p>
               </div>
               {company.meta_ad_account_id && (
-                <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-600 rounded-full">Conectado</span>
+                <span className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-full">Conectado</span>
               )}
             </div>
             <InlineField
@@ -343,7 +343,7 @@ export default function CompanyProfile() {
                 <p className="text-xs text-muted-foreground">Google & YouTube</p>
               </div>
               {company.google_ad_account_id && (
-                <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-600 rounded-full">Conectado</span>
+                <span className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-full">Conectado</span>
               )}
             </div>
             <InlineField

@@ -40,6 +40,7 @@ const AIInsights = lazy(() => import("./pages/AIInsights"));
 const Settings = lazy(() => import("./pages/Settings"));
 const WhatsApp = lazy(() => import("./pages/WhatsApp"));
 const AdsManager = lazy(() => import("./pages/AdsManager"));
+const MetaDiagnostic = lazy(() => import("./pages/MetaDiagnostic"));
 const Forms = lazy(() => import("./pages/Forms"));
 const PublicForm = lazy(() => import("./pages/PublicForm"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -120,6 +121,7 @@ function AppWithSplash() {
                       <Route path="/companies/:companyId/profile" element={<CompanyProfile />} />
                       <Route path="/companies/:companyId/contracts" element={<CompanyContracts />} />
                       <Route path="/ads-manager" element={<AdsManager />} />
+                      <Route path="/meta-diagnostic" element={<MetaDiagnostic />} />
                       <Route path="/forms" element={<Forms />} />
                       <Route path="/whatsapp" element={<WhatsApp />} />
                       <Route path="/ai-insights" element={<AIInsights />} />
