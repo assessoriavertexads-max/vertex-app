@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, Zap, Trash2, Loader2, MessageSquare, ClipboardList, Mail, Share2, Pencil,
-  Play, AlertCircle, CheckCircle2,
+  Play, AlertCircle, CheckCircle2, User, Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,6 +74,13 @@ const ACTION_TYPES: { value: string; label: string; icon: React.ElementType; soo
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+const FINANCIAL_TRIGGERS = new Set([
+  'transaction_paid',
+  'new_transaction_created',
+  'transaction_due_soon',
+  'transaction_due_today',
+]);
+
 interface ActionData {
   // create_task
   task_name?:        string;
@@ -82,6 +89,7 @@ interface ActionData {
   due_in_days?:      number;
   // send_whatsapp
   message_template?: string;
+  whatsapp_target?:  'company' | 'self';
   // send_email
   email_to?:   string;
   email_body?: string;
@@ -160,9 +168,10 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
   const [taskPriority, setTaskPriority] = useState(editingRule?.action_data?.task_priority ?? 'normal');
   const [taskDesc,     setTaskDesc]     = useState(editingRule?.action_data?.task_description ?? '');
   const [dueInDays,    setDueInDays]    = useState(editingRule?.action_data?.due_in_days ?? 3);
-  const [msgTemplate,  setMsgTemplate]  = useState(editingRule?.action_data?.message_template ?? '');
-  const [emailSubject, setEmailSubject] = useState(editingRule?.email_subject ?? '');
-  const [emailBody,    setEmailBody]    = useState(editingRule?.action_data?.email_body ?? '');
+  const [msgTemplate,     setMsgTemplate]     = useState(editingRule?.action_data?.message_template ?? '');
+  const [whatsappTarget,  setWhatsappTarget]  = useState<'company' | 'self'>(editingRule?.action_data?.whatsapp_target ?? 'self');
+  const [emailSubject,    setEmailSubject]    = useState(editingRule?.email_subject ?? '');
+  const [emailBody,       setEmailBody]       = useState(editingRule?.action_data?.email_body ?? '');
 
   // Preenche o formulário quando uma regra for passada para edição
   useEffect(() => {
@@ -176,6 +185,7 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
     setTaskDesc(editingRule.action_data?.task_description ?? '');
     setDueInDays(editingRule.action_data?.due_in_days ?? 3);
     setMsgTemplate(editingRule.action_data?.message_template ?? '');
+    setWhatsappTarget(editingRule.action_data?.whatsapp_target ?? 'self');
     setEmailSubject(editingRule.email_subject ?? '');
     setEmailBody(editingRule.action_data?.email_body ?? '');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,7 +194,7 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
   const reset = () => {
     setName(''); setTriggerEvent('lead_stage_change'); setTriggerValue('negotiation');
     setActionType('create_task'); setTaskName(''); setTaskPriority('normal');
-    setTaskDesc(''); setDueInDays(3); setMsgTemplate('');
+    setTaskDesc(''); setDueInDays(3); setMsgTemplate(''); setWhatsappTarget('self');
     setEmailSubject(''); setEmailBody('');
   };
 
@@ -213,7 +223,7 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
       actionType === 'create_task'
         ? { task_name: taskName.trim(), task_priority: taskPriority, task_description: taskDesc.trim() || undefined, due_in_days: dueInDays }
         : actionType === 'send_whatsapp'
-        ? { message_template: msgTemplate.trim() }
+        ? { message_template: msgTemplate.trim(), whatsapp_target: whatsappTarget }
         : actionType === 'send_email'
         ? { email_body: emailBody.trim() }
         : {};
@@ -269,6 +279,8 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
                   else if (ev === 'company_status_change') setTriggerValue('ativo');
                   else if (ev === 'task_due_soon' || ev === 'transaction_due_soon') setTriggerValue('5');
                   else setTriggerValue('any');
+                  // Default whatsapp target: financial triggers → self, others → company
+                  setWhatsappTarget(FINANCIAL_TRIGGERS.has(ev) ? 'self' : 'company');
                 }}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -417,18 +429,60 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
 
             {/* send_whatsapp fields */}
             {actionType === 'send_whatsapp' && (
-              <div className="grid gap-2">
-                <Label>Mensagem *</Label>
-                <Textarea
-                  value={msgTemplate}
-                  onChange={(e) => setMsgTemplate(e.target.value)}
-                  placeholder="Ex: Olá! A cobrança {entity_name} vence em {due_date}. Entre em contato."
-                  rows={4}
-                />
-                <VarHints event={triggerEvent} />
-                <p className="text-xs text-muted-foreground">
-                  Enviado para o WhatsApp da empresa vinculada.
-                </p>
+              <div className="grid gap-3">
+                {/* Destino — só aparece para gatilhos financeiros */}
+                {FINANCIAL_TRIGGERS.has(triggerEvent) && (
+                  <div className="grid gap-2">
+                    <Label>Enviar para</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setWhatsappTarget('self')}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          whatsappTarget === 'self'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-input bg-background text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        <User className="h-4 w-4 shrink-0" />
+                        Meu WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWhatsappTarget('company')}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          whatsappTarget === 'company'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-input bg-background text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        <Building2 className="h-4 w-4 shrink-0" />
+                        WhatsApp da empresa
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {whatsappTarget === 'self'
+                        ? 'Notificação enviada para o seu próprio número (configurado no perfil da agência).'
+                        : 'Mensagem enviada para o WhatsApp da empresa vinculada à cobrança.'}
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid gap-2">
+                  <Label>Mensagem *</Label>
+                  <Textarea
+                    value={msgTemplate}
+                    onChange={(e) => setMsgTemplate(e.target.value)}
+                    placeholder="Ex: Olá! A cobrança {entity_name} vence em {due_date}. Entre em contato."
+                    rows={4}
+                  />
+                  <VarHints event={triggerEvent} />
+                  {!FINANCIAL_TRIGGERS.has(triggerEvent) && (
+                    <p className="text-xs text-muted-foreground">
+                      Enviado para o WhatsApp da empresa vinculada.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -690,7 +744,7 @@ export default function Automation() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
                   {a.value === 'create_task'   && 'Cria uma tarefa vinculada ao lead e à empresa.'}
-                  {a.value === 'send_whatsapp' && 'Envia mensagem pelo WhatsApp da empresa vinculada.'}
+                  {a.value === 'send_whatsapp' && 'Envia mensagem via WhatsApp. Para cobranças: seu próprio número ou o da empresa.'}
                   {a.value === 'send_email'    && 'Envia e-mail para o endereço cadastrado na empresa (via Resend / SendGrid).'}
                   {a.value === 'post_social'   && 'Publicação automática no Instagram, LinkedIn ou X.'}
                 </p>

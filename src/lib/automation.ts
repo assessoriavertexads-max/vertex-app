@@ -99,14 +99,31 @@ export async function runAutomations(
       executed++;
     }
 
-    if (rule.action_type === 'send_whatsapp' && phone && ad.message_template) {
-      const message = replaceVars(ad.message_template);
-      const raw = phone.replace(/\D/g, '');
-      const formattedPhone = raw.startsWith('55') ? raw : `55${raw}`;
-      await supabase.functions.invoke('evolution-proxy', {
-        body: { action: 'sendMessage', phone: formattedPhone, message },
-      });
-      executed++;
+    if (rule.action_type === 'send_whatsapp' && ad.message_template) {
+      const target = (ad as { whatsapp_target?: string }).whatsapp_target ?? 'company';
+      let targetPhone = phone;
+
+      if (target === 'self') {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('whatsapp_phone')
+            .eq('id', user.id)
+            .single();
+          targetPhone = (profile as { whatsapp_phone?: string | null } | null)?.whatsapp_phone ?? null;
+        }
+      }
+
+      if (targetPhone) {
+        const message = replaceVars(ad.message_template);
+        const raw = targetPhone.replace(/\D/g, '');
+        const formattedPhone = raw.startsWith('55') ? raw : `55${raw}`;
+        await supabase.functions.invoke('evolution-proxy', {
+          body: { action: 'sendMessage', phone: formattedPhone, message },
+        });
+        executed++;
+      }
     }
   }
 

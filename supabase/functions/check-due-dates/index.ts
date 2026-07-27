@@ -104,6 +104,7 @@ serve(async (req) => {
         .from("financial_transactions")
         .select("id, category, company_id, amount, asaas_payment_url")
         .eq("due_date", targetDate)
+        .eq("type", "income")
         .neq("status", "paid");
       items = ((data ?? []) as Array<{ id: string; category: string; company_id: string | null; amount: number | null; asaas_payment_url: string | null }>)
         .map((t) => ({ id: t.id, name: t.category, company_id: t.company_id, amount: t.amount, paymentLink: t.asaas_payment_url }));
@@ -155,7 +156,8 @@ serve(async (req) => {
           task_description?: string;
           due_in_days?:      number;
           message_template?: string;
-          email_to?:         string;   // "company" | "responsible" | literal email
+          whatsapp_target?:  "company" | "self";
+          email_to?:         string;
           email_body?:       string;
         };
 
@@ -177,9 +179,22 @@ serve(async (req) => {
           totalExecuted++;
         }
 
-        if (rule.action_type === "send_whatsapp" && companyPhone && ad.message_template) {
-          await sendWhatsApp(companyPhone, replaceVars(ad.message_template));
-          totalExecuted++;
+        if (rule.action_type === "send_whatsapp" && ad.message_template) {
+          let targetPhone: string | null = companyPhone;
+
+          if (ad.whatsapp_target === "self" && rule.auth_user_id) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("whatsapp_phone")
+              .eq("id", rule.auth_user_id)
+              .single();
+            targetPhone = profile?.whatsapp_phone ?? null;
+          }
+
+          if (targetPhone) {
+            await sendWhatsApp(targetPhone, replaceVars(ad.message_template));
+            totalExecuted++;
+          }
         }
 
         if (rule.action_type === "send_email" && ad.email_body) {

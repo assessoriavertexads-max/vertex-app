@@ -501,13 +501,15 @@ export const Finance = () => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
       setIsModalOpen(false);
       toast.success('Transação registrada com sucesso!');
-      runAutomations('new_transaction_created', 'any', {
-        entityTitle: data.category || 'Transação',
-        companyId: data.company_id || null,
-        amount: data.amount ?? null,
-        dueDate: data.due_date ?? null,
-        paymentLink: null,
-      }).catch(() => {});
+      if (data.type === 'income') {
+        runAutomations('new_transaction_created', 'any', {
+          entityTitle: data.category || 'Transação',
+          companyId: data.company_id || null,
+          amount: data.amount ?? null,
+          dueDate: data.due_date ?? null,
+          paymentLink: null,
+        }).catch(() => {});
+      }
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   });
