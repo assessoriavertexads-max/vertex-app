@@ -1,14 +1,21 @@
 import { supabase } from './supabase';
 
+const FINANCIAL_TRIGGERS = new Set([
+  'transaction_paid',
+  'new_transaction_created',
+  'transaction_due_soon',
+  'transaction_due_today',
+]);
+
 export interface AutomationContext {
-  entityTitle?: string;      // task name, company name, lead title, transaction category
+  entityTitle?: string;
   companyId?: string | null;
   companyName?: string | null;
   companyPhone?: string | null;
-  // Campos de cobrança
   amount?: number | null;
   dueDate?: string | null;
   paymentLink?: string | null;
+  transactionType?: 'income' | 'expense';
 }
 
 export async function runAutomations(
@@ -80,7 +87,19 @@ export async function runAutomations(
       task_description?: string;
       due_in_days?: number;
       message_template?: string;
+      whatsapp_target?: 'company' | 'self' | 'group';
+      group_jid?: string;
     };
+
+    // Para gatilhos financeiros, garantir que a regra só rode para o tipo correto.
+    // Regras com whatsapp_target='group' são exclusivas para despesas (saídas).
+    // Qualquer outro target é exclusivo para receitas (entradas).
+    if (FINANCIAL_TRIGGERS.has(rule.trigger_event) && context.transactionType) {
+      const target = ad.whatsapp_target ?? 'company';
+      const txType = context.transactionType;
+      if (target === 'group' && txType !== 'expense') continue;
+      if (target !== 'group' && txType !== 'income') continue;
+    }
 
     if (rule.action_type === 'create_task' && ad.task_name) {
       const taskName = replaceVars(ad.task_name);
@@ -100,10 +119,14 @@ export async function runAutomations(
     }
 
     if (rule.action_type === 'send_whatsapp' && ad.message_template) {
-      const target = (ad as { whatsapp_target?: string }).whatsapp_target ?? 'company';
-      let targetPhone = phone;
+      const target = ad.whatsapp_target ?? 'company';
+      const message = replaceVars(ad.message_template);
+      let destination: string | null = null;
 
-      if (target === 'self') {
+      if (target === 'group') {
+        // Grupo interno — usa o JID configurado na regra. Nunca vai para cliente.
+        destination = ad.group_jid?.trim() ?? null;
+      } else if (target === 'self') {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: profile } = await supabase
@@ -111,16 +134,23 @@ export async function runAutomations(
             .select('whatsapp_phone')
             .eq('id', user.id)
             .single();
-          targetPhone = (profile as { whatsapp_phone?: string | null } | null)?.whatsapp_phone ?? null;
+          const selfPhone = (profile as { whatsapp_phone?: string | null } | null)?.whatsapp_phone ?? null;
+          if (selfPhone) {
+            const raw = selfPhone.replace(/\D/g, '');
+            destination = raw.startsWith('55') ? raw : `55${raw}`;
+          }
+        }
+      } else {
+        // 'company' — número do cliente
+        if (phone) {
+          const raw = phone.replace(/\D/g, '');
+          destination = raw.startsWith('55') ? raw : `55${raw}`;
         }
       }
 
-      if (targetPhone) {
-        const message = replaceVars(ad.message_template);
-        const raw = targetPhone.replace(/\D/g, '');
-        const formattedPhone = raw.startsWith('55') ? raw : `55${raw}`;
+      if (destination) {
         await supabase.functions.invoke('evolution-proxy', {
-          body: { action: 'sendMessage', phone: formattedPhone, message },
+          body: { action: 'sendMessage', payload: { number: destination, text: message } },
         });
         executed++;
       }

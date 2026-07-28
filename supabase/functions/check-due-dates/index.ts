@@ -31,6 +31,21 @@ async function sendWhatsApp(phone: string, message: string): Promise<void> {
   }
 }
 
+async function sendWhatsAppGroup(groupJid: string, message: string): Promise<void> {
+  if (!EVOLUTION_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE) {
+    throw new Error("Evolution API não configurada (EVOLUTION_URL / EVOLUTION_API_KEY / EVOLUTION_INSTANCE)");
+  }
+  const res = await fetch(`${EVOLUTION_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY },
+    body: JSON.stringify({ number: groupJid, text: message }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Evolution ${res.status}: ${body.slice(0, 200)}`);
+  }
+}
+
 async function sendEmail(
   supabase: ReturnType<typeof createClient>,
   to: string,
@@ -89,7 +104,7 @@ serve(async (req) => {
         : 0;
     const targetDate = daysAhead > 0 ? dateAddDays(today, daysAhead) : today;
 
-    type ItemRow = { id: string; name: string; company_id: string | null; amount?: number | null; paymentLink?: string | null };
+    type ItemRow = { id: string; name: string; company_id: string | null; amount?: number | null; paymentLink?: string | null; txType?: string };
     let items: ItemRow[] = [];
 
     if (rule.trigger_event === "task_due_soon" || rule.trigger_event === "task_due_today") {
@@ -100,17 +115,29 @@ serve(async (req) => {
         .neq("status", "concluido");
       items = (data ?? []) as ItemRow[];
     } else {
+      // Busca income E expense — o filtro por tipo é feito por regra abaixo.
       const { data } = await supabase
         .from("financial_transactions")
-        .select("id, category, company_id, amount, asaas_payment_url")
+        .select("id, category, company_id, amount, asaas_payment_url, type")
         .eq("due_date", targetDate)
-        .eq("type", "income")
         .neq("status", "paid");
-      items = ((data ?? []) as Array<{ id: string; category: string; company_id: string | null; amount: number | null; asaas_payment_url: string | null }>)
-        .map((t) => ({ id: t.id, name: t.category, company_id: t.company_id, amount: t.amount, paymentLink: t.asaas_payment_url }));
+      items = ((data ?? []) as Array<{ id: string; category: string; company_id: string | null; amount: number | null; asaas_payment_url: string | null; type: string }>)
+        .map((t) => ({ id: t.id, name: t.category, company_id: t.company_id, amount: t.amount, paymentLink: t.asaas_payment_url, txType: t.type }));
     }
 
     for (const item of items) {
+      // Filtra transações pelo tipo correto para cada regra:
+      // regras com target='group' processam somente despesas; outras, somente receitas.
+      if (
+        (rule.trigger_event === "transaction_due_soon" || rule.trigger_event === "transaction_due_today") &&
+        item.txType !== undefined
+      ) {
+        const adTarget = (rule.action_data as { whatsapp_target?: string })?.whatsapp_target ?? "company";
+        const isGroupRule = adTarget === "group";
+        if (isGroupRule && item.txType !== "expense") continue;
+        if (!isGroupRule && item.txType !== "income") continue;
+      }
+
       // Each item is isolated — a failure here does NOT abort remaining items
       try {
         let companyPhone: string | null = null;
@@ -156,7 +183,8 @@ serve(async (req) => {
           task_description?: string;
           due_in_days?:      number;
           message_template?: string;
-          whatsapp_target?:  "company" | "self";
+          whatsapp_target?:  "company" | "self" | "group";
+          group_jid?:        string;
           email_to?:         string;
           email_body?:       string;
         };
@@ -180,19 +208,39 @@ serve(async (req) => {
         }
 
         if (rule.action_type === "send_whatsapp" && ad.message_template) {
-          let targetPhone: string | null = companyPhone;
+          const wTarget = ad.whatsapp_target ?? "company";
+          const message = replaceVars(ad.message_template);
+          let destination: string | null = null;
 
-          if (ad.whatsapp_target === "self" && rule.auth_user_id) {
+          if (wTarget === "group") {
+            // Grupo interno — nunca vai para o cliente.
+            destination = ad.group_jid?.trim() ?? null;
+          } else if (wTarget === "self" && rule.auth_user_id) {
             const { data: profile } = await supabase
               .from("profiles")
               .select("whatsapp_phone")
               .eq("id", rule.auth_user_id)
               .single();
-            targetPhone = profile?.whatsapp_phone ?? null;
+            const selfPhone = (profile as { whatsapp_phone?: string | null } | null)?.whatsapp_phone ?? null;
+            if (selfPhone) {
+              const raw = selfPhone.replace(/\D/g, "");
+              destination = raw.startsWith("55") ? raw : `55${raw}`;
+            }
+          } else {
+            // 'company' — número da empresa cliente
+            if (companyPhone) {
+              const raw = companyPhone.replace(/\D/g, "");
+              destination = raw.startsWith("55") ? raw : `55${raw}`;
+            }
           }
 
-          if (targetPhone) {
-            await sendWhatsApp(targetPhone, replaceVars(ad.message_template));
+          if (destination) {
+            // Para grupos (JID), envia direto sem formatar como número
+            if (wTarget === "group") {
+              await sendWhatsAppGroup(destination, message);
+            } else {
+              await sendWhatsApp(destination, message);
+            }
             totalExecuted++;
           }
         }

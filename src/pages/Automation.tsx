@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, Zap, Trash2, Loader2, MessageSquare, ClipboardList, Mail, Share2, Pencil,
-  Play, AlertCircle, CheckCircle2, User, Building2,
+  Play, AlertCircle, CheckCircle2, User, Building2, Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,7 +89,8 @@ interface ActionData {
   due_in_days?:      number;
   // send_whatsapp
   message_template?: string;
-  whatsapp_target?:  'company' | 'self';
+  whatsapp_target?:  'company' | 'self' | 'group';
+  group_jid?:        string;
   // send_email
   email_to?:   string;
   email_body?: string;
@@ -169,7 +170,8 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
   const [taskDesc,     setTaskDesc]     = useState(editingRule?.action_data?.task_description ?? '');
   const [dueInDays,    setDueInDays]    = useState(editingRule?.action_data?.due_in_days ?? 3);
   const [msgTemplate,     setMsgTemplate]     = useState(editingRule?.action_data?.message_template ?? '');
-  const [whatsappTarget,  setWhatsappTarget]  = useState<'company' | 'self'>(editingRule?.action_data?.whatsapp_target ?? 'self');
+  const [whatsappTarget,  setWhatsappTarget]  = useState<'company' | 'self' | 'group'>(editingRule?.action_data?.whatsapp_target ?? 'self');
+  const [groupJid,        setGroupJid]        = useState(editingRule?.action_data?.group_jid ?? '');
   const [emailSubject,    setEmailSubject]    = useState(editingRule?.email_subject ?? '');
   const [emailBody,       setEmailBody]       = useState(editingRule?.action_data?.email_body ?? '');
 
@@ -186,6 +188,7 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
     setDueInDays(editingRule.action_data?.due_in_days ?? 3);
     setMsgTemplate(editingRule.action_data?.message_template ?? '');
     setWhatsappTarget(editingRule.action_data?.whatsapp_target ?? 'self');
+    setGroupJid(editingRule.action_data?.group_jid ?? '');
     setEmailSubject(editingRule.email_subject ?? '');
     setEmailBody(editingRule.action_data?.email_body ?? '');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,7 +198,7 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
     setName(''); setTriggerEvent('lead_stage_change'); setTriggerValue('negotiation');
     setActionType('create_task'); setTaskName(''); setTaskPriority('normal');
     setTaskDesc(''); setDueInDays(3); setMsgTemplate(''); setWhatsappTarget('self');
-    setEmailSubject(''); setEmailBody('');
+    setGroupJid(''); setEmailSubject(''); setEmailBody('');
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -223,7 +226,7 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
       actionType === 'create_task'
         ? { task_name: taskName.trim(), task_priority: taskPriority, task_description: taskDesc.trim() || undefined, due_in_days: dueInDays }
         : actionType === 'send_whatsapp'
-        ? { message_template: msgTemplate.trim(), whatsapp_target: whatsappTarget }
+        ? { message_template: msgTemplate.trim(), whatsapp_target: whatsappTarget, ...(whatsappTarget === 'group' && groupJid.trim() ? { group_jid: groupJid.trim() } : {}) }
         : actionType === 'send_email'
         ? { email_body: emailBody.trim() }
         : {};
@@ -434,7 +437,7 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
                 {FINANCIAL_TRIGGERS.has(triggerEvent) && (
                   <div className="grid gap-2">
                     <Label>Enviar para</Label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
                         onClick={() => setWhatsappTarget('self')}
@@ -457,14 +460,42 @@ function RuleModal({ isOpen, onClose, onSave, editingRule }: {
                         }`}
                       >
                         <Building2 className="h-4 w-4 shrink-0" />
-                        WhatsApp da empresa
+                        Empresa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWhatsappTarget('group')}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          whatsappTarget === 'group'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-input bg-background text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        <Users className="h-4 w-4 shrink-0" />
+                        Grupo interno
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {whatsappTarget === 'self'
                         ? 'Notificação enviada para o seu próprio número (configurado no perfil da agência).'
+                        : whatsappTarget === 'group'
+                        ? 'Enviado para o grupo interno da agência. Nunca vai para o cliente.'
                         : 'Mensagem enviada para o WhatsApp da empresa vinculada à cobrança.'}
                     </p>
+                    {whatsappTarget === 'group' && (
+                      <div className="grid gap-1.5 mt-1">
+                        <Label className="text-xs">JID do grupo <span className="text-muted-foreground font-normal">(ex: 120363xxx@g.us)</span></Label>
+                        <Input
+                          value={groupJid}
+                          onChange={(e) => setGroupJid(e.target.value)}
+                          placeholder="120363xxxxxxxxxx@g.us"
+                          className="font-mono text-xs"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Para encontrar o JID, envie uma mensagem no grupo e copie o identificador nos logs da Evolution API.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
