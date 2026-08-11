@@ -116,11 +116,14 @@ serve(async (req) => {
       items = (data ?? []) as ItemRow[];
     } else {
       // Busca income E expense — o filtro por tipo é feito por regra abaixo.
+      // Exclui registros com soft delete e cobranças Asaas canceladas.
       const { data } = await supabase
         .from("financial_transactions")
         .select("id, category, company_id, amount, asaas_payment_url, type")
         .eq("due_date", targetDate)
-        .neq("status", "paid");
+        .is("deleted_at", null)
+        .neq("status", "paid")
+        .neq("status", "cancelled");
       items = ((data ?? []) as Array<{ id: string; category: string; company_id: string | null; amount: number | null; asaas_payment_url: string | null; type: string }>)
         .map((t) => ({ id: t.id, name: t.category, company_id: t.company_id, amount: t.amount, paymentLink: t.asaas_payment_url, txType: t.type }));
     }

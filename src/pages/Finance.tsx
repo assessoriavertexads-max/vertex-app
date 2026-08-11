@@ -528,6 +528,20 @@ export const Finance = () => {
 
   const deleteTransaction = useMutation({
     mutationFn: async (id: string) => {
+      // Busca IDs Asaas no cache local antes de excluir
+      const tx = transactions.find(t => t.id === id);
+      const hasAsaas = tx?.asaas_subscription_id || tx?.asaas_payment_id;
+
+      if (hasAsaas) {
+        // Cancela no Asaas (fire-and-forget — falha não impede exclusão local)
+        supabase.functions.invoke('asaas-cancel', {
+          body: {
+            asaas_subscription_id: tx?.asaas_subscription_id ?? null,
+            asaas_payment_id: tx?.asaas_payment_id ?? null,
+          },
+        }).catch(() => {});
+      }
+
       const { error } = await supabase
         .from('financial_transactions')
         .update({ deleted_at: new Date().toISOString() })

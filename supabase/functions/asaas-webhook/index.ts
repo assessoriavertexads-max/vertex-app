@@ -110,11 +110,12 @@ serve(async (req) => {
 
     if (linked?.length) return ok({ event, action: "linked_subscription_payment", status: newStatus });
 
-    // Novo ciclo de cobrança — cria próxima entrada baseada na assinatura existente
+    // Novo ciclo de cobrança — cria próxima entrada baseada na assinatura existente (ignora registros excluídos)
     const { data: base } = await supabase
       .from("financial_transactions")
       .select("company_id, category, subscription_cycle, auth_user_id")
       .eq("asaas_subscription_id", subId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
