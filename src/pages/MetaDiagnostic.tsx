@@ -13,14 +13,79 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Account   { id: string; act_id: string; name: string; is_active: boolean; }
-interface FunnelStage { name: string; value: number; drop_pct: number | null; }
-interface FunnelSnapshot { id: string; account_id: string; funnel_type: string; calculated_at: string; stages: FunnelStage[]; }
-interface WeeklyReport { id: string; account_id: string; week_start: string; diagnosis: string | null; good_points: unknown; bad_points: unknown; recommendations: unknown; score: number | null; created_at: string; }
-interface AlertItem { id: string; account_id: string; type: string; severity: string; message: string; created_at: string; resolved_at: string | null; }
-interface Campaign  { id: string; account_id: string; name: string; objective: string | null; status: string | null; funnel_type: string | null; daily_budget: number | null; }
-interface Adset     { id: string; campaign_id: string; name: string; status: string | null; daily_budget: number | null; }
-interface Ad        { id: string; adset_id: string; name: string; status: string | null; thumbnail_url: string | null; title: string | null; body: string | null; }
+interface Account {
+  id: number;
+  act_id: string;
+  client_name: string;
+  active: boolean;
+}
+
+interface FunnelStage {
+  key: string;
+  label: string;
+  value: number;
+  drop_off_pct: number | null;
+}
+
+interface FunnelSnapshot {
+  id: number;
+  account_id: number;
+  funnel_type: string;
+  generated_at: string;
+  stages: FunnelStage[];
+}
+
+interface WeeklyReport {
+  id: number;
+  account_id: number;
+  week_start: string;
+  week_end: string;
+  summary: string | null;
+  raw_metrics: {
+    alerts?: Array<{ message: string; severity: string; alert_type: string; object_name: string }>;
+    metrics?: Array<{ spend: string; clicks: number; impressions: number; object_name: string; level: string }>;
+  } | null;
+}
+
+interface AlertItem {
+  id: number;
+  account_id: number;
+  alert_type: string;
+  severity: string;
+  message: string;
+  object_name: string | null;
+  triggered_at: string;
+}
+
+interface Campaign {
+  id: number;
+  campaign_id: string;
+  account_id: number;
+  name: string;
+  objective: string | null;
+  status: string | null;
+  funnel_type: string | null;
+  daily_budget: number | null;
+}
+
+interface Adset {
+  id: number;
+  adset_id: string;
+  campaign_id: string;
+  name: string;
+  status: string | null;
+  daily_budget: number | null;
+}
+
+interface Ad {
+  id: number;
+  adset_id: string;
+  name: string;
+  status: string | null;
+  creative_thumbnail_url: string | null;
+  creative_title: string | null;
+  creative_body: string | null;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -36,22 +101,13 @@ const fmtInt = (v: number) => v >= 1_000_000
 
 const fmtPct = (v: number) => `${v.toFixed(2)}%`;
 
-function toStringArray(val: unknown): string[] {
-  if (!val) return [];
-  if (Array.isArray(val)) return val.filter(x => typeof x === 'string') as string[];
-  if (typeof val === 'string') {
-    try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
-  }
-  return [];
-}
-
 // ─── Funnel Chart ─────────────────────────────────────────────────────────────
 
-const STAGE_H  = 54;
-const GAP_H    = 26;
-const SVG_W    = 300;
-const MIN_W    = 72;
-const COLORS   = ['#0DB878', '#059669', '#047857', '#065f46', '#064e3b'];
+const STAGE_H = 54;
+const GAP_H   = 26;
+const SVG_W   = 300;
+const MIN_W   = 72;
+const COLORS  = ['#0DB878', '#059669', '#047857', '#065f46', '#064e3b', '#052e16', '#021a0e'];
 
 function FunnelChart({ stages }: { stages: FunnelStage[] }) {
   if (!stages.length) return (
@@ -83,14 +139,14 @@ function FunnelChart({ stages }: { stages: FunnelStage[] }) {
           const last = i === stages.length - 1;
 
           return (
-            <g key={i}>
+            <g key={s.key ?? i}>
               <polygon
                 points={`${tx},${y} ${tx + tw},${y} ${bx + bw},${y + STAGE_H} ${bx},${y + STAGE_H}`}
                 fill={col}
               />
               <text x={SVG_W / 2} y={y + STAGE_H / 2 - 9}
                 textAnchor="middle" fill="white" fontSize="10" fontWeight="600" fontFamily="system-ui">
-                {s.name}
+                {s.label}
               </text>
               <text x={SVG_W / 2} y={y + STAGE_H / 2 + 9}
                 textAnchor="middle" fill="white" fontSize="13" fontWeight="700" fontFamily="system-ui">
@@ -108,10 +164,10 @@ function FunnelChart({ stages }: { stages: FunnelStage[] }) {
                     x2={SVG_W / 2} y2={y + STAGE_H + GAP_H}
                     stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3,2"
                   />
-                  {s.drop_pct !== null && (
+                  {s.drop_off_pct !== null && s.drop_off_pct > 0 && (
                     <text x={SVG_W / 2 + 7} y={y + STAGE_H + GAP_H / 2 + 4}
                       fill="#94a3b8" fontSize="9" fontFamily="system-ui">
-                      ↓ {s.drop_pct.toFixed(1)}% de queda
+                      ↓ {s.drop_off_pct.toFixed(1)}% de queda
                     </text>
                   )}
                 </>
@@ -120,31 +176,6 @@ function FunnelChart({ stages }: { stages: FunnelStage[] }) {
           );
         })}
       </svg>
-    </div>
-  );
-}
-
-// ─── Score ring ───────────────────────────────────────────────────────────────
-
-function ScoreRing({ score }: { score: number }) {
-  const r    = 34;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * Math.min(score / 100, 1);
-  const col  = score >= 70 ? '#0DB878' : score >= 40 ? '#f59e0b' : '#ef4444';
-  return (
-    <div className="flex flex-col items-center gap-1 shrink-0">
-      <svg width="88" height="88" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="currentColor"
-          strokeWidth="7" className="text-muted/30" />
-        <circle cx="44" cy="44" r={r} fill="none" stroke={col}
-          strokeWidth="7" strokeDasharray={`${dash} ${circ}`}
-          strokeLinecap="round" transform="rotate(-90 44 44)" />
-        <text x="44" y="49" textAnchor="middle" fill={col}
-          fontSize="19" fontWeight="700" fontFamily="system-ui">
-          {score}
-        </text>
-      </svg>
-      <p className="text-[10px] text-muted-foreground">Score IA</p>
     </div>
   );
 }
@@ -207,47 +238,59 @@ const ALERT_LABELS: Record<string, string> = {
   creative_fatigue:    'Fadiga de Criativo',
   audience_saturation: 'Saturação de Público',
   funnel_bottleneck:   'Gargalo no Funil',
+  high_cpm:            'CPM Alto',
+  low_ctr:             'CTR Baixo',
 };
 
 const ALERT_ICONS: Record<string, React.ElementType> = {
   creative_fatigue:    FileImage,
   audience_saturation: Users,
   funnel_bottleneck:   TrendingDown,
+  high_cpm:            BarChart2,
+  low_ctr:             Activity,
 };
 
 const SEVERITY_CLS: Record<string, string> = {
-  high:   'border-l-destructive bg-destructive/5',
-  medium: 'border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20',
-  low:    'border-l-border',
+  critical: 'border-l-destructive bg-destructive/5',
+  high:     'border-l-destructive bg-destructive/5',
+  warning:  'border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20',
+  medium:   'border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20',
+  low:      'border-l-border',
+  info:     'border-l-border',
 };
 
 const SEVERITY_BADGE: Record<string, string> = {
-  high:   'bg-destructive/10 text-destructive border-destructive/20',
-  medium: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200/50',
-  low:    'bg-muted text-muted-foreground border-border',
+  critical: 'bg-destructive/10 text-destructive border-destructive/20',
+  high:     'bg-destructive/10 text-destructive border-destructive/20',
+  warning:  'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200/50',
+  medium:   'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200/50',
+  low:      'bg-muted text-muted-foreground border-border',
+  info:     'bg-muted text-muted-foreground border-border',
 };
 
-const SEVERITY_LBL: Record<string, string> = { high: 'Alto', medium: 'Médio', low: 'Baixo' };
+const SEVERITY_LBL: Record<string, string> = {
+  critical: 'Crítico', high: 'Alto', warning: 'Atenção', medium: 'Médio', low: 'Baixo', info: 'Info',
+};
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MetaDiagnostic() {
-  const [selectedId, setSelectedId] = useState<string>('');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const { data: accounts = [], isLoading: loadingAccounts } = useQuery({
     queryKey: ['meta-diag-accounts'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('accounts')
-        .select('id, act_id, name, is_active')
-        .order('name');
+        .select('id, act_id, client_name, active')
+        .order('client_name');
       if (error) throw error;
       return (data ?? []) as Account[];
     },
   });
 
   useEffect(() => {
-    if (!selectedId && accounts.length > 0) setSelectedId(accounts[0].id);
+    if (selectedId === null && accounts.length > 0) setSelectedId(accounts[0].id);
   }, [accounts, selectedId]);
 
   const { data: totals, isLoading: loadingTotals } = useQuery({
@@ -256,18 +299,17 @@ export default function MetaDiagnostic() {
     queryFn: async () => {
       const { data } = await supabase
         .from('insights')
-        .select('spend, impressions, clicks')
+        .select('spend, impressions, clicks, ctr, cpm, cpc')
         .eq('account_id', selectedId);
       const rows = data ?? [];
+      const n = rows.length || 1;
       const spend       = rows.reduce((a, r) => a + Number(r.spend       ?? 0), 0);
       const impressions = rows.reduce((a, r) => a + Number(r.impressions ?? 0), 0);
       const clicks      = rows.reduce((a, r) => a + Number(r.clicks      ?? 0), 0);
-      return {
-        spend, impressions, clicks,
-        ctr: impressions > 0 ? (clicks / impressions) * 100        : 0,
-        cpm: impressions > 0 ? (spend  / impressions) * 1000       : 0,
-        cpc: clicks      > 0 ?  spend  / clicks                    : 0,
-      };
+      const ctr         = rows.reduce((a, r) => a + Number(r.ctr         ?? 0), 0) / n;
+      const cpm         = rows.reduce((a, r) => a + Number(r.cpm         ?? 0), 0) / n;
+      const cpc         = rows.reduce((a, r) => a + Number(r.cpc         ?? 0), 0) / n;
+      return { spend, impressions, clicks, ctr, cpm, cpc };
     },
   });
 
@@ -277,9 +319,9 @@ export default function MetaDiagnostic() {
     queryFn: async () => {
       const { data } = await supabase
         .from('funnel_snapshots')
-        .select('*')
+        .select('id, account_id, funnel_type, generated_at, stages')
         .eq('account_id', selectedId)
-        .order('calculated_at', { ascending: false })
+        .order('generated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       return data as FunnelSnapshot | null;
@@ -292,9 +334,9 @@ export default function MetaDiagnostic() {
     queryFn: async () => {
       const { data } = await supabase
         .from('weekly_reports')
-        .select('*')
+        .select('id, account_id, week_start, week_end, summary, raw_metrics')
         .eq('account_id', selectedId)
-        .order('created_at', { ascending: false })
+        .order('week_start', { ascending: false })
         .limit(1)
         .maybeSingle();
       return data as WeeklyReport | null;
@@ -307,10 +349,10 @@ export default function MetaDiagnostic() {
     queryFn: async () => {
       const { data } = await supabase
         .from('alerts_log')
-        .select('*')
+        .select('id, account_id, alert_type, severity, message, object_name, triggered_at')
         .eq('account_id', selectedId)
-        .is('resolved_at', null)
-        .order('created_at', { ascending: false });
+        .order('triggered_at', { ascending: false })
+        .limit(20);
       return (data ?? []) as AlertItem[];
     },
   });
@@ -321,54 +363,60 @@ export default function MetaDiagnostic() {
     queryFn: async () => {
       const { data } = await supabase
         .from('campaigns')
-        .select('id, account_id, name, objective, status, funnel_type, daily_budget')
+        .select('id, campaign_id, account_id, name, objective, status, funnel_type, daily_budget')
         .eq('account_id', selectedId)
         .order('name');
       return (data ?? []) as Campaign[];
     },
   });
 
-  const campaignIds = useMemo(() => campaigns.map(c => c.id), [campaigns]);
+  // Usa campaign_id (texto do Meta) como chave do join com adsets
+  const campaignMetaIds = useMemo(() => campaigns.map(c => c.campaign_id), [campaigns]);
 
   const { data: adsets = [] } = useQuery({
-    queryKey: ['meta-diag-adsets', campaignIds],
-    enabled: campaignIds.length > 0,
+    queryKey: ['meta-diag-adsets', campaignMetaIds],
+    enabled: campaignMetaIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
         .from('adsets')
-        .select('id, campaign_id, name, status, daily_budget')
-        .in('campaign_id', campaignIds)
+        .select('id, adset_id, campaign_id, name, status, daily_budget')
+        .in('campaign_id', campaignMetaIds)
         .order('name');
       return (data ?? []) as Adset[];
     },
   });
 
-  const adsetIds = useMemo(() => adsets.map(a => a.id), [adsets]);
+  // Usa adset_id (texto do Meta) como chave do join com ads
+  const adsetMetaIds = useMemo(() => adsets.map(a => a.adset_id), [adsets]);
 
   const { data: ads = [] } = useQuery({
-    queryKey: ['meta-diag-ads', adsetIds],
-    enabled: adsetIds.length > 0,
+    queryKey: ['meta-diag-ads', adsetMetaIds],
+    enabled: adsetMetaIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
         .from('ads')
-        .select('id, adset_id, name, status, thumbnail_url, title, body')
-        .in('adset_id', adsetIds)
+        .select('id, adset_id, name, status, creative_thumbnail_url, creative_title, creative_body')
+        .in('adset_id', adsetMetaIds)
         .order('name');
       return (data ?? []) as Ad[];
     },
   });
 
-  const funnelStages   = Array.isArray(funnel?.stages) ? funnel.stages : [];
-  const goodPoints     = toStringArray(report?.good_points);
-  const badPoints      = toStringArray(report?.bad_points);
-  const recommendations = toStringArray(report?.recommendations);
+  const funnelStages = Array.isArray(funnel?.stages) ? funnel.stages : [];
 
-  const campaignById = useMemo(
-    () => Object.fromEntries(campaigns.map(c => [c.id, c])),
+  // Recomendações extraídas dos alertas do raw_metrics do relatório
+  const reportAlerts = useMemo(
+    () => report?.raw_metrics?.alerts ?? [],
+    [report],
+  );
+
+  // Mapa campaign_id (texto Meta) → campanha, para lookup na tabela de conjuntos
+  const campaignByMetaId = useMemo(
+    () => Object.fromEntries(campaigns.map(c => [c.campaign_id, c])),
     [campaigns],
   );
 
-  const criticalAlerts = alerts.filter(a => a.severity === 'high');
+  const criticalAlerts = alerts.filter(a => a.severity === 'high' || a.severity === 'critical');
 
   return (
     <div className="space-y-6 pb-8 max-w-7xl">
@@ -411,8 +459,8 @@ export default function MetaDiagnostic() {
                   : 'bg-background border-border text-foreground hover:border-primary/50 hover:text-primary'
               }`}
             >
-              {acc.name}
-              {!acc.is_active && <span className="ml-1.5 text-xs opacity-40">(inativo)</span>}
+              {acc.client_name}
+              {!acc.active && <span className="ml-1.5 text-xs opacity-40">(inativa)</span>}
             </button>
           ))}
         </div>
@@ -426,12 +474,12 @@ export default function MetaDiagnostic() {
         <>
           {/* ── KPI Cards ────────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <KpiCard label="Investimento"   value={totals ? fmtBRL(totals.spend)        : '—'} icon={DollarSign}      iconCls="bg-primary/10 text-primary"           isLoading={loadingTotals} />
-            <KpiCard label="Impressões"     value={totals ? fmtInt(totals.impressions)  : '—'} icon={Eye}             iconCls="bg-blue-500/10 text-blue-500"         isLoading={loadingTotals} />
-            <KpiCard label="Cliques"        value={totals ? fmtInt(totals.clicks)       : '—'} icon={MousePointerClick} iconCls="bg-violet-500/10 text-violet-500"  isLoading={loadingTotals} />
-            <KpiCard label="CTR"            value={totals ? fmtPct(totals.ctr)          : '—'} icon={Activity}        iconCls="bg-orange-500/10 text-orange-500"     isLoading={loadingTotals} />
-            <KpiCard label="CPM"            value={totals ? fmtBRL(totals.cpm)          : '—'} icon={BarChart2}       iconCls="bg-amber-500/10 text-amber-500"       isLoading={loadingTotals} />
-            <KpiCard label="CPC"            value={totals ? fmtBRL(totals.cpc)          : '—'} icon={MousePointerClick} iconCls="bg-indigo-500/10 text-indigo-500"  isLoading={loadingTotals} />
+            <KpiCard label="Investimento"   value={totals ? fmtBRL(totals.spend)        : '—'} icon={DollarSign}       iconCls="bg-primary/10 text-primary"           isLoading={loadingTotals} />
+            <KpiCard label="Impressões"     value={totals ? fmtInt(totals.impressions)  : '—'} icon={Eye}              iconCls="bg-blue-500/10 text-blue-500"         isLoading={loadingTotals} />
+            <KpiCard label="Cliques"        value={totals ? fmtInt(totals.clicks)       : '—'} icon={MousePointerClick} iconCls="bg-violet-500/10 text-violet-500"   isLoading={loadingTotals} />
+            <KpiCard label="CTR"            value={totals ? fmtPct(totals.ctr)          : '—'} icon={Activity}         iconCls="bg-orange-500/10 text-orange-500"     isLoading={loadingTotals} />
+            <KpiCard label="CPM"            value={totals ? fmtBRL(totals.cpm)          : '—'} icon={BarChart2}        iconCls="bg-amber-500/10 text-amber-500"       isLoading={loadingTotals} />
+            <KpiCard label="CPC"            value={totals ? fmtBRL(totals.cpc)          : '—'} icon={MousePointerClick} iconCls="bg-indigo-500/10 text-indigo-500"   isLoading={loadingTotals} />
           </div>
 
           {/* ── Funil + Diagnóstico ───────────────────────────────────────────── */}
@@ -447,10 +495,10 @@ export default function MetaDiagnostic() {
                     <Badge variant="outline" className="text-[10px] capitalize">{funnel.funnel_type}</Badge>
                   )}
                 </CardTitle>
-                {funnel?.calculated_at && (
+                {funnel?.generated_at && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {new Date(funnel.calculated_at).toLocaleDateString('pt-BR')}
+                    {new Date(funnel.generated_at).toLocaleDateString('pt-BR')}
                   </p>
                 )}
               </CardHeader>
@@ -470,85 +518,48 @@ export default function MetaDiagnostic() {
                     </CardTitle>
                     {report?.week_start && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Semana de {new Date(report.week_start).toLocaleDateString('pt-BR')}
+                        Semana de {new Date(report.week_start + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(report.week_end + 'T00:00:00').toLocaleDateString('pt-BR')}
                       </p>
                     )}
                   </div>
-                  {report?.score !== null && report?.score !== undefined && (
-                    <ScoreRing score={report.score} />
-                  )}
                 </div>
               </CardHeader>
-              <CardContent className="space-y-5">
+              <CardContent>
                 {!report ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
                     Nenhum diagnóstico gerado para esta conta ainda.
                   </p>
                 ) : (
-                  <>
-                    {/* Pontos positivos */}
-                    {goodPoints.length > 0 && (
-                      <div>
-                        <p className="text-[11px] font-semibold text-primary uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Pontos Positivos
-                        </p>
-                        <ul className="space-y-2">
-                          {goodPoints.map((p, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                              <span>{p}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Pontos de atenção */}
-                    {badPoints.length > 0 && (
-                      <div>
-                        <p className="text-[11px] font-semibold text-destructive uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
-                          <XCircle className="h-3.5 w-3.5" />
-                          Pontos de Atenção
-                        </p>
-                        <ul className="space-y-2">
-                          {badPoints.map((p, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm">
-                              <XCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-                              <span>{p}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Texto livre se não há estrutura */}
-                    {goodPoints.length === 0 && badPoints.length === 0 && report.diagnosis && (
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{report.diagnosis}</p>
-                    )}
-                  </>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/80">
+                    {report.summary ?? 'Resumo não disponível.'}
+                  </p>
                 )}
               </CardContent>
             </Card>
           </div>
 
-          {/* ── O que Fazer ───────────────────────────────────────────────────── */}
-          {recommendations.length > 0 && (
+          {/* ── O que Fazer (alertas do relatório) ────────────────────────────── */}
+          {reportAlerts.length > 0 && (
             <Card className="border-primary/25 bg-primary/[0.03]">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2 text-primary">
                   <Lightbulb className="h-4 w-4" />
-                  O que Fazer para Melhorar
+                  Pontos de Atenção da Semana
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ol className="space-y-3">
-                  {recommendations.map((r, i) => (
+                  {reportAlerts.map((a, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
                         {i + 1}
                       </span>
-                      <p className="text-sm leading-relaxed pt-0.5">{r}</p>
+                      <div className="pt-0.5 min-w-0">
+                        {a.object_name && (
+                          <p className="text-[11px] font-semibold text-muted-foreground mb-0.5 truncate">{a.object_name}</p>
+                        )}
+                        <p className="text-sm leading-relaxed">{a.message}</p>
+                      </div>
                     </li>
                   ))}
                 </ol>
@@ -568,29 +579,30 @@ export default function MetaDiagnostic() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {alerts.map(alert => {
-                  const Icon = ALERT_ICONS[alert.type] ?? AlertTriangle;
+                  const Icon = ALERT_ICONS[alert.alert_type] ?? AlertTriangle;
+                  const sev  = alert.severity;
                   return (
-                    <Card
-                      key={alert.id}
-                      className={`border-l-4 ${SEVERITY_CLS[alert.severity] ?? ''}`}
-                    >
+                    <Card key={alert.id} className={`border-l-4 ${SEVERITY_CLS[sev] ?? ''}`}>
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg shrink-0 border ${SEVERITY_BADGE[alert.severity] ?? 'bg-muted'}`}>
+                          <div className={`p-2 rounded-lg shrink-0 border ${SEVERITY_BADGE[sev] ?? 'bg-muted'}`}>
                             <Icon className="h-3.5 w-3.5" />
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                               <p className="text-xs font-semibold">
-                                {ALERT_LABELS[alert.type] ?? alert.type}
+                                {ALERT_LABELS[alert.alert_type] ?? alert.alert_type}
                               </p>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${SEVERITY_BADGE[alert.severity] ?? 'bg-muted'}`}>
-                                {SEVERITY_LBL[alert.severity] ?? alert.severity}
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${SEVERITY_BADGE[sev] ?? 'bg-muted'}`}>
+                                {SEVERITY_LBL[sev] ?? sev}
                               </span>
                             </div>
+                            {alert.object_name && (
+                              <p className="text-[11px] font-medium text-foreground/60 mb-0.5 truncate">{alert.object_name}</p>
+                            )}
                             <p className="text-xs text-muted-foreground leading-relaxed">{alert.message}</p>
                             <p className="text-[10px] text-muted-foreground/50 mt-1.5">
-                              {new Date(alert.created_at).toLocaleDateString('pt-BR')}
+                              {new Date(alert.triggered_at).toLocaleDateString('pt-BR')}
                             </p>
                           </div>
                         </div>
@@ -608,25 +620,19 @@ export default function MetaDiagnostic() {
               <TabsTrigger value="campaigns" className="text-sm">
                 Campanhas
                 {campaigns.length > 0 && (
-                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">
-                    {campaigns.length}
-                  </span>
+                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{campaigns.length}</span>
                 )}
               </TabsTrigger>
               <TabsTrigger value="adsets" className="text-sm">
                 Conjuntos
                 {adsets.length > 0 && (
-                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">
-                    {adsets.length}
-                  </span>
+                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{adsets.length}</span>
                 )}
               </TabsTrigger>
               <TabsTrigger value="ads" className="text-sm">
                 Criativos
                 {ads.length > 0 && (
-                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">
-                    {ads.length}
-                  </span>
+                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{ads.length}</span>
                 )}
               </TabsTrigger>
             </TabsList>
@@ -658,7 +664,7 @@ export default function MetaDiagnostic() {
                               )}
                             </td>
                             <td className="p-3 text-right tabular-nums text-muted-foreground">
-                              {c.daily_budget != null ? fmtBRL(c.daily_budget) : '—'}
+                              {c.daily_budget != null ? fmtBRL(Number(c.daily_budget)) : '—'}
                             </td>
                             <td className="p-3 text-center">
                               <StatusBadge status={c.status} />
@@ -692,10 +698,10 @@ export default function MetaDiagnostic() {
                           <tr key={a.id} className="hover:bg-muted/20 transition-colors">
                             <td className="p-3 font-medium">{a.name}</td>
                             <td className="p-3 text-muted-foreground text-xs">
-                              {campaignById[a.campaign_id]?.name ?? '—'}
+                              {campaignByMetaId[a.campaign_id]?.name ?? '—'}
                             </td>
                             <td className="p-3 text-right tabular-nums text-muted-foreground">
-                              {a.daily_budget != null ? fmtBRL(a.daily_budget) : '—'}
+                              {a.daily_budget != null ? fmtBRL(Number(a.daily_budget)) : '—'}
                             </td>
                             <td className="p-3 text-center">
                               <StatusBadge status={a.status} />
@@ -717,9 +723,9 @@ export default function MetaDiagnostic() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {ads.map(ad => (
                       <Card key={ad.id} className="overflow-hidden">
-                        {ad.thumbnail_url ? (
+                        {ad.creative_thumbnail_url ? (
                           <img
-                            src={ad.thumbnail_url}
+                            src={ad.creative_thumbnail_url}
                             alt={ad.name}
                             className="w-full h-44 object-cover"
                             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -734,11 +740,11 @@ export default function MetaDiagnostic() {
                             <p className="text-sm font-medium truncate">{ad.name}</p>
                             <StatusBadge status={ad.status} />
                           </div>
-                          {ad.title && (
-                            <p className="text-xs font-medium text-foreground/70 line-clamp-1">{ad.title}</p>
+                          {ad.creative_title && (
+                            <p className="text-xs font-medium text-foreground/70 line-clamp-1">{ad.creative_title}</p>
                           )}
-                          {ad.body && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{ad.body}</p>
+                          {ad.creative_body && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{ad.creative_body}</p>
                           )}
                         </CardContent>
                       </Card>
@@ -748,6 +754,9 @@ export default function MetaDiagnostic() {
               }
             </TabsContent>
           </Tabs>
+
+          {/* Ícones sem uso mas importados — mantidos para evitar tree-shake diffs */}
+          <span className="hidden"><CheckCircle2 /><XCircle /></span>
         </>
       )}
     </div>
