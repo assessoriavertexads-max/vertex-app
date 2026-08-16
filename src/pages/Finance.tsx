@@ -25,6 +25,7 @@ import {
   ReceiptText,
   Eye,
   EyeOff,
+  Ban,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -350,6 +351,7 @@ export const Finance = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [generatingChargeId, setGeneratingChargeId] = useState<string | null>(null);
   const [sendingWhatsAppId, setSendingWhatsAppId] = useState<string | null>(null);
+  const [finalizingSubId, setFinalizingSubId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Realtime: qualquer INSERT/UPDATE em financial_transactions recarrega a lista
@@ -528,20 +530,6 @@ export const Finance = () => {
 
   const deleteTransaction = useMutation({
     mutationFn: async (id: string) => {
-      // Busca IDs Asaas no cache local antes de excluir
-      const tx = transactions.find(t => t.id === id);
-      const hasAsaas = tx?.asaas_subscription_id || tx?.asaas_payment_id;
-
-      if (hasAsaas) {
-        // Cancela no Asaas (fire-and-forget — falha não impede exclusão local)
-        supabase.functions.invoke('asaas-cancel', {
-          body: {
-            asaas_subscription_id: tx?.asaas_subscription_id ?? null,
-            asaas_payment_id: tx?.asaas_payment_id ?? null,
-          },
-        }).catch(() => {});
-      }
-
       const { error } = await supabase
         .from('financial_transactions')
         .update({ deleted_at: new Date().toISOString() })
@@ -565,6 +553,30 @@ export const Finance = () => {
       });
     },
     onError: (err: Error) => toast.error(`Erro: ${err.message}`),
+  });
+
+  const finalizeSubscription = useMutation({
+    mutationFn: async (tx: TransactionWithCompany) => {
+      if (!tx.asaas_subscription_id) throw new Error('Sem ID de assinatura Asaas');
+
+      await supabase.functions.invoke('asaas-cancel', {
+        body: { asaas_subscription_id: tx.asaas_subscription_id, asaas_payment_id: null },
+      });
+
+      const { error } = await supabase
+        .from('financial_transactions')
+        .update({ status: 'cancelled' })
+        .eq('asaas_subscription_id', tx.asaas_subscription_id)
+        .in('status', ['pending', 'overdue'])
+        .is('deleted_at', null);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
+      setFinalizingSubId(null);
+      toast.success('Assinatura finalizada com sucesso!');
+    },
+    onError: (err: Error) => toast.error(`Erro ao finalizar: ${err.message}`),
   });
 
   const markAsPaid = useMutation({
@@ -1136,6 +1148,29 @@ export const Finance = () => {
                               ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               : <MessageSquare className="w-3.5 h-3.5" />}
                           </Button>
+                        )}
+
+                        {/* Finalizar Assinatura */}
+                        {t.asaas_subscription_id && (
+                          finalizingSubId === t.id ? (
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" className="h-8 text-xs text-red-600 hover:bg-red-50"
+                                onClick={() => finalizeSubscription.mutate(t)}
+                                disabled={finalizeSubscription.isPending}>
+                                {finalizeSubscription.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirmar'}
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground"
+                                onClick={() => setFinalizingSubId(null)}>
+                                Cancelar
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                              title="Finalizar assinatura no Asaas"
+                              onClick={() => setFinalizingSubId(t.id)}>
+                              <Ban className="w-3.5 h-3.5" />
+                            </Button>
+                          )
                         )}
 
                         {/* Editar */}
