@@ -33,7 +33,8 @@ interface FunnelSnapshot {
   id: number;
   account_id: number;
   funnel_type: string;
-  generated_at: string;
+  period_start: string;
+  period_end: string;
   stages: FunnelStage[];
 }
 
@@ -60,18 +61,25 @@ interface AlertItem {
 }
 
 interface Campaign {
-  id: number;
   campaign_id: string;
   account_id: number;
   name: string;
   objective: string | null;
   status: string | null;
   funnel_type: string | null;
+  funnel_type_override: string | null;
   daily_budget: number | null;
 }
 
+interface CampaignWithMetrics extends Campaign {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpm: number;
+}
+
 interface Adset {
-  id: number;
   adset_id: string;
   campaign_id: string;
   name: string;
@@ -80,13 +88,36 @@ interface Adset {
 }
 
 interface Ad {
-  id: number;
+  ad_id: string;
   adset_id: string;
   name: string;
   status: string | null;
+  image_url: string | null;
   creative_thumbnail_url: string | null;
-  creative_title: string | null;
-  creative_body: string | null;
+  headline: string | null;
+  primary_text: string | null;
+  cta_type: string | null;
+  ig_permalink_url: string | null;
+  quality_ranking: string | null;
+  engagement_rate_ranking: string | null;
+  conversion_rate_ranking: string | null;
+}
+
+interface AdWithMetrics extends Ad {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  video_25: number;
+  video_100: number;
+}
+
+interface InsightRow {
+  object_id: string;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  video_p25: number | null;
+  video_p100: number | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -102,6 +133,31 @@ const fmtInt = (v: number) => v >= 1_000_000
   : v.toLocaleString('pt-BR');
 
 const fmtPct = (v: number) => `${v.toFixed(2)}%`;
+
+const RANKING_CLS: Record<string, string> = {
+  ABOVE_AVERAGE:    'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400',
+  AVERAGE:          'bg-muted text-muted-foreground border-border',
+  BELOW_AVERAGE_10: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400',
+  BELOW_AVERAGE_20: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400',
+  BELOW_AVERAGE_35: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400',
+};
+
+const RANKING_LBL: Record<string, string> = {
+  ABOVE_AVERAGE:    'Acima da média',
+  AVERAGE:          'Média',
+  BELOW_AVERAGE_10: '↓ 10%',
+  BELOW_AVERAGE_20: '↓ 20%',
+  BELOW_AVERAGE_35: '↓ 35%',
+};
+
+function RankingBadge({ label, value }: { label: string; value: string | null }) {
+  if (!value || value === 'UNKNOWN') return null;
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${RANKING_CLS[value] ?? 'bg-muted text-muted-foreground border-border'}`}>
+      {label}: {RANKING_LBL[value] ?? value}
+    </span>
+  );
+}
 
 // ─── Funnel Chart ─────────────────────────────────────────────────────────────
 
@@ -321,39 +377,62 @@ export default function MetaDiagnostic() {
     return d.toISOString().split('T')[0];
   }, [dateRange]);
 
-  const { data: totals, isLoading: loadingTotals } = useQuery({
-    queryKey: ['meta-diag-totals', selectedId, dateRange],
+  // Insights de campanha — usados para totais E para métricas por campanha
+  const { data: campaignInsights = [], isLoading: loadingTotals } = useQuery({
+    queryKey: ['meta-diag-campaign-insights', selectedId, dateRange],
     enabled: !!selectedId,
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('insights')
-        .select('spend, impressions, clicks, ctr, cpm, cpc')
-        .eq('account_id', selectedId);
-      const rows = data ?? [];
-      const n = rows.length || 1;
-      const spend       = rows.reduce((a, r) => a + Number(r.spend       ?? 0), 0);
-      const impressions = rows.reduce((a, r) => a + Number(r.impressions ?? 0), 0);
-      const clicks      = rows.reduce((a, r) => a + Number(r.clicks      ?? 0), 0);
-      const ctr         = rows.reduce((a, r) => a + Number(r.ctr         ?? 0), 0) / n;
-      const cpm         = rows.reduce((a, r) => a + Number(r.cpm         ?? 0), 0) / n;
-      const cpc         = rows.reduce((a, r) => a + Number(r.cpc         ?? 0), 0) / n;
-      return { spend, impressions, clicks, ctr, cpm, cpc };
+        .select('object_id, impressions, clicks, spend, video_p25, video_p100')
+        .eq('account_id', selectedId)
+        .eq('level', 'campaign');
+      if (cutoffDate) q = q.gte('date', cutoffDate);
+      const { data } = await q;
+      return (data ?? []) as InsightRow[];
     },
   });
 
-  const { data: funnel } = useQuery({
+  // Insights de anúncio — usados para métricas por criativo
+  const { data: adInsights = [] } = useQuery({
+    queryKey: ['meta-diag-ad-insights', selectedId, dateRange],
+    enabled: !!selectedId,
+    queryFn: async () => {
+      let q = supabase
+        .from('insights')
+        .select('object_id, impressions, clicks, spend, video_p25, video_p100')
+        .eq('account_id', selectedId)
+        .eq('level', 'ad');
+      if (cutoffDate) q = q.gte('date', cutoffDate);
+      const { data } = await q;
+      return (data ?? []) as InsightRow[];
+    },
+  });
+
+  // Totais do período: SUM de spend/impressions/clicks, CTR/CPM/CPC recalculados
+  const totals = useMemo(() => {
+    if (!campaignInsights.length) return null;
+    const spend       = campaignInsights.reduce((a, r) => a + Number(r.spend       ?? 0), 0);
+    const impressions = campaignInsights.reduce((a, r) => a + Number(r.impressions ?? 0), 0);
+    const clicks      = campaignInsights.reduce((a, r) => a + Number(r.clicks      ?? 0), 0);
+    const ctr = impressions > 0 ? (clicks * 100) / impressions : 0;
+    const cpm = impressions > 0 ? (spend * 1000) / impressions : 0;
+    const cpc = clicks > 0 ? spend / clicks : 0;
+    return { spend, impressions, clicks, ctr, cpm, cpc };
+  }, [campaignInsights]);
+
+  const { data: funnelSnapshots = [] } = useQuery({
     queryKey: ['meta-diag-funnel', selectedId, dateRange],
     enabled: !!selectedId,
     queryFn: async () => {
       let q = supabase
         .from('funnel_snapshots')
-        .select('id, account_id, funnel_type, generated_at, stages')
+        .select('id, account_id, funnel_type, period_start, period_end, stages')
         .eq('account_id', selectedId)
-        .order('generated_at', { ascending: false })
-        .limit(1);
-      if (cutoffDate) q = q.gte('generated_at', cutoffDate);
-      const { data } = await q.maybeSingle();
-      return data as FunnelSnapshot | null;
+        .order('period_start', { ascending: false });
+      if (cutoffDate) q = q.gte('period_start', cutoffDate);
+      const { data } = await q;
+      return (data ?? []) as FunnelSnapshot[];
     },
   });
 
@@ -395,14 +474,12 @@ export default function MetaDiagnostic() {
     queryFn: async () => {
       const { data } = await supabase
         .from('campaigns')
-        .select('id, campaign_id, account_id, name, objective, status, funnel_type, daily_budget')
-        .eq('account_id', selectedId)
-        .order('name');
+        .select('campaign_id, account_id, name, objective, status, funnel_type, funnel_type_override, daily_budget')
+        .eq('account_id', selectedId);
       return (data ?? []) as Campaign[];
     },
   });
 
-  // Usa campaign_id (texto do Meta) como chave do join com adsets
   const campaignMetaIds = useMemo(() => campaigns.map(c => c.campaign_id), [campaigns]);
 
   const { data: adsets = [] } = useQuery({
@@ -411,30 +488,81 @@ export default function MetaDiagnostic() {
     queryFn: async () => {
       const { data } = await supabase
         .from('adsets')
-        .select('id, adset_id, campaign_id, name, status, daily_budget')
+        .select('adset_id, campaign_id, name, status, daily_budget')
         .in('campaign_id', campaignMetaIds)
         .order('name');
       return (data ?? []) as Adset[];
     },
   });
 
-  // Usa adset_id (texto do Meta) como chave do join com ads
-  const adsetMetaIds = useMemo(() => adsets.map(a => a.adset_id), [adsets]);
+  // Ads buscados pelos object_id que aparecem nos insights do período
+  const adObjectIds = useMemo(() => [...new Set(adInsights.map(r => r.object_id))], [adInsights]);
 
   const { data: ads = [] } = useQuery({
-    queryKey: ['meta-diag-ads', adsetMetaIds],
-    enabled: adsetMetaIds.length > 0,
+    queryKey: ['meta-diag-ads', adObjectIds],
+    enabled: adObjectIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
         .from('ads')
-        .select('id, adset_id, name, status, creative_thumbnail_url, creative_title, creative_body')
-        .in('adset_id', adsetMetaIds)
-        .order('name');
+        .select('ad_id, adset_id, name, status, image_url, creative_thumbnail_url, headline, primary_text, cta_type, ig_permalink_url, quality_ranking, engagement_rate_ranking, conversion_rate_ranking')
+        .in('ad_id', adObjectIds);
       return (data ?? []) as Ad[];
     },
   });
 
-  const funnelStages = Array.isArray(funnel?.stages) ? funnel.stages : [];
+  // Agrupa insights por object_id para merge com estrutura
+  const campaignInsightMap = useMemo(() => {
+    const map: Record<string, { spend: number; impressions: number; clicks: number }> = {};
+    for (const r of campaignInsights) {
+      if (!map[r.object_id]) map[r.object_id] = { spend: 0, impressions: 0, clicks: 0 };
+      map[r.object_id].spend       += Number(r.spend       ?? 0);
+      map[r.object_id].impressions += Number(r.impressions ?? 0);
+      map[r.object_id].clicks      += Number(r.clicks      ?? 0);
+    }
+    return map;
+  }, [campaignInsights]);
+
+  const adInsightMap = useMemo(() => {
+    const map: Record<string, { spend: number; impressions: number; clicks: number; video_25: number; video_100: number }> = {};
+    for (const r of adInsights) {
+      if (!map[r.object_id]) map[r.object_id] = { spend: 0, impressions: 0, clicks: 0, video_25: 0, video_100: 0 };
+      map[r.object_id].spend       += Number(r.spend       ?? 0);
+      map[r.object_id].impressions += Number(r.impressions ?? 0);
+      map[r.object_id].clicks      += Number(r.clicks      ?? 0);
+      map[r.object_id].video_25    += Number(r.video_p25   ?? 0);
+      map[r.object_id].video_100   += Number(r.video_p100  ?? 0);
+    }
+    return map;
+  }, [adInsights]);
+
+  // Campanhas com métricas do período, ordenadas por investimento
+  const campaignsWithMetrics = useMemo((): CampaignWithMetrics[] =>
+    campaigns.map(c => {
+      const m = campaignInsightMap[c.campaign_id] ?? { spend: 0, impressions: 0, clicks: 0 };
+      const ctr = m.impressions > 0 ? (m.clicks * 100) / m.impressions : 0;
+      const cpm = m.impressions > 0 ? (m.spend * 1000) / m.impressions : 0;
+      return { ...c, ...m, ctr, cpm };
+    }).sort((a, b) => b.spend - a.spend),
+  [campaigns, campaignInsightMap]);
+
+  // Ads com métricas do período, ordenados por investimento
+  const adsWithMetrics = useMemo((): AdWithMetrics[] =>
+    ads.map(a => {
+      const m = adInsightMap[a.ad_id] ?? { spend: 0, impressions: 0, clicks: 0, video_25: 0, video_100: 0 };
+      return { ...a, ...m };
+    }).sort((a, b) => b.spend - a.spend),
+  [ads, adInsightMap]);
+
+  // Funis por tipo (uma conta pode ter ecommerce + whatsapp)
+  const funnelByType = useMemo(() => {
+    const map: Record<string, FunnelSnapshot> = {};
+    for (const s of funnelSnapshots) {
+      if (!map[s.funnel_type] || s.period_start > map[s.funnel_type].period_start) {
+        map[s.funnel_type] = s;
+      }
+    }
+    return Object.values(map);
+  }, [funnelSnapshots]);
 
   // Recomendações extraídas dos alertas do raw_metrics do relatório
   const reportAlerts = useMemo(
@@ -459,9 +587,9 @@ export default function MetaDiagnostic() {
     return true;
   };
 
-  const filteredCampaigns = useMemo(() => campaigns.filter(c => matchesStatus(c.status)), [campaigns, statusFilter]);
-  const filteredAdsets    = useMemo(() => adsets.filter(a => matchesStatus(a.status)),    [adsets, statusFilter]);
-  const filteredAds       = useMemo(() => ads.filter(a => matchesStatus(a.status)),        [ads, statusFilter]);
+  const filteredCampaigns = useMemo(() => campaignsWithMetrics.filter(c => matchesStatus(c.status)), [campaignsWithMetrics, statusFilter]);
+  const filteredAdsets    = useMemo(() => adsets.filter(a => matchesStatus(a.status)),              [adsets, statusFilter]);
+  const filteredAds       = useMemo(() => adsWithMetrics.filter(a => matchesStatus(a.status)),      [adsWithMetrics, statusFilter]);
 
   return (
     <div className="space-y-5 pb-8 max-w-7xl">
@@ -528,10 +656,10 @@ export default function MetaDiagnostic() {
         <div className="flex items-center gap-0.5 border border-border rounded-lg p-0.5 h-9">
           <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground ml-2 mr-1 shrink-0" />
           {STATUS_FILTER_OPTS.map(opt => {
-            const count = opt.value === 'all' ? campaigns.length
-              : opt.value === 'active'   ? campaigns.filter(c => ['active','ativo'].includes(c.status?.toLowerCase() ?? '')).length
-              : opt.value === 'paused'   ? campaigns.filter(c => ['paused','pausado'].includes(c.status?.toLowerCase() ?? '')).length
-              : campaigns.filter(c => ['archived','deleted','arquivado'].includes(c.status?.toLowerCase() ?? '')).length;
+            const count = opt.value === 'all' ? campaignsWithMetrics.length
+              : opt.value === 'active'   ? campaignsWithMetrics.filter(c => ['active','ativo'].includes(c.status?.toLowerCase() ?? '')).length
+              : opt.value === 'paused'   ? campaignsWithMetrics.filter(c => ['paused','pausado'].includes(c.status?.toLowerCase() ?? '')).length
+              : campaignsWithMetrics.filter(c => ['archived','deleted','arquivado'].includes(c.status?.toLowerCase() ?? '')).length;
             return (
               <button
                 key={opt.value}
@@ -651,27 +779,33 @@ export default function MetaDiagnostic() {
                 </CardContent>
               </Card>
 
-              {/* Funil */}
-              <Card className="lg:col-span-2">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <BarChart2 className="h-4 w-4 text-primary" />
-                    Funil de Conversão
-                    {funnel?.funnel_type && (
-                      <Badge variant="outline" className="text-[10px] capitalize">{funnel.funnel_type}</Badge>
-                    )}
-                  </CardTitle>
-                  {funnel?.generated_at && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {new Date(funnel.generated_at).toLocaleDateString('pt-BR')}
-                    </p>
-                  )}
-                </CardHeader>
-                <CardContent className="pt-2">
-                  <FunnelChart stages={funnelStages} />
-                </CardContent>
-              </Card>
+              {/* Funil — um card por funnel_type */}
+              <div className="lg:col-span-2 flex flex-col gap-4">
+                {funnelByType.length === 0 ? (
+                  <Card>
+                    <CardContent className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                      Sem dados de funil no período
+                    </CardContent>
+                  </Card>
+                ) : funnelByType.map(f => (
+                  <Card key={f.funnel_type}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <BarChart2 className="h-4 w-4 text-primary" />
+                        Funil de Conversão
+                        <Badge variant="outline" className="text-[10px] capitalize">{f.funnel_type}</Badge>
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(f.period_start + 'T00:00:00').toLocaleDateString('pt-BR')} — {new Date(f.period_end + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-2">
+                      <FunnelChart stages={Array.isArray(f.stages) ? f.stages : []} />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
 
             {/* Alertas Ativos — lista compacta */}
@@ -728,34 +862,40 @@ export default function MetaDiagnostic() {
               ? <EmptyState icon={BarChart2} message={campaigns.length === 0 ? 'Nenhuma campanha encontrada para esta conta.' : 'Nenhuma campanha corresponde ao filtro selecionado.'} />
               : (
                 <div className="rounded-lg border border-border overflow-x-auto">
-                  <table className="w-full text-sm min-w-[540px]">
+                  <table className="w-full text-sm min-w-[700px]">
                     <thead>
                       <tr className="bg-muted/40 border-b border-border">
                         <th className="text-left p-3 text-xs font-medium text-muted-foreground">Campanha</th>
-                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">Objetivo</th>
                         <th className="text-left p-3 text-xs font-medium text-muted-foreground">Funil</th>
-                        <th className="text-right p-3 text-xs font-medium text-muted-foreground">Orçamento/dia</th>
+                        <th className="text-right p-3 text-xs font-medium text-muted-foreground">Investido</th>
+                        <th className="text-right p-3 text-xs font-medium text-muted-foreground">Impressões</th>
+                        <th className="text-right p-3 text-xs font-medium text-muted-foreground">Cliques</th>
+                        <th className="text-right p-3 text-xs font-medium text-muted-foreground">CTR</th>
+                        <th className="text-right p-3 text-xs font-medium text-muted-foreground">CPM</th>
                         <th className="text-center p-3 text-xs font-medium text-muted-foreground">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {filteredCampaigns.map(c => (
-                        <tr key={c.id} className="hover:bg-muted/20 transition-colors">
-                          <td className="p-3 font-medium">{c.name}</td>
-                          <td className="p-3 text-muted-foreground text-xs">{c.objective ?? '—'}</td>
-                          <td className="p-3">
-                            {c.funnel_type && (
-                              <Badge variant="outline" className="text-[10px] capitalize">{c.funnel_type}</Badge>
-                            )}
-                          </td>
-                          <td className="p-3 text-right tabular-nums text-muted-foreground">
-                            {c.daily_budget != null ? fmtBRL(Number(c.daily_budget)) : '—'}
-                          </td>
-                          <td className="p-3 text-center">
-                            <StatusBadge status={c.status} />
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredCampaigns.map(c => {
+                        const funil = c.funnel_type_override ?? c.funnel_type;
+                        return (
+                          <tr key={c.campaign_id} className="hover:bg-muted/20 transition-colors">
+                            <td className="p-3">
+                              <p className="font-medium line-clamp-1">{c.name}</p>
+                              {c.objective && <p className="text-[11px] text-muted-foreground">{c.objective}</p>}
+                            </td>
+                            <td className="p-3">
+                              {funil && <Badge variant="outline" className="text-[10px] capitalize">{funil}</Badge>}
+                            </td>
+                            <td className="p-3 text-right tabular-nums font-medium">{c.spend > 0 ? fmtBRL(c.spend) : '—'}</td>
+                            <td className="p-3 text-right tabular-nums text-muted-foreground">{c.impressions > 0 ? fmtInt(c.impressions) : '—'}</td>
+                            <td className="p-3 text-right tabular-nums text-muted-foreground">{c.clicks > 0 ? fmtInt(c.clicks) : '—'}</td>
+                            <td className="p-3 text-right tabular-nums text-muted-foreground">{c.impressions > 0 ? fmtPct(c.ctr) : '—'}</td>
+                            <td className="p-3 text-right tabular-nums text-muted-foreground">{c.impressions > 0 ? fmtBRL(c.cpm) : '—'}</td>
+                            <td className="p-3 text-center"><StatusBadge status={c.status} /></td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -803,37 +943,74 @@ export default function MetaDiagnostic() {
           {/* ── Criativos ────────────────────────────────────────────────────── */}
           <TabsContent value="ads" className="mt-5">
             {filteredAds.length === 0
-              ? <EmptyState icon={FileImage} message={ads.length === 0 ? 'Nenhum criativo encontrado.' : 'Nenhum criativo corresponde ao filtro selecionado.'} />
+              ? <EmptyState icon={FileImage} message={adsWithMetrics.length === 0 ? 'Nenhum criativo com dados no período.' : 'Nenhum criativo corresponde ao filtro selecionado.'} />
               : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredAds.map(ad => (
-                    <Card key={ad.id} className="overflow-hidden">
-                      {ad.creative_thumbnail_url ? (
-                        <img
-                          src={ad.creative_thumbnail_url}
-                          alt={ad.name}
-                          className="w-full h-44 object-cover"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      ) : (
-                        <div className="w-full h-44 bg-muted flex items-center justify-center">
-                          <FileImage className="h-8 w-8 text-muted-foreground/25" />
-                        </div>
-                      )}
-                      <CardContent className="p-3 space-y-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium truncate">{ad.name}</p>
-                          <StatusBadge status={ad.status} />
-                        </div>
-                        {ad.creative_title && (
-                          <p className="text-xs font-medium text-foreground/70 line-clamp-1">{ad.creative_title}</p>
+                  {filteredAds.map(ad => {
+                    const thumb = ad.image_url || ad.creative_thumbnail_url;
+                    const retention = ad.video_25 > 0 ? (ad.video_100 / ad.video_25) * 100 : null;
+                    return (
+                      <Card key={ad.ad_id} className="overflow-hidden flex flex-col">
+                        {thumb ? (
+                          <img
+                            src={thumb}
+                            alt={ad.name}
+                            className="w-full h-44 object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="w-full h-44 bg-muted flex items-center justify-center">
+                            <FileImage className="h-8 w-8 text-muted-foreground/25" />
+                          </div>
                         )}
-                        {ad.creative_body && (
-                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{ad.creative_body}</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                        <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-medium line-clamp-1 flex-1">{ad.headline || ad.name}</p>
+                            <StatusBadge status={ad.status} />
+                          </div>
+                          {ad.primary_text && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{ad.primary_text}</p>
+                          )}
+
+                          {/* Rankings de qualidade */}
+                          <div className="flex flex-wrap gap-1">
+                            <RankingBadge label="Qualidade"   value={ad.quality_ranking} />
+                            <RankingBadge label="Engaj."      value={ad.engagement_rate_ranking} />
+                            <RankingBadge label="Conversão"   value={ad.conversion_rate_ranking} />
+                          </div>
+
+                          {/* Métricas do período */}
+                          <div className="mt-auto pt-2 border-t border-border grid grid-cols-3 gap-1 text-center">
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">Investido</p>
+                              <p className="text-xs font-semibold tabular-nums">{ad.spend > 0 ? fmtBRL(ad.spend) : '—'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">Cliques</p>
+                              <p className="text-xs font-semibold tabular-nums">{ad.clicks > 0 ? fmtInt(ad.clicks) : '—'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">{retention != null ? 'Retenção' : 'Impressões'}</p>
+                              <p className="text-xs font-semibold tabular-nums">
+                                {retention != null ? `${retention.toFixed(0)}%` : ad.impressions > 0 ? fmtInt(ad.impressions) : '—'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {ad.ig_permalink_url && (
+                            <a
+                              href={ad.ig_permalink_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-primary hover:underline"
+                            >
+                              Ver no Instagram ↗
+                            </a>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )
             }
