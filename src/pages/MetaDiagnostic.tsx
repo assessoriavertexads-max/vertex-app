@@ -5,11 +5,13 @@ import {
   Target, AlertTriangle, CheckCircle2, XCircle, Lightbulb,
   DollarSign, MousePointerClick, Eye, Users, Clock,
   Zap, BarChart2, TrendingDown, Activity, FileImage,
+  CalendarDays, SlidersHorizontal,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -274,8 +276,27 @@ const SEVERITY_LBL: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+type DateRange = '7d' | '30d' | '90d' | 'all';
+type StatusFilter = 'all' | 'active' | 'paused' | 'archived';
+
+const DATE_RANGE_LABELS: Record<DateRange, string> = {
+  '7d':  'Últimos 7 dias',
+  '30d': 'Últimos 30 dias',
+  '90d': 'Últimos 90 dias',
+  'all': 'Todo período',
+};
+
+const STATUS_FILTER_OPTS: { value: StatusFilter; label: string }[] = [
+  { value: 'all',      label: 'Todos'     },
+  { value: 'active',   label: 'Ativo'     },
+  { value: 'paused',   label: 'Pausado'   },
+  { value: 'archived', label: 'Arquivado' },
+];
+
 export default function MetaDiagnostic() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>('30d');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const { data: accounts = [], isLoading: loadingAccounts } = useQuery({
     queryKey: ['meta-diag-accounts'],
@@ -293,8 +314,15 @@ export default function MetaDiagnostic() {
     if (selectedId === null && accounts.length > 0) setSelectedId(accounts[0].id);
   }, [accounts, selectedId]);
 
+  const cutoffDate = useMemo(() => {
+    if (dateRange === 'all') return null;
+    const d = new Date();
+    d.setDate(d.getDate() - (dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90));
+    return d.toISOString().split('T')[0];
+  }, [dateRange]);
+
   const { data: totals, isLoading: loadingTotals } = useQuery({
-    queryKey: ['meta-diag-totals', selectedId],
+    queryKey: ['meta-diag-totals', selectedId, dateRange],
     enabled: !!selectedId,
     queryFn: async () => {
       const { data } = await supabase
@@ -314,45 +342,49 @@ export default function MetaDiagnostic() {
   });
 
   const { data: funnel } = useQuery({
-    queryKey: ['meta-diag-funnel', selectedId],
+    queryKey: ['meta-diag-funnel', selectedId, dateRange],
     enabled: !!selectedId,
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('funnel_snapshots')
         .select('id, account_id, funnel_type, generated_at, stages')
         .eq('account_id', selectedId)
         .order('generated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+      if (cutoffDate) q = q.gte('generated_at', cutoffDate);
+      const { data } = await q.maybeSingle();
       return data as FunnelSnapshot | null;
     },
   });
 
   const { data: report } = useQuery({
-    queryKey: ['meta-diag-report', selectedId],
+    queryKey: ['meta-diag-report', selectedId, dateRange],
     enabled: !!selectedId,
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('weekly_reports')
         .select('id, account_id, week_start, week_end, summary, raw_metrics')
         .eq('account_id', selectedId)
         .order('week_start', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+      if (cutoffDate) q = q.gte('week_start', cutoffDate);
+      const { data } = await q.maybeSingle();
       return data as WeeklyReport | null;
     },
   });
 
   const { data: alerts = [] } = useQuery({
-    queryKey: ['meta-diag-alerts', selectedId],
+    queryKey: ['meta-diag-alerts', selectedId, dateRange],
     enabled: !!selectedId,
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('alerts_log')
         .select('id, account_id, alert_type, severity, message, object_name, triggered_at')
         .eq('account_id', selectedId)
         .order('triggered_at', { ascending: false })
-        .limit(20);
+        .limit(50);
+      if (cutoffDate) q = q.gte('triggered_at', cutoffDate);
+      const { data } = await q;
       return (data ?? []) as AlertItem[];
     },
   });
@@ -418,16 +450,29 @@ export default function MetaDiagnostic() {
 
   const criticalAlerts = alerts.filter(a => a.severity === 'high' || a.severity === 'critical');
 
+  const matchesStatus = (status: string | null) => {
+    if (statusFilter === 'all') return true;
+    const s = status?.toLowerCase() ?? '';
+    if (statusFilter === 'active')   return s === 'active'   || s === 'ativo';
+    if (statusFilter === 'paused')   return s === 'paused'   || s === 'pausado';
+    if (statusFilter === 'archived') return s === 'archived' || s === 'arquivado' || s === 'deleted';
+    return true;
+  };
+
+  const filteredCampaigns = useMemo(() => campaigns.filter(c => matchesStatus(c.status)), [campaigns, statusFilter]);
+  const filteredAdsets    = useMemo(() => adsets.filter(a => matchesStatus(a.status)),    [adsets, statusFilter]);
+  const filteredAds       = useMemo(() => ads.filter(a => matchesStatus(a.status)),        [ads, statusFilter]);
+
   return (
     <div className="space-y-5 pb-8 max-w-7xl">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Target className="h-5 w-5 text-primary" />
+        </div>
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Target className="h-5 w-5 text-primary" />
-            </div>
+          <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">Meta Diagnóstico</h1>
             {criticalAlerts.length > 0 && (
               <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border bg-destructive/10 text-destructive border-destructive/20 font-medium">
@@ -436,37 +481,78 @@ export default function MetaDiagnostic() {
               </span>
             )}
           </div>
-          <p className="text-muted-foreground text-sm pl-12">
-            Diagnóstico automático de performance, funil e criativos por conta
-          </p>
+          <p className="text-muted-foreground text-xs">Diagnóstico automático de performance, funil e criativos por conta</p>
         </div>
       </div>
 
-      {/* ── Account selector ───────────────────────────────────────────────── */}
-      {loadingAccounts ? (
-        <div className="flex gap-2">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-8 w-28 rounded-full" />)}
+      {/* ── Barra de filtros ───────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+
+        {/* Seletor de cliente */}
+        {loadingAccounts ? (
+          <Skeleton className="h-9 w-52 rounded-md" />
+        ) : accounts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma conta configurada ainda.</p>
+        ) : (
+          <Select
+            value={selectedId?.toString() ?? ''}
+            onValueChange={v => setSelectedId(Number(v))}
+          >
+            <SelectTrigger className="w-52 h-9 text-sm">
+              <SelectValue placeholder="Selecionar cliente..." />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map(acc => (
+                <SelectItem key={acc.id} value={acc.id.toString()}>
+                  {acc.client_name}{!acc.active ? ' (inativa)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {/* Filtro de período */}
+        <Select value={dateRange} onValueChange={v => setDateRange(v as DateRange)}>
+          <SelectTrigger className="w-44 h-9 text-sm gap-1.5">
+            <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.entries(DATE_RANGE_LABELS) as [DateRange, string][]).map(([v, l]) => (
+              <SelectItem key={v} value={v}>{l}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Filtro de status (campanhas / conjuntos / criativos) */}
+        <div className="flex items-center gap-0.5 border border-border rounded-lg p-0.5 h-9">
+          <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground ml-2 mr-1 shrink-0" />
+          {STATUS_FILTER_OPTS.map(opt => {
+            const count = opt.value === 'all' ? campaigns.length
+              : opt.value === 'active'   ? campaigns.filter(c => ['active','ativo'].includes(c.status?.toLowerCase() ?? '')).length
+              : opt.value === 'paused'   ? campaigns.filter(c => ['paused','pausado'].includes(c.status?.toLowerCase() ?? '')).length
+              : campaigns.filter(c => ['archived','deleted','arquivado'].includes(c.status?.toLowerCase() ?? '')).length;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setStatusFilter(opt.value)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                  statusFilter === opt.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                {opt.label}
+                {count > 0 && (
+                  <span className={`text-[10px] px-1 rounded-full ${
+                    statusFilter === opt.value ? 'bg-white/20' : 'bg-muted-foreground/15'
+                  }`}>{count}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
-      ) : accounts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma conta configurada ainda.</p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {accounts.map(acc => (
-            <button
-              key={acc.id}
-              onClick={() => setSelectedId(acc.id)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                selectedId === acc.id
-                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                  : 'bg-background border-border text-foreground hover:border-primary/50 hover:text-primary'
-              }`}
-            >
-              {acc.client_name}
-              {!acc.active && <span className="ml-1.5 text-xs opacity-40">(inativa)</span>}
-            </button>
-          ))}
-        </div>
-      )}
+      </div>
 
       {!selectedId ? (
         <div className="flex items-center justify-center h-52 text-sm text-muted-foreground">
@@ -478,20 +564,20 @@ export default function MetaDiagnostic() {
             <TabsTrigger value="overview" className="text-sm">Visão Geral</TabsTrigger>
             <TabsTrigger value="campaigns" className="text-sm">
               Campanhas
-              {campaigns.length > 0 && (
-                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{campaigns.length}</span>
+              {filteredCampaigns.length > 0 && (
+                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{filteredCampaigns.length}</span>
               )}
             </TabsTrigger>
             <TabsTrigger value="adsets" className="text-sm">
               Conjuntos
-              {adsets.length > 0 && (
-                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{adsets.length}</span>
+              {filteredAdsets.length > 0 && (
+                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{filteredAdsets.length}</span>
               )}
             </TabsTrigger>
             <TabsTrigger value="ads" className="text-sm">
               Criativos
-              {ads.length > 0 && (
-                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{ads.length}</span>
+              {filteredAds.length > 0 && (
+                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{filteredAds.length}</span>
               )}
             </TabsTrigger>
           </TabsList>
@@ -638,8 +724,8 @@ export default function MetaDiagnostic() {
 
           {/* ── Campanhas ────────────────────────────────────────────────────── */}
           <TabsContent value="campaigns" className="mt-5">
-            {campaigns.length === 0
-              ? <EmptyState icon={BarChart2} message="Nenhuma campanha encontrada para esta conta." />
+            {filteredCampaigns.length === 0
+              ? <EmptyState icon={BarChart2} message={campaigns.length === 0 ? 'Nenhuma campanha encontrada para esta conta.' : 'Nenhuma campanha corresponde ao filtro selecionado.'} />
               : (
                 <div className="rounded-lg border border-border overflow-x-auto">
                   <table className="w-full text-sm min-w-[540px]">
@@ -653,7 +739,7 @@ export default function MetaDiagnostic() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {campaigns.map(c => (
+                      {filteredCampaigns.map(c => (
                         <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                           <td className="p-3 font-medium">{c.name}</td>
                           <td className="p-3 text-muted-foreground text-xs">{c.objective ?? '—'}</td>
@@ -679,8 +765,8 @@ export default function MetaDiagnostic() {
 
           {/* ── Conjuntos ────────────────────────────────────────────────────── */}
           <TabsContent value="adsets" className="mt-5">
-            {adsets.length === 0
-              ? <EmptyState icon={Users} message="Nenhum conjunto de anúncio encontrado." />
+            {filteredAdsets.length === 0
+              ? <EmptyState icon={Users} message={adsets.length === 0 ? 'Nenhum conjunto de anúncio encontrado.' : 'Nenhum conjunto corresponde ao filtro selecionado.'} />
               : (
                 <div className="rounded-lg border border-border overflow-x-auto">
                   <table className="w-full text-sm min-w-[480px]">
@@ -693,7 +779,7 @@ export default function MetaDiagnostic() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {adsets.map(a => (
+                      {filteredAdsets.map(a => (
                         <tr key={a.id} className="hover:bg-muted/20 transition-colors">
                           <td className="p-3 font-medium">{a.name}</td>
                           <td className="p-3 text-muted-foreground text-xs">
@@ -716,11 +802,11 @@ export default function MetaDiagnostic() {
 
           {/* ── Criativos ────────────────────────────────────────────────────── */}
           <TabsContent value="ads" className="mt-5">
-            {ads.length === 0
-              ? <EmptyState icon={FileImage} message="Nenhum criativo encontrado." />
+            {filteredAds.length === 0
+              ? <EmptyState icon={FileImage} message={ads.length === 0 ? 'Nenhum criativo encontrado.' : 'Nenhum criativo corresponde ao filtro selecionado.'} />
               : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {ads.map(ad => (
+                  {filteredAds.map(ad => (
                     <Card key={ad.id} className="overflow-hidden">
                       {ad.creative_thumbnail_url ? (
                         <img
