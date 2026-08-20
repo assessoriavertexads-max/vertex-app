@@ -419,25 +419,27 @@ export default function MetaDiagnostic() {
   const criticalAlerts = alerts.filter(a => a.severity === 'high' || a.severity === 'critical');
 
   return (
-    <div className="space-y-6 pb-8 max-w-7xl">
+    <div className="space-y-5 pb-8 max-w-7xl">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Target className="h-5 w-5 text-primary" />
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Target className="h-5 w-5 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold">Meta Diagnóstico</h1>
+            {criticalAlerts.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border bg-destructive/10 text-destructive border-destructive/20 font-medium">
+                <AlertTriangle className="h-3 w-3" />
+                {criticalAlerts.length} crítico{criticalAlerts.length > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-          <h1 className="text-2xl font-bold">Meta Diagnóstico</h1>
-          {criticalAlerts.length > 0 && (
-            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border bg-destructive/10 text-destructive border-destructive/20 font-medium">
-              <AlertTriangle className="h-3 w-3" />
-              {criticalAlerts.length} crítico{criticalAlerts.length > 1 ? 's' : ''}
-            </span>
-          )}
+          <p className="text-muted-foreground text-sm pl-12">
+            Diagnóstico automático de performance, funil e criativos por conta
+          </p>
         </div>
-        <p className="text-muted-foreground text-sm pl-12">
-          Diagnóstico automático de performance, funil e criativos por conta
-        </p>
       </div>
 
       {/* ── Account selector ───────────────────────────────────────────────── */}
@@ -471,294 +473,290 @@ export default function MetaDiagnostic() {
           Selecione uma conta acima para ver o diagnóstico
         </div>
       ) : (
-        <>
-          {/* ── KPI Cards ────────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <KpiCard label="Investimento"   value={totals ? fmtBRL(totals.spend)        : '—'} icon={DollarSign}       iconCls="bg-primary/10 text-primary"           isLoading={loadingTotals} />
-            <KpiCard label="Impressões"     value={totals ? fmtInt(totals.impressions)  : '—'} icon={Eye}              iconCls="bg-blue-500/10 text-blue-500"         isLoading={loadingTotals} />
-            <KpiCard label="Cliques"        value={totals ? fmtInt(totals.clicks)       : '—'} icon={MousePointerClick} iconCls="bg-violet-500/10 text-violet-500"   isLoading={loadingTotals} />
-            <KpiCard label="CTR"            value={totals ? fmtPct(totals.ctr)          : '—'} icon={Activity}         iconCls="bg-orange-500/10 text-orange-500"     isLoading={loadingTotals} />
-            <KpiCard label="CPM"            value={totals ? fmtBRL(totals.cpm)          : '—'} icon={BarChart2}        iconCls="bg-amber-500/10 text-amber-500"       isLoading={loadingTotals} />
-            <KpiCard label="CPC"            value={totals ? fmtBRL(totals.cpc)          : '—'} icon={MousePointerClick} iconCls="bg-indigo-500/10 text-indigo-500"   isLoading={loadingTotals} />
-          </div>
+        <Tabs defaultValue="overview">
+          <TabsList className="h-9">
+            <TabsTrigger value="overview" className="text-sm">Visão Geral</TabsTrigger>
+            <TabsTrigger value="campaigns" className="text-sm">
+              Campanhas
+              {campaigns.length > 0 && (
+                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{campaigns.length}</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="adsets" className="text-sm">
+              Conjuntos
+              {adsets.length > 0 && (
+                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{adsets.length}</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="ads" className="text-sm">
+              Criativos
+              {ads.length > 0 && (
+                <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{ads.length}</span>
+              )}
+            </TabsTrigger>
+          </TabsList>
 
-          {/* ── Funil + Diagnóstico ───────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* ── Visão Geral ──────────────────────────────────────────────────── */}
+          <TabsContent value="overview" className="mt-5 space-y-5">
 
-            {/* Funil */}
-            <Card className="lg:col-span-2">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <BarChart2 className="h-4 w-4 text-primary" />
-                  Funil de Conversão
-                  {funnel?.funnel_type && (
-                    <Badge variant="outline" className="text-[10px] capitalize">{funnel.funnel_type}</Badge>
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <KpiCard label="Investimento"   value={totals ? fmtBRL(totals.spend)        : '—'} icon={DollarSign}        iconCls="bg-primary/10 text-primary"          isLoading={loadingTotals} />
+              <KpiCard label="Impressões"     value={totals ? fmtInt(totals.impressions)  : '—'} icon={Eye}               iconCls="bg-blue-500/10 text-blue-500"        isLoading={loadingTotals} />
+              <KpiCard label="Cliques"        value={totals ? fmtInt(totals.clicks)       : '—'} icon={MousePointerClick} iconCls="bg-violet-500/10 text-violet-500"    isLoading={loadingTotals} />
+              <KpiCard label="CTR"            value={totals ? fmtPct(totals.ctr)          : '—'} icon={Activity}          iconCls="bg-orange-500/10 text-orange-500"    isLoading={loadingTotals} />
+              <KpiCard label="CPM"            value={totals ? fmtBRL(totals.cpm)          : '—'} icon={BarChart2}         iconCls="bg-amber-500/10 text-amber-500"      isLoading={loadingTotals} />
+              <KpiCard label="CPC"            value={totals ? fmtBRL(totals.cpc)          : '—'} icon={MousePointerClick} iconCls="bg-indigo-500/10 text-indigo-500"    isLoading={loadingTotals} />
+            </div>
+
+            {/* Diagnóstico IA + Funil */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+              {/* Diagnóstico IA — inclui Pontos de Atenção */}
+              <Card className="lg:col-span-3 flex flex-col">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    Diagnóstico IA
+                  </CardTitle>
+                  {report?.week_start && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Semana de {new Date(report.week_start + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(report.week_end + 'T00:00:00').toLocaleDateString('pt-BR')}
+                    </p>
                   )}
-                </CardTitle>
-                {funnel?.generated_at && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {new Date(funnel.generated_at).toLocaleDateString('pt-BR')}
-                  </p>
-                )}
-              </CardHeader>
-              <CardContent className="pt-2">
-                <FunnelChart stages={funnelStages} />
-              </CardContent>
-            </Card>
-
-            {/* Diagnóstico IA */}
-            <Card className="lg:col-span-3">
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-primary" />
-                      Diagnóstico IA
-                    </CardTitle>
-                    {report?.week_start && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Semana de {new Date(report.week_start + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(report.week_end + 'T00:00:00').toLocaleDateString('pt-BR')}
+                </CardHeader>
+                <CardContent className="flex-1 space-y-4">
+                  {!report ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Nenhum diagnóstico gerado para esta conta ainda.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/80">
+                        {report.summary ?? 'Resumo não disponível.'}
                       </p>
+
+                      {reportAlerts.length > 0 && (
+                        <div className="border-t border-border pt-4">
+                          <p className="text-xs font-semibold flex items-center gap-1.5 text-primary mb-3">
+                            <Lightbulb className="h-3.5 w-3.5" />
+                            Pontos de Atenção da Semana
+                          </p>
+                          <ol className="space-y-2.5">
+                            {reportAlerts.map((a, i) => (
+                              <li key={i} className="flex items-start gap-3">
+                                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                                  {i + 1}
+                                </span>
+                                <div className="pt-0.5 min-w-0">
+                                  {a.object_name && (
+                                    <p className="text-[11px] font-semibold text-muted-foreground mb-0.5 truncate">{a.object_name}</p>
+                                  )}
+                                  <p className="text-xs leading-relaxed text-foreground/80">{a.message}</p>
+                                </div>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Funil */}
+              <Card className="lg:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <BarChart2 className="h-4 w-4 text-primary" />
+                    Funil de Conversão
+                    {funnel?.funnel_type && (
+                      <Badge variant="outline" className="text-[10px] capitalize">{funnel.funnel_type}</Badge>
                     )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {!report ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    Nenhum diagnóstico gerado para esta conta ainda.
-                  </p>
-                ) : (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/80">
-                    {report.summary ?? 'Resumo não disponível.'}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                  </CardTitle>
+                  {funnel?.generated_at && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {new Date(funnel.generated_at).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                </CardHeader>
+                <CardContent className="pt-2">
+                  <FunnelChart stages={funnelStages} />
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* ── O que Fazer (alertas do relatório) ────────────────────────────── */}
-          {reportAlerts.length > 0 && (
-            <Card className="border-primary/25 bg-primary/[0.03]">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2 text-primary">
-                  <Lightbulb className="h-4 w-4" />
-                  Pontos de Atenção da Semana
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ol className="space-y-3">
-                  {reportAlerts.map((a, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-                        {i + 1}
-                      </span>
-                      <div className="pt-0.5 min-w-0">
-                        {a.object_name && (
-                          <p className="text-[11px] font-semibold text-muted-foreground mb-0.5 truncate">{a.object_name}</p>
-                        )}
-                        <p className="text-sm leading-relaxed">{a.message}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ── Alertas Ativos ────────────────────────────────────────────────── */}
-          {alerts.length > 0 && (
-            <section>
-              <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                Alertas Ativos
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 font-medium">
-                  {alerts.length}
-                </span>
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {alerts.map(alert => {
-                  const Icon = ALERT_ICONS[alert.alert_type] ?? AlertTriangle;
-                  const sev  = alert.severity;
-                  return (
-                    <Card key={alert.id} className={`border-l-4 ${SEVERITY_CLS[sev] ?? ''}`}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg shrink-0 border ${SEVERITY_BADGE[sev] ?? 'bg-muted'}`}>
-                            <Icon className="h-3.5 w-3.5" />
+            {/* Alertas Ativos — lista compacta */}
+            {alerts.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    Alertas Ativos
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 font-medium">
+                      {alerts.length}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-border">
+                    {alerts.map(alert => {
+                      const Icon = ALERT_ICONS[alert.alert_type] ?? AlertTriangle;
+                      const sev  = alert.severity;
+                      return (
+                        <div key={alert.id} className={`flex items-start gap-3 px-5 py-3 border-l-4 ${SEVERITY_CLS[sev] ?? ''}`}>
+                          <div className={`p-1.5 rounded-md shrink-0 border mt-0.5 ${SEVERITY_BADGE[sev] ?? 'bg-muted'}`}>
+                            <Icon className="h-3 w-3" />
                           </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-xs font-semibold">
                                 {ALERT_LABELS[alert.alert_type] ?? alert.alert_type}
                               </p>
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${SEVERITY_BADGE[sev] ?? 'bg-muted'}`}>
                                 {SEVERITY_LBL[sev] ?? sev}
                               </span>
+                              {alert.object_name && (
+                                <span className="text-[11px] text-muted-foreground truncate max-w-[200px]">{alert.object_name}</span>
+                              )}
                             </div>
-                            {alert.object_name && (
-                              <p className="text-[11px] font-medium text-foreground/60 mb-0.5 truncate">{alert.object_name}</p>
-                            )}
-                            <p className="text-xs text-muted-foreground leading-relaxed">{alert.message}</p>
-                            <p className="text-[10px] text-muted-foreground/50 mt-1.5">
-                              {new Date(alert.triggered_at).toLocaleDateString('pt-BR')}
-                            </p>
+                            <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{alert.message}</p>
                           </div>
+                          <p className="text-[10px] text-muted-foreground/50 shrink-0 mt-1">
+                            {new Date(alert.triggered_at).toLocaleDateString('pt-BR')}
+                          </p>
                         </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* ── Campanhas ────────────────────────────────────────────────────── */}
+          <TabsContent value="campaigns" className="mt-5">
+            {campaigns.length === 0
+              ? <EmptyState icon={BarChart2} message="Nenhuma campanha encontrada para esta conta." />
+              : (
+                <div className="rounded-lg border border-border overflow-x-auto">
+                  <table className="w-full text-sm min-w-[540px]">
+                    <thead>
+                      <tr className="bg-muted/40 border-b border-border">
+                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">Campanha</th>
+                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">Objetivo</th>
+                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">Funil</th>
+                        <th className="text-right p-3 text-xs font-medium text-muted-foreground">Orçamento/dia</th>
+                        <th className="text-center p-3 text-xs font-medium text-muted-foreground">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {campaigns.map(c => (
+                        <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="p-3 font-medium">{c.name}</td>
+                          <td className="p-3 text-muted-foreground text-xs">{c.objective ?? '—'}</td>
+                          <td className="p-3">
+                            {c.funnel_type && (
+                              <Badge variant="outline" className="text-[10px] capitalize">{c.funnel_type}</Badge>
+                            )}
+                          </td>
+                          <td className="p-3 text-right tabular-nums text-muted-foreground">
+                            {c.daily_budget != null ? fmtBRL(Number(c.daily_budget)) : '—'}
+                          </td>
+                          <td className="p-3 text-center">
+                            <StatusBadge status={c.status} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            }
+          </TabsContent>
+
+          {/* ── Conjuntos ────────────────────────────────────────────────────── */}
+          <TabsContent value="adsets" className="mt-5">
+            {adsets.length === 0
+              ? <EmptyState icon={Users} message="Nenhum conjunto de anúncio encontrado." />
+              : (
+                <div className="rounded-lg border border-border overflow-x-auto">
+                  <table className="w-full text-sm min-w-[480px]">
+                    <thead>
+                      <tr className="bg-muted/40 border-b border-border">
+                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">Conjunto</th>
+                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">Campanha</th>
+                        <th className="text-right p-3 text-xs font-medium text-muted-foreground">Orçamento/dia</th>
+                        <th className="text-center p-3 text-xs font-medium text-muted-foreground">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {adsets.map(a => (
+                        <tr key={a.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="p-3 font-medium">{a.name}</td>
+                          <td className="p-3 text-muted-foreground text-xs">
+                            {campaignByMetaId[a.campaign_id]?.name ?? '—'}
+                          </td>
+                          <td className="p-3 text-right tabular-nums text-muted-foreground">
+                            {a.daily_budget != null ? fmtBRL(Number(a.daily_budget)) : '—'}
+                          </td>
+                          <td className="p-3 text-center">
+                            <StatusBadge status={a.status} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            }
+          </TabsContent>
+
+          {/* ── Criativos ────────────────────────────────────────────────────── */}
+          <TabsContent value="ads" className="mt-5">
+            {ads.length === 0
+              ? <EmptyState icon={FileImage} message="Nenhum criativo encontrado." />
+              : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {ads.map(ad => (
+                    <Card key={ad.id} className="overflow-hidden">
+                      {ad.creative_thumbnail_url ? (
+                        <img
+                          src={ad.creative_thumbnail_url}
+                          alt={ad.name}
+                          className="w-full h-44 object-cover"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-full h-44 bg-muted flex items-center justify-center">
+                          <FileImage className="h-8 w-8 text-muted-foreground/25" />
+                        </div>
+                      )}
+                      <CardContent className="p-3 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium truncate">{ad.name}</p>
+                          <StatusBadge status={ad.status} />
+                        </div>
+                        {ad.creative_title && (
+                          <p className="text-xs font-medium text-foreground/70 line-clamp-1">{ad.creative_title}</p>
+                        )}
+                        {ad.creative_body && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{ad.creative_body}</p>
+                        )}
                       </CardContent>
                     </Card>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* ── Campanhas / Conjuntos / Criativos ────────────────────────────── */}
-          <Tabs defaultValue="campaigns">
-            <TabsList className="h-9">
-              <TabsTrigger value="campaigns" className="text-sm">
-                Campanhas
-                {campaigns.length > 0 && (
-                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{campaigns.length}</span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="adsets" className="text-sm">
-                Conjuntos
-                {adsets.length > 0 && (
-                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{adsets.length}</span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="ads" className="text-sm">
-                Criativos
-                {ads.length > 0 && (
-                  <span className="ml-1.5 text-xs bg-muted px-1.5 py-0.5 rounded-full">{ads.length}</span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Campanhas */}
-            <TabsContent value="campaigns" className="mt-4">
-              {campaigns.length === 0
-                ? <EmptyState icon={BarChart2} message="Nenhuma campanha encontrada para esta conta." />
-                : (
-                  <div className="rounded-lg border border-border overflow-x-auto">
-                    <table className="w-full text-sm min-w-[540px]">
-                      <thead>
-                        <tr className="bg-muted/40 border-b border-border">
-                          <th className="text-left p-3 text-xs font-medium text-muted-foreground">Campanha</th>
-                          <th className="text-left p-3 text-xs font-medium text-muted-foreground">Objetivo</th>
-                          <th className="text-left p-3 text-xs font-medium text-muted-foreground">Funil</th>
-                          <th className="text-right p-3 text-xs font-medium text-muted-foreground">Orçamento/dia</th>
-                          <th className="text-center p-3 text-xs font-medium text-muted-foreground">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {campaigns.map(c => (
-                          <tr key={c.id} className="hover:bg-muted/20 transition-colors">
-                            <td className="p-3 font-medium">{c.name}</td>
-                            <td className="p-3 text-muted-foreground text-xs">{c.objective ?? '—'}</td>
-                            <td className="p-3">
-                              {c.funnel_type && (
-                                <Badge variant="outline" className="text-[10px] capitalize">{c.funnel_type}</Badge>
-                              )}
-                            </td>
-                            <td className="p-3 text-right tabular-nums text-muted-foreground">
-                              {c.daily_budget != null ? fmtBRL(Number(c.daily_budget)) : '—'}
-                            </td>
-                            <td className="p-3 text-center">
-                              <StatusBadge status={c.status} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              }
-            </TabsContent>
-
-            {/* Conjuntos */}
-            <TabsContent value="adsets" className="mt-4">
-              {adsets.length === 0
-                ? <EmptyState icon={Users} message="Nenhum conjunto de anúncio encontrado." />
-                : (
-                  <div className="rounded-lg border border-border overflow-x-auto">
-                    <table className="w-full text-sm min-w-[480px]">
-                      <thead>
-                        <tr className="bg-muted/40 border-b border-border">
-                          <th className="text-left p-3 text-xs font-medium text-muted-foreground">Conjunto</th>
-                          <th className="text-left p-3 text-xs font-medium text-muted-foreground">Campanha</th>
-                          <th className="text-right p-3 text-xs font-medium text-muted-foreground">Orçamento/dia</th>
-                          <th className="text-center p-3 text-xs font-medium text-muted-foreground">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {adsets.map(a => (
-                          <tr key={a.id} className="hover:bg-muted/20 transition-colors">
-                            <td className="p-3 font-medium">{a.name}</td>
-                            <td className="p-3 text-muted-foreground text-xs">
-                              {campaignByMetaId[a.campaign_id]?.name ?? '—'}
-                            </td>
-                            <td className="p-3 text-right tabular-nums text-muted-foreground">
-                              {a.daily_budget != null ? fmtBRL(Number(a.daily_budget)) : '—'}
-                            </td>
-                            <td className="p-3 text-center">
-                              <StatusBadge status={a.status} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              }
-            </TabsContent>
-
-            {/* Criativos */}
-            <TabsContent value="ads" className="mt-4">
-              {ads.length === 0
-                ? <EmptyState icon={FileImage} message="Nenhum criativo encontrado." />
-                : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {ads.map(ad => (
-                      <Card key={ad.id} className="overflow-hidden">
-                        {ad.creative_thumbnail_url ? (
-                          <img
-                            src={ad.creative_thumbnail_url}
-                            alt={ad.name}
-                            className="w-full h-44 object-cover"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div className="w-full h-44 bg-muted flex items-center justify-center">
-                            <FileImage className="h-8 w-8 text-muted-foreground/25" />
-                          </div>
-                        )}
-                        <CardContent className="p-3 space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium truncate">{ad.name}</p>
-                            <StatusBadge status={ad.status} />
-                          </div>
-                          {ad.creative_title && (
-                            <p className="text-xs font-medium text-foreground/70 line-clamp-1">{ad.creative_title}</p>
-                          )}
-                          {ad.creative_body && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{ad.creative_body}</p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )
-              }
-            </TabsContent>
-          </Tabs>
-
-          {/* Ícones sem uso mas importados — mantidos para evitar tree-shake diffs */}
-          <span className="hidden"><CheckCircle2 /><XCircle /></span>
-        </>
+                  ))}
+                </div>
+              )
+            }
+          </TabsContent>
+        </Tabs>
       )}
+
+      {/* Ícones sem uso mas importados — mantidos para evitar tree-shake diffs */}
+      <span className="hidden"><CheckCircle2 /><XCircle /></span>
     </div>
   );
 }
