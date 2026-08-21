@@ -353,6 +353,8 @@ export default function MetaDiagnostic() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>('30d');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const { data: accounts = [], isLoading: loadingAccounts } = useQuery({
     queryKey: ['meta-diag-accounts'],
@@ -369,6 +371,12 @@ export default function MetaDiagnostic() {
   useEffect(() => {
     if (selectedId === null && accounts.length > 0) setSelectedId(accounts[0].id);
   }, [accounts, selectedId]);
+
+  // Limpa seleção de campanha ao trocar de conta
+  useEffect(() => {
+    setSelectedCampaignId(null);
+    setActiveTab('overview');
+  }, [selectedId]);
 
   const cutoffDate = useMemo(() => {
     if (dateRange === 'all') return null;
@@ -587,9 +595,30 @@ export default function MetaDiagnostic() {
     return true;
   };
 
-  const filteredCampaigns = useMemo(() => campaignsWithMetrics.filter(c => matchesStatus(c.status)), [campaignsWithMetrics, statusFilter]);
-  const filteredAdsets    = useMemo(() => adsets.filter(a => matchesStatus(a.status)),              [adsets, statusFilter]);
-  const filteredAds       = useMemo(() => adsWithMetrics.filter(a => matchesStatus(a.status)),      [adsWithMetrics, statusFilter]);
+  const filteredCampaigns = useMemo(() =>
+    campaignsWithMetrics.filter(c => matchesStatus(c.status)),
+    [campaignsWithMetrics, statusFilter]
+  );
+
+  const filteredAdsets = useMemo(() =>
+    adsets
+      .filter(a => matchesStatus(a.status))
+      .filter(a => !selectedCampaignId || a.campaign_id === selectedCampaignId),
+    [adsets, statusFilter, selectedCampaignId]
+  );
+
+  const filteredAdsetIds = useMemo(() => new Set(filteredAdsets.map(a => a.adset_id)), [filteredAdsets]);
+
+  const filteredAds = useMemo(() =>
+    adsWithMetrics
+      .filter(a => matchesStatus(a.status))
+      .filter(a => !selectedCampaignId || filteredAdsetIds.has(a.adset_id)),
+    [adsWithMetrics, statusFilter, selectedCampaignId, filteredAdsetIds]
+  );
+
+  const selectedCampaignName = selectedCampaignId
+    ? (campaignByMetaId[selectedCampaignId]?.name ?? selectedCampaignId)
+    : null;
 
   return (
     <div className="space-y-5 pb-8 max-w-7xl">
@@ -687,7 +716,7 @@ export default function MetaDiagnostic() {
           Selecione uma conta acima para ver o diagnóstico
         </div>
       ) : (
-        <Tabs defaultValue="overview">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="h-9">
             <TabsTrigger value="overview" className="text-sm">Visão Geral</TabsTrigger>
             <TabsTrigger value="campaigns" className="text-sm">
@@ -873,13 +902,23 @@ export default function MetaDiagnostic() {
                         <th className="text-right p-3 text-xs font-medium text-muted-foreground">CTR</th>
                         <th className="text-right p-3 text-xs font-medium text-muted-foreground">CPM</th>
                         <th className="text-center p-3 text-xs font-medium text-muted-foreground">Status</th>
+                        <th className="p-3" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {filteredCampaigns.map(c => {
-                        const funil = c.funnel_type_override ?? c.funnel_type;
+                        const funil    = c.funnel_type_override ?? c.funnel_type;
+                        const selected = selectedCampaignId === c.campaign_id;
                         return (
-                          <tr key={c.campaign_id} className="hover:bg-muted/20 transition-colors">
+                          <tr
+                            key={c.campaign_id}
+                            className={`transition-colors cursor-pointer ${
+                              selected
+                                ? 'bg-primary/5 border-l-2 border-l-primary'
+                                : 'hover:bg-muted/20'
+                            }`}
+                            onClick={() => setSelectedCampaignId(selected ? null : c.campaign_id)}
+                          >
                             <td className="p-3">
                               <p className="font-medium line-clamp-1">{c.name}</p>
                               {c.objective && <p className="text-[11px] text-muted-foreground">{c.objective}</p>}
@@ -893,6 +932,18 @@ export default function MetaDiagnostic() {
                             <td className="p-3 text-right tabular-nums text-muted-foreground">{c.impressions > 0 ? fmtPct(c.ctr) : '—'}</td>
                             <td className="p-3 text-right tabular-nums text-muted-foreground">{c.impressions > 0 ? fmtBRL(c.cpm) : '—'}</td>
                             <td className="p-3 text-center"><StatusBadge status={c.status} /></td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  setSelectedCampaignId(c.campaign_id);
+                                  setActiveTab('adsets');
+                                }}
+                                className="text-xs text-primary hover:underline whitespace-nowrap"
+                              >
+                                Conjuntos →
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
@@ -904,7 +955,16 @@ export default function MetaDiagnostic() {
           </TabsContent>
 
           {/* ── Conjuntos ────────────────────────────────────────────────────── */}
-          <TabsContent value="adsets" className="mt-5">
+          <TabsContent value="adsets" className="mt-5 space-y-3">
+            {selectedCampaignName && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-primary/20 bg-primary/5 text-xs w-fit">
+                <span className="text-muted-foreground">Campanha:</span>
+                <span className="font-medium truncate max-w-[300px]">{selectedCampaignName}</span>
+                <button onClick={() => setSelectedCampaignId(null)} className="ml-0.5 text-muted-foreground hover:text-foreground">
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             {filteredAdsets.length === 0
               ? <EmptyState icon={Users} message={adsets.length === 0 ? 'Nenhum conjunto de anúncio encontrado.' : 'Nenhum conjunto corresponde ao filtro selecionado.'} />
               : (
@@ -916,11 +976,12 @@ export default function MetaDiagnostic() {
                         <th className="text-left p-3 text-xs font-medium text-muted-foreground">Campanha</th>
                         <th className="text-right p-3 text-xs font-medium text-muted-foreground">Orçamento/dia</th>
                         <th className="text-center p-3 text-xs font-medium text-muted-foreground">Status</th>
+                        <th className="p-3" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {filteredAdsets.map(a => (
-                        <tr key={a.id} className="hover:bg-muted/20 transition-colors">
+                        <tr key={a.adset_id} className="hover:bg-muted/20 transition-colors">
                           <td className="p-3 font-medium">{a.name}</td>
                           <td className="p-3 text-muted-foreground text-xs">
                             {campaignByMetaId[a.campaign_id]?.name ?? '—'}
@@ -930,6 +991,17 @@ export default function MetaDiagnostic() {
                           </td>
                           <td className="p-3 text-center">
                             <StatusBadge status={a.status} />
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              onClick={() => {
+                                setSelectedCampaignId(a.campaign_id);
+                                setActiveTab('ads');
+                              }}
+                              className="text-xs text-primary hover:underline whitespace-nowrap"
+                            >
+                              Criativos →
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -941,7 +1013,16 @@ export default function MetaDiagnostic() {
           </TabsContent>
 
           {/* ── Criativos ────────────────────────────────────────────────────── */}
-          <TabsContent value="ads" className="mt-5">
+          <TabsContent value="ads" className="mt-5 space-y-3">
+            {selectedCampaignName && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-primary/20 bg-primary/5 text-xs w-fit">
+                <span className="text-muted-foreground">Campanha:</span>
+                <span className="font-medium truncate max-w-[300px]">{selectedCampaignName}</span>
+                <button onClick={() => setSelectedCampaignId(null)} className="ml-0.5 text-muted-foreground hover:text-foreground">
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             {filteredAds.length === 0
               ? <EmptyState icon={FileImage} message={adsWithMetrics.length === 0 ? 'Nenhum criativo com dados no período.' : 'Nenhum criativo corresponde ao filtro selecionado.'} />
               : (
