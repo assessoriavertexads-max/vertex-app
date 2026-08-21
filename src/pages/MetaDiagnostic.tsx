@@ -503,17 +503,17 @@ export default function MetaDiagnostic() {
     },
   });
 
-  // Ads buscados pelos object_id que aparecem nos insights do período
-  const adObjectIds = useMemo(() => [...new Set(adInsights.map(r => r.object_id))], [adInsights]);
+  const adsetMetaIds = useMemo(() => adsets.map(a => a.adset_id), [adsets]);
 
+  // Ads buscados pelos adsets (independe de ter insights no período)
   const { data: ads = [] } = useQuery({
-    queryKey: ['meta-diag-ads', adObjectIds],
-    enabled: adObjectIds.length > 0,
+    queryKey: ['meta-diag-ads', adsetMetaIds],
+    enabled: adsetMetaIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
         .from('ads')
         .select('ad_id, adset_id, name, status, image_url, creative_thumbnail_url, headline, primary_text, cta_type, ig_permalink_url, quality_ranking, engagement_rate_ranking, conversion_rate_ranking')
-        .in('ad_id', adObjectIds);
+        .in('adset_id', adsetMetaIds);
       return (data ?? []) as Ad[];
     },
   });
@@ -1028,16 +1028,24 @@ export default function MetaDiagnostic() {
               : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredAds.map(ad => {
-                    const thumb = ad.image_url || ad.creative_thumbnail_url;
+                    const primaryThumb = ad.image_url || ad.creative_thumbnail_url;
+                    const fallbackThumb = ad.image_url ? ad.creative_thumbnail_url : null;
                     const retention = ad.video_25 > 0 ? (ad.video_100 / ad.video_25) * 100 : null;
                     return (
                       <Card key={ad.ad_id} className="overflow-hidden flex flex-col">
-                        {thumb ? (
+                        {primaryThumb ? (
                           <img
-                            src={thumb}
+                            src={primaryThumb}
                             alt={ad.name}
                             className="w-full h-44 object-cover"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            onError={e => {
+                              const img = e.target as HTMLImageElement;
+                              if (fallbackThumb && img.src !== fallbackThumb) {
+                                img.src = fallbackThumb;
+                              } else {
+                                img.style.display = 'none';
+                              }
+                            }}
                           />
                         ) : (
                           <div className="w-full h-44 bg-muted flex items-center justify-center">
