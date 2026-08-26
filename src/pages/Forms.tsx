@@ -13,7 +13,7 @@ import {
   Plus, Trash2, GripVertical, ExternalLink, Copy, Check,
   ClipboardList, ArrowLeft, Settings, Eye, ChevronDown, ChevronUp,
   Calendar, ImagePlus, Palette, LayoutTemplate, CheckSquare, Radio,
-  BarChart2, EyeOff, X,
+  BarChart2, EyeOff, X, MessageSquare, Download,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -655,6 +655,114 @@ function LogicCanvas({ questions, onChange }: {
   );
 }
 
+// ── Form Responses View ───────────────────────────────────────────────────────
+interface FormResponse {
+  id: string;
+  lead_id: string | null;
+  answers: Record<string, string | string[]>;
+  submitted_at: string;
+}
+
+function FormResponses({ form, onBack }: { form: LeadForm; onBack: () => void }) {
+  const { data: responses = [], isLoading } = useQuery<FormResponse[]>({
+    queryKey: ['form-responses', form.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lead_form_responses')
+        .select('id, lead_id, answers, submitted_at')
+        .eq('form_id', form.id)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const questions = form.questions ?? [];
+
+  const formatAnswer = (v: string | string[] | undefined) => {
+    if (!v) return '—';
+    if (Array.isArray(v)) return v.join(', ');
+    return v;
+  };
+
+  const exportCsv = () => {
+    const headers = ['Data/Hora', ...questions.map(q => q.label || `Q${questions.indexOf(q) + 1}`)];
+    const rows = responses.map(r => [
+      new Date(r.submitted_at).toLocaleString('pt-BR'),
+      ...questions.map(q => formatAnswer(r.answers[q.id])),
+    ]);
+    const csv = [headers, ...rows].map(row =>
+      row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `respostas-${form.slug}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
+        <div>
+          <h2 className="text-lg font-semibold">{form.title}</h2>
+          <p className="text-xs text-muted-foreground">{responses.length} resposta{responses.length !== 1 ? 's' : ''}</p>
+        </div>
+        {responses.length > 0 && (
+          <Button size="sm" variant="outline" className="ml-auto" onClick={exportCsv}>
+            <Download className="h-3.5 w-3.5 mr-1.5" /> Exportar CSV
+          </Button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-16 text-muted-foreground">Carregando respostas...</div>
+      ) : responses.length === 0 ? (
+        <div className="text-center py-20 space-y-3">
+          <MessageSquare className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+          <p className="text-muted-foreground">Nenhuma resposta recebida ainda.</p>
+          <p className="text-xs text-muted-foreground/60">Compartilhe o link do formulário para começar a receber respostas.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">Data/Hora</th>
+                {questions.map((q, i) => (
+                  <th key={q.id} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap max-w-[200px]">
+                    <span className="text-primary/60 mr-1">P{i + 1}</span>
+                    {q.label || '(sem título)'}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {responses.map((r, idx) => (
+                <tr key={r.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(r.submitted_at).toLocaleString('pt-BR')}
+                  </td>
+                  {questions.map(q => (
+                    <td key={q.id} className="px-4 py-3 text-sm max-w-[200px]">
+                      <span className="truncate block" title={formatAnswer(r.answers[q.id])}>
+                        {formatAnswer(r.answers[q.id])}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Form Builder ──────────────────────────────────────────────────────────────
 function FormBuilder({ initial, onSave, onCancel, isSaving }: {
   initial?: Partial<LeadForm>;
@@ -949,6 +1057,7 @@ export default function Forms() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<LeadForm | null | 'new'>(null);
+  const [viewingResponses, setViewingResponses] = useState<LeadForm | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: forms = [], isLoading } = useQuery<LeadForm[]>({
@@ -996,6 +1105,10 @@ export default function Forms() {
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
+
+  if (viewingResponses) {
+    return <FormResponses form={viewingResponses} onBack={() => setViewingResponses(null)} />;
+  }
 
   if (editing) {
     const isEdit = editing !== 'new';
@@ -1065,13 +1178,14 @@ export default function Forms() {
                   onClick={() => copyUrl(f.slug, f.id)}>
                   {copiedId === f.id ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8"
+                <Button size="icon" variant="ghost" className="h-8 w-8" title="Abrir formulário"
                   onClick={() => window.open(formUrl(f.slug), '_blank')}>
                   <ExternalLink className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8"
-                  onClick={() => window.open(formUrl(f.slug), '_blank')}>
-                  <Eye className="h-3.5 w-3.5" />
+                <Button size="sm" variant="outline" className="h-8 text-xs" title="Ver respostas"
+                  onClick={() => setViewingResponses(f)}>
+                  <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                  Respostas {(f.response_count ?? 0) > 0 && <span className="ml-1 bg-primary text-primary-foreground rounded-full text-[10px] px-1.5 py-px">{f.response_count}</span>}
                 </Button>
                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditing(f)}>
                   Editar
