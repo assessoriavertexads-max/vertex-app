@@ -349,6 +349,7 @@ export const Finance = () => {
     hideValues ? '••••' : `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCompany | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteCancelAsaas, setDeleteCancelAsaas] = useState(false);
   const [generatingChargeId, setGeneratingChargeId] = useState<string | null>(null);
   const [sendingWhatsAppId, setSendingWhatsAppId] = useState<string | null>(null);
   const [finalizingSubId, setFinalizingSubId] = useState<string | null>(null);
@@ -529,7 +530,18 @@ export const Finance = () => {
   });
 
   const deleteTransaction = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, cancelAsaas, asaasSubId }: { id: string; cancelAsaas: boolean; asaasSubId?: string | null }) => {
+      if (cancelAsaas && asaasSubId) {
+        await supabase.functions.invoke('asaas-cancel', {
+          body: { asaas_subscription_id: asaasSubId, asaas_payment_id: null },
+        });
+        await supabase
+          .from('financial_transactions')
+          .update({ status: 'cancelled' })
+          .eq('asaas_subscription_id', asaasSubId)
+          .in('status', ['pending', 'overdue'])
+          .is('deleted_at', null);
+      }
       const { error } = await supabase
         .from('financial_transactions')
         .update({ deleted_at: new Date().toISOString() })
@@ -540,6 +552,7 @@ export const Finance = () => {
     onSuccess: (id: string) => {
       queryClient.invalidateQueries({ queryKey: ['financial_transactions'] });
       setDeletingId(null);
+      setDeleteCancelAsaas(false);
       toast.success('Transação excluída.', {
         action: {
           label: 'Desfazer',
@@ -1181,16 +1194,29 @@ export const Finance = () => {
 
                         {/* Excluir */}
                         {deletingId === t.id ? (
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 text-xs text-red-600 hover:bg-red-50"
-                              onClick={() => deleteTransaction.mutate(t.id)}
-                              disabled={deleteTransaction.isPending}>
-                              {deleteTransaction.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirmar'}
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground"
-                              onClick={() => setDeletingId(null)}>
-                              Cancelar
-                            </Button>
+                          <div className="flex flex-col gap-1 items-end">
+                            {t.asaas_subscription_id && (
+                              <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={deleteCancelAsaas}
+                                  onChange={e => setDeleteCancelAsaas(e.target.checked)}
+                                  className="w-3 h-3 accent-red-500"
+                                />
+                                <span className="text-red-600 font-medium">Cancelar assinatura no Asaas</span>
+                              </label>
+                            )}
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" className="h-8 text-xs text-red-600 hover:bg-red-50"
+                                onClick={() => deleteTransaction.mutate({ id: t.id, cancelAsaas: deleteCancelAsaas, asaasSubId: t.asaas_subscription_id })}
+                                disabled={deleteTransaction.isPending}>
+                                {deleteTransaction.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirmar'}
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground"
+                                onClick={() => { setDeletingId(null); setDeleteCancelAsaas(false); }}>
+                                Cancelar
+                              </Button>
+                            </div>
                           </div>
                         ) : (
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
